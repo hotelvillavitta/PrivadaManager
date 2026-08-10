@@ -1,13 +1,17 @@
 # Grenaché — Portal Residencial
 
-App funcional de gestión para la privada **Grenaché**: autenticación, base de datos SQLite, noticias, reservaciones, directorio, cuotas y finanzas.
+App de gestión para la privada **Grenaché**: auth, noticias (con documentos), reservaciones, directorio, cuotas, finanzas y panel admin.
 
-## Arranque
+> **Importante:** trabaja desde `~/Projects/Gestion-de-Privadas`  
+> No uses la copia del Desktop (iCloud rompe `npm run dev`).
+
+## Arranque local
 
 ```bash
+cd ~/Projects/Gestion-de-Privadas
 npm install
-cp .env.example .env
-npm run db:reset
+cp .env.example .env   # si no existe .env
+npm run db:reset       # primera vez
 npm run dev
 ```
 
@@ -20,27 +24,20 @@ Abre [http://localhost:3000](http://localhost:3000).
 | Colono | `juan@grenache.mx` | `demo1234` |
 | Admin | `admin@grenache.mx` | `demo1234` |
 
-También puedes registrarte como nuevo colono desde `/login`.
+## Módulos
 
-## Qué puede hacer cada rol
+- `/` Inicio
+- `/noticias` Comunicados + reacciones + **subida de PDF/imagen**
+- `/comunidad` Notificaciones
+- `/reservaciones` Calendario palapa
+- `/directorio` Proveedores
+- `/cuotas` Historial por casa
+- `/finanzas` Resumen
+- `/admin` Panel del comité
 
-**Colono**
-- Ver noticias y reaccionar
-- Solicitar reservación de palapa
-- Consultar directorio, cuotas de su casa y finanzas
-- Ver y marcar notificaciones
+## Deploy
 
-**Administrador**
-- Publicar comunicados
-- Aprobar / rechazar reservaciones
-- Agregar proveedores
-- Registrar cuotas y movimientos financieros
-
-## Scripts
-
-- `npm run db:push` — aplica el schema
-- `npm run db:seed` — carga datos demo
-- `npm run db:reset` — reinicia la base y siembra de nuevo
+Ver [DEPLOY.md](./DEPLOY.md).
 
 ## Stack
 

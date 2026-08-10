@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { NewsCategory, ReservationStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireAdmin, requireUser } from "@/lib/session";
+import { saveUploadedDocument } from "@/lib/uploads";
 
 export async function toggleNewsReaction(newsId: string, emoji: string) {
   const user = await requireUser();
@@ -31,10 +32,27 @@ export async function createNewsPost(formData: FormData) {
   const title = String(formData.get("title") ?? "").trim();
   const body = String(formData.get("body") ?? "").trim();
   const category = String(formData.get("category") ?? "AVISO") as NewsCategory;
-  const hasDocument = formData.get("hasDocument") === "on";
+  const file = formData.get("document");
 
   if (!title || !body) {
     return { error: "Título y contenido son obligatorios." };
+  }
+
+  let documentUrl: string | null = null;
+  let documentName: string | null = null;
+  try {
+    const saved = await saveUploadedDocument(
+      file instanceof File ? file : null,
+    );
+    documentUrl = saved.documentUrl;
+    documentName = saved.documentName;
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "No se pudo subir el documento.",
+    };
   }
 
   await prisma.newsPost.create({
@@ -42,7 +60,9 @@ export async function createNewsPost(formData: FormData) {
       title,
       body,
       category,
-      hasDocument,
+      hasDocument: Boolean(documentUrl),
+      documentUrl,
+      documentName,
       authorId: user.id,
     },
   });

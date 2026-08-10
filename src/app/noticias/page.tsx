@@ -18,6 +18,8 @@ export default async function NoticiasPage() {
         body: p.body,
         category: p.category,
         hasDocument: p.hasDocument,
+        documentUrl: p.documentUrl,
+        documentName: p.documentName,
         publishedAt: p.publishedAt.toISOString(),
         reactionCounts: p.reactionCounts,
         myReactions: p.myReactions,

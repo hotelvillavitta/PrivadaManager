@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, Filter, Paperclip } from "lucide-react";
 import { PageHero } from "@/components/PageHero";
+import { toast } from "@/components/Toast";
 import {
   createNewsPost,
   toggleNewsReaction,
@@ -16,6 +17,8 @@ type Post = {
   body: string;
   category: string;
   hasDocument: boolean;
+  documentUrl: string | null;
+  documentName: string | null;
   publishedAt: string;
   reactionCounts: Record<string, number>;
   myReactions: string[];
@@ -61,6 +64,10 @@ export function NoticiasClient({
   const [message, setMessage] = useState("");
   const [local, setLocal] = useState(posts);
 
+  useEffect(() => {
+    setLocal(posts);
+  }, [posts]);
+
   const items = useMemo(() => {
     if (filter === "Todos") return local;
     return local.filter(
@@ -105,9 +112,12 @@ export function NoticiasClient({
               setMessage("");
               startTransition(async () => {
                 const res = await createNewsPost(fd);
-                if (res.error) setMessage(res.error);
-                else {
+                if (res.error) {
+                  setMessage(res.error);
+                  toast(res.error, "error");
+                } else {
                   setMessage("Comunicado publicado.");
+                  toast("Comunicado publicado.");
                   router.refresh();
                 }
               });
@@ -142,9 +152,19 @@ export function NoticiasClient({
               placeholder="Contenido del aviso"
               className="mt-3 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary"
             />
-            <label className="mt-3 flex items-center gap-2 text-sm text-muted">
-              <input type="checkbox" name="hasDocument" />
-              Incluye documento de consulta
+            <label className="mt-3 block text-sm text-muted">
+              <span className="mb-1.5 block font-medium text-foreground">
+                Documento (opcional)
+              </span>
+              <input
+                type="file"
+                name="document"
+                accept=".pdf,.doc,.docx,image/png,image/jpeg,image/webp"
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-primary-soft file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary"
+              />
+              <span className="mt-1 block text-xs">
+                PDF, Word o imagen · máx. 8 MB
+              </span>
             </label>
             <button
               type="submit"
@@ -206,15 +226,22 @@ export function NoticiasClient({
                 <p className="mt-2 flex-1 text-sm leading-relaxed text-muted">
                   {item.body}
                 </p>
-                {item.hasDocument && (
-                  <button
-                    type="button"
-                    className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm text-muted"
+                {item.documentUrl ? (
+                  <a
+                    href={item.documentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm text-primary hover:bg-primary-soft"
                   >
                     <Paperclip className="h-4 w-4" />
+                    {item.documentName || "Documento de consulta"}
+                  </a>
+                ) : item.hasDocument ? (
+                  <span className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm text-muted">
+                    <Paperclip className="h-4 w-4" />
                     Documento de consulta
-                  </button>
-                )}
+                  </span>
+                ) : null}
                 <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
                   {emojiList.map((emoji) => {
                     const count = item.reactionCounts[emoji] ?? 0;

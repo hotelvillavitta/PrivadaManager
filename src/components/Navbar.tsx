@@ -111,9 +111,15 @@ export function Navbar({
                 <p className="text-sm font-medium uppercase tracking-wide text-primary-dark">
                   {user.firstName}
                 </p>
-                <p className="text-[11px] text-muted">
-                  {user.role === "ADMIN" ? "Administrador" : "Colono"}
-                </p>
+                <span
+                  className={`mt-0.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${
+                    user.role === "ADMIN"
+                      ? "bg-primary text-white"
+                      : "bg-primary-soft text-primary"
+                  }`}
+                >
+                  {user.role === "ADMIN" ? "Admin" : "Colono"}
+                </span>
               </div>
               <button
                 type="button"
