@@ -8,6 +8,7 @@ import {
   Users,
 } from "lucide-react";
 import { redirect } from "next/navigation";
+import { NotificationList } from "@/components/NotificationList";
 import { PageHero } from "@/components/PageHero";
 import { auth } from "@/lib/auth";
 import { markNotificationsRead } from "@/lib/actions/portal";
@@ -100,28 +101,17 @@ export default async function ComunidadPage() {
             </form>
           </div>
 
-          {notifications.length === 0 ? (
-            <p className="text-sm text-muted">No tienes notificaciones.</p>
-          ) : (
-            <ul className="space-y-3">
-              {notifications.map((n) => (
-                <li
-                  key={n.id}
-                  className={`rounded-xl border px-4 py-3 ${
-                    n.read
-                      ? "border-border bg-background"
-                      : "border-primary/20 bg-primary-soft/50"
-                  }`}
-                >
-                  <p className="font-medium text-primary-dark">{n.title}</p>
-                  <p className="mt-1 text-sm text-muted">{n.body}</p>
-                  <p className="mt-2 text-xs text-muted">
-                    {n.createdAt.toLocaleString("es-MX")}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
+          <NotificationList
+            items={notifications.map((n) => ({
+              id: n.id,
+              title: n.title,
+              body: n.body,
+              read: n.read,
+              newsId: n.newsId,
+              reservationId: n.reservationId,
+              createdAt: n.createdAt.toISOString(),
+            }))}
+          />
         </section>
 
         <div className="mt-6">

@@ -1,23 +1,37 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowUpRight,
   Check,
   Home,
   KeyRound,
+  Receipt,
   X,
 } from "lucide-react";
 import { PageHero } from "@/components/PageHero";
-import { upsertMonthlyFee } from "@/lib/actions/portal";
-import { feeLabel, formatCurrency } from "@/lib/utils";
+import { toast } from "@/components/Toast";
+import { registerCobranza } from "@/lib/actions/portal";
+import {
+  FEE_BASE_AMOUNT,
+  FEE_CONCEPT,
+  FEE_CONCEPT_LABEL,
+  FEE_GRACE_DAYS,
+  FEE_LATE_SURCHARGE,
+  FEE_PALAPA_AMOUNT,
+  MONTH_LABELS,
+  feeLabel,
+  formatCurrency,
+  isFeePaymentLate,
+} from "@/lib/utils";
 
 type Fee = {
   id: string;
   year: number;
   month: number;
   amount: number;
+  concept: string;
   status: "PAGADO" | "ADEUDO" | "PENDIENTE";
 };
 
@@ -37,21 +51,89 @@ export function CuotasClient({
   isAdmin: boolean;
 }) {
   const router = useRouter();
-  const years = useMemo(
-    () => [...new Set(fees.map((f) => f.year))].sort((a, b) => b - a),
-    [fees],
-  );
-  const [year, setYear] = useState(years[0] ?? new Date().getFullYear());
+  const currentYear = new Date().getFullYear();
+  const years = useMemo(() => {
+    const fromFees = fees.map((f) => f.year);
+    const set = new Set([...fromFees, currentYear, currentYear - 1]);
+    return [...set].sort((a, b) => b - a);
+  }, [fees, currentYear]);
+
+  const [historyYear, setHistoryYear] = useState(years[0] ?? currentYear);
+  const [chargeYear, setChargeYear] = useState(currentYear);
+  const [chargeMonth, setChargeMonth] = useState(() => new Date().getMonth() + 1);
+  const [includeMaintenance, setIncludeMaintenance] = useState(true);
+  const [includeLate, setIncludeLate] = useState(false);
+  const [includePalapa, setIncludePalapa] = useState(false);
+  const [maintenanceAmount, setMaintenanceAmount] = useState(FEE_BASE_AMOUNT);
+  const [lateAmount, setLateAmount] = useState(FEE_LATE_SURCHARGE);
+  const [palapaAmount, setPalapaAmount] = useState(FEE_PALAPA_AMOUNT);
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
-  const months = fees.filter((f) => f.year === year);
+
+  const months = fees.filter((f) => f.year === historyYear);
+
+  const maintenanceFee = fees.find(
+    (f) =>
+      f.year === chargeYear &&
+      f.month === chargeMonth &&
+      f.concept === FEE_CONCEPT.MANTENIMIENTO,
+  );
+  const palapaFee = fees.find(
+    (f) =>
+      f.year === chargeYear &&
+      f.month === chargeMonth &&
+      f.concept === FEE_CONCEPT.PALAPA,
+  );
+  const maintenancePaid = maintenanceFee?.status === "PAGADO";
+  const palapaPaid = palapaFee?.status === "PAGADO";
+  const suggestedLate = isFeePaymentLate(chargeYear, chargeMonth);
+
+  useEffect(() => {
+    if (maintenancePaid) {
+      setIncludeMaintenance(false);
+      setIncludeLate(false);
+    } else {
+      setIncludeMaintenance(true);
+      setIncludeLate(suggestedLate);
+      setMaintenanceAmount(FEE_BASE_AMOUNT);
+      setLateAmount(FEE_LATE_SURCHARGE);
+    }
+    if (palapaPaid) setIncludePalapa(false);
+  }, [houseNumber, chargeYear, chargeMonth, maintenancePaid, palapaPaid, suggestedLate]);
+
+  const total =
+    (includeMaintenance && !maintenancePaid ? maintenanceAmount : 0) +
+    (includeMaintenance && includeLate && !maintenancePaid ? lateAmount : 0) +
+    (includePalapa && !palapaPaid ? palapaAmount : 0);
+
+  const conceptSummary = [
+    includeMaintenance && !maintenancePaid
+      ? FEE_CONCEPT_LABEL.MANTENIMIENTO
+      : null,
+    includeMaintenance && includeLate && !maintenancePaid
+      ? `Recargo (después del día ${FEE_GRACE_DAYS})`
+      : null,
+    includePalapa && !palapaPaid ? FEE_CONCEPT_LABEL.PALAPA : null,
+  ]
+    .filter(Boolean)
+    .join(" + ");
+
+  const canCharge =
+    !pending &&
+    total > 0 &&
+    ((includeMaintenance && !maintenancePaid) ||
+      (includePalapa && !palapaPaid));
 
   return (
     <div className="pb-16">
       <PageHero
         eyebrow="Área financiera"
-        title="Cuotas de Mantenimiento"
-        description="Consulta tu historial de pagos y saldos pendientes."
+        title={isAdmin ? "Cobranza de cuotas" : "Cuotas de mantenimiento"}
+        description={
+          isAdmin
+            ? `Mantenimiento ${formatCurrency(FEE_BASE_AMOUNT)}, palapa ${formatCurrency(FEE_PALAPA_AMOUNT)}. Recargo ${formatCurrency(FEE_LATE_SURCHARGE)} después del día ${FEE_GRACE_DAYS}.`
+            : `Consulta tu historial. Cuota mensual ${formatCurrency(FEE_BASE_AMOUNT)}.`
+        }
       />
 
       <div className="mx-auto max-w-4xl space-y-6 px-4 lg:px-6">
@@ -65,23 +147,30 @@ export function CuotasClient({
                 Casa #{houseNumber}
               </p>
               <p className="text-sm text-muted">
-                Historial de cuotas de mantenimiento.
+                {isAdmin
+                  ? "Selecciona la casa a cobrar."
+                  : "Historial de cuotas de tu casa."}
               </p>
             </div>
           </div>
           <div className="flex flex-col items-stretch gap-2 sm:items-end">
             {isAdmin && houses.length > 0 && (
-              <select
-                value={houseNumber}
-                onChange={(e) => router.push(`/cuotas?casa=${e.target.value}`)}
-                className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
-              >
-                {houses.map((h) => (
-                  <option key={h} value={h}>
-                    Casa {h}
-                  </option>
-                ))}
-              </select>
+              <label className="flex flex-col gap-1 text-sm sm:items-end">
+                <span className="font-medium text-primary-dark">Casa</span>
+                <select
+                  value={houseNumber}
+                  onChange={(e) =>
+                    router.push(`/cuotas?casa=${e.target.value}`)
+                  }
+                  className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                >
+                  {houses.map((h) => (
+                    <option key={h} value={h}>
+                      Casa {h}
+                    </option>
+                  ))}
+                </select>
+              </label>
             )}
             {accessCode && (
               <div className="inline-flex items-start gap-2 rounded-xl bg-warning-soft px-3 py-2 text-sm text-foreground">
@@ -99,12 +188,12 @@ export function CuotasClient({
           <StatCard
             icon={<Check className="h-5 w-5" />}
             value={String(summary.paid)}
-            label="Meses Pagados"
+            label="Pagos registrados"
           />
           <StatCard
             icon={<X className="h-5 w-5" />}
             value={String(summary.debt)}
-            label="Meses con Adeudo"
+            label="Con adeudo"
           />
           <StatCard
             icon={<ArrowUpRight className="h-5 w-5" />}
@@ -113,91 +202,183 @@ export function CuotasClient({
                 ? "Al corriente"
                 : formatCurrency(summary.pendingAmount)
             }
-            label="Total Pendiente"
+            label="Total pendiente"
           />
         </div>
 
         {isAdmin && (
           <form
-            className="rounded-2xl border border-border bg-surface p-5"
+            className="rounded-2xl border border-border bg-surface p-5 sm:p-6"
             action={(fd) => {
               setMessage("");
               startTransition(async () => {
-                const res = await upsertMonthlyFee(fd);
-                if (res.error) setMessage(res.error);
-                else {
-                  setMessage("Cuota actualizada.");
+                const res = await registerCobranza(fd);
+                if (res.error) {
+                  setMessage(res.error);
+                  toast(res.error, "error");
+                } else {
+                  const amt =
+                    "amount" in res && typeof res.amount === "number"
+                      ? formatCurrency(res.amount)
+                      : "";
+                  setMessage(`Cobro registrado${amt ? ` · ${amt}` : ""}.`);
+                  toast(`Cobro registrado${amt ? `: ${amt}` : ""}.`);
                   router.refresh();
                 }
               });
             }}
           >
-            <h3 className="mb-3 font-display text-lg text-primary-dark">
-              Registrar / actualizar cuota
-            </h3>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              <input
-                name="houseNumber"
-                defaultValue={houseNumber}
-                placeholder="Casa"
-                required
-                className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-soft text-primary">
+                <Receipt className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-display text-xl text-primary-dark">
+                  Registrar cobro · Casa {houseNumber}
+                </h3>
+                <p className="text-sm text-muted">
+                  Elige periodo y conceptos. Los montos se pueden ajustar.
+                </p>
+              </div>
+            </div>
+
+            <input type="hidden" name="houseNumber" value={houseNumber} />
+
+            <div className="mb-4 grid gap-3 sm:grid-cols-2">
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium text-primary-dark">Año</span>
+                <input
+                  name="year"
+                  type="number"
+                  value={chargeYear}
+                  onChange={(e) => setChargeYear(Number(e.target.value))}
+                  required
+                  className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium text-primary-dark">Mes</span>
+                <select
+                  name="month"
+                  value={chargeMonth}
+                  onChange={(e) => setChargeMonth(Number(e.target.value))}
+                  className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                >
+                  {MONTH_LABELS.map((label, idx) => (
+                    <option key={label} value={idx + 1}>
+                      {label} ({idx + 1})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {(maintenancePaid || palapaPaid) && (
+              <div className="mb-4 space-y-2">
+                {maintenancePaid && (
+                  <p className="rounded-xl border border-success/30 bg-success-soft px-4 py-3 text-sm font-medium text-success">
+                    Mantenimiento {feeLabel(chargeYear, chargeMonth)}:{" "}
+                    <strong>PAGADO</strong> ({formatCurrency(maintenanceFee!.amount)}).
+                    No se puede duplicar.
+                  </p>
+                )}
+                {palapaPaid && (
+                  <p className="rounded-xl border border-success/30 bg-success-soft px-4 py-3 text-sm font-medium text-success">
+                    Palapa {feeLabel(chargeYear, chargeMonth)}:{" "}
+                    <strong>PAGADO</strong> ({formatCurrency(palapaFee!.amount)}).
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <ConceptRow
+                checked={includeMaintenance && !maintenancePaid}
+                disabled={maintenancePaid}
+                onCheckedChange={setIncludeMaintenance}
+                name="includeMaintenance"
+                title={FEE_CONCEPT_LABEL.MANTENIMIENTO}
+                amountName="maintenanceAmount"
+                amount={maintenanceAmount}
+                onAmountChange={setMaintenanceAmount}
+                amountDisabled={maintenancePaid || !includeMaintenance}
               />
-              <input
-                name="year"
-                type="number"
-                defaultValue={year}
-                required
-                className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
+              <ConceptRow
+                checked={includeLate && includeMaintenance && !maintenancePaid}
+                disabled={maintenancePaid || !includeMaintenance}
+                onCheckedChange={setIncludeLate}
+                name="includeLate"
+                title={`Recargo / rezago (después del día ${FEE_GRACE_DAYS})`}
+                hint={
+                  suggestedLate
+                    ? "Sugerido: el periodo ya pasó el día 10."
+                    : "Opcional. Actívalo si aplica rezago."
+                }
+                amountName="lateAmount"
+                amount={lateAmount}
+                onAmountChange={setLateAmount}
+                amountDisabled={
+                  maintenancePaid || !includeMaintenance || !includeLate
+                }
               />
-              <input
-                name="month"
-                type="number"
-                min={1}
-                max={12}
-                defaultValue={new Date().getMonth() + 1}
-                required
-                className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
-              />
-              <select
-                name="status"
-                defaultValue="PAGADO"
-                className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
-              >
-                <option value="PAGADO">PAGADO</option>
-                <option value="ADEUDO">ADEUDO</option>
-                <option value="PENDIENTE">PENDIENTE</option>
-              </select>
-              <input
-                name="amount"
-                type="number"
-                defaultValue={1500}
-                className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
+              <ConceptRow
+                checked={includePalapa && !palapaPaid}
+                disabled={palapaPaid}
+                onCheckedChange={setIncludePalapa}
+                name="includePalapa"
+                title={FEE_CONCEPT_LABEL.PALAPA}
+                amountName="palapaAmount"
+                amount={palapaAmount}
+                onAmountChange={setPalapaAmount}
+                amountDisabled={palapaPaid || !includePalapa}
               />
             </div>
+
+            <div className="mt-5 rounded-xl bg-background px-4 py-4">
+              <p className="text-sm text-muted">Concepto</p>
+              <p className="font-medium text-primary-dark">
+                {conceptSummary || "Sin conceptos seleccionados"}
+              </p>
+              <p className="mt-3 text-sm text-muted">Total a cobrar</p>
+              <p className="font-display text-3xl font-bold text-primary-dark">
+                {formatCurrency(total)}
+              </p>
+            </div>
+
             <button
               type="submit"
-              disabled={pending}
-              className="mt-3 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              disabled={!canCharge}
+              className="mt-4 w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
-              Guardar
+              {maintenancePaid && !includePalapa
+                ? "Periodo ya pagado"
+                : pending
+                  ? "Registrando…"
+                  : `Registrar cobro · ${formatCurrency(total)}`}
             </button>
             {message && <p className="mt-2 text-sm text-muted">{message}</p>}
           </form>
         )}
 
+        {!isAdmin && (
+          <p className="rounded-2xl border border-border bg-surface px-4 py-3 text-sm text-muted">
+            Tu historial lo actualiza el comité. Cuando registren un pago,
+            aparecerá aquí y en Finanzas de la privada.
+          </p>
+        )}
+
         <section className="rounded-2xl border border-border bg-surface p-5 shadow-sm sm:p-6">
           <h2 className="mb-4 font-display text-2xl text-primary-dark">
-            Historial de Pagos
+            Historial de pagos
           </h2>
           <div className="mb-5 flex flex-wrap gap-2">
             {years.map((y) => (
               <button
                 key={y}
                 type="button"
-                onClick={() => setYear(y)}
+                onClick={() => setHistoryYear(y)}
                 className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
-                  year === y
+                  historyYear === y
                     ? "bg-border text-primary-dark"
                     : "bg-background text-muted hover:bg-border/60"
                 }`}
@@ -219,9 +400,15 @@ export function CuotasClient({
                       : "bg-warning-soft text-warning"
                 }`}
               >
-                <span className="inline-flex items-center gap-2 font-semibold">
-                  <Check className="h-4 w-4" />
-                  {feeLabel(m.year, m.month)}
+                <span className="inline-flex flex-col">
+                  <span className="inline-flex items-center gap-2 font-semibold">
+                    <Check className="h-4 w-4" />
+                    {feeLabel(m.year, m.month)}
+                  </span>
+                  <span className="pl-6 text-xs opacity-80">
+                    {FEE_CONCEPT_LABEL[m.concept] ?? m.concept} ·{" "}
+                    {formatCurrency(m.amount)}
+                  </span>
                 </span>
                 <span className="text-xs font-bold tracking-wide uppercase">
                   {m.status}
@@ -235,6 +422,72 @@ export function CuotasClient({
             )}
           </div>
         </section>
+      </div>
+    </div>
+  );
+}
+
+function ConceptRow({
+  checked,
+  disabled,
+  onCheckedChange,
+  name,
+  title,
+  hint,
+  amountName,
+  amount,
+  onAmountChange,
+  amountDisabled,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  onCheckedChange: (v: boolean) => void;
+  name: string;
+  title: string;
+  hint?: string;
+  amountName: string;
+  amount: number;
+  onAmountChange: (v: number) => void;
+  amountDisabled?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-xl border px-4 py-3 ${
+        disabled
+          ? "border-border/60 bg-background/60 opacity-70"
+          : checked
+            ? "border-primary/30 bg-primary-soft/40"
+            : "border-border bg-background"
+      }`}
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <label className="flex cursor-pointer items-start gap-3 text-sm">
+          <input
+            type="checkbox"
+            name={name}
+            checked={checked}
+            disabled={disabled}
+            onChange={(e) => onCheckedChange(e.target.checked)}
+            className="mt-1 h-4 w-4 accent-[var(--primary)]"
+          />
+          <span>
+            <span className="font-medium text-primary-dark">{title}</span>
+            {hint && <span className="mt-0.5 block text-xs text-muted">{hint}</span>}
+          </span>
+        </label>
+        <label className="flex items-center gap-2 text-sm sm:justify-end">
+          <span className="text-muted">Monto</span>
+          <input
+            name={amountName}
+            type="number"
+            min={0}
+            step="1"
+            value={amount}
+            readOnly={amountDisabled}
+            onChange={(e) => onAmountChange(Number(e.target.value))}
+            className="w-28 rounded-lg border border-border bg-surface px-3 py-1.5 text-right text-sm read-only:opacity-60"
+          />
+        </label>
       </div>
     </div>
   );

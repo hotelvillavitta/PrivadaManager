@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { overdueMaintenanceWhere } from "@/lib/utils";
 
 export async function getPrivada() {
   return (
@@ -61,6 +62,17 @@ export async function getFeeSummary(houseNumber: string) {
     .reduce((sum, f) => sum + f.amount, 0);
   return { paid, debt, pendingAmount, total: fees.length };
 }
+
+/** True si la casa adeuda mantenimiento del mes actual o de meses anteriores. */
+export async function houseHasPendingFees(houseNumber: string | null | undefined) {
+  if (!houseNumber) return true;
+  const pending = await prisma.monthlyFee.count({
+    where: overdueMaintenanceWhere(houseNumber),
+  });
+  return pending > 0;
+}
+
+
 
 export async function getFinanceSummary() {
   const entries = await prisma.financeEntry.findMany();
@@ -128,14 +140,16 @@ export async function getAdminDashboard() {
     paidThisMonth,
   ] = await Promise.all([
     prisma.user.findMany({
-      where: { role: "COLONO" },
-      orderBy: { houseNumber: "asc" },
+      where: { role: { in: ["COLONO", "ADMIN"] } },
+      orderBy: [{ role: "asc" }, { houseNumber: "asc" }],
       select: {
         id: true,
         firstName: true,
         lastName: true,
         email: true,
         houseNumber: true,
+        accessCode: true,
+        role: true,
         createdAt: true,
       },
     }),
@@ -172,7 +186,7 @@ export async function getAdminDashboard() {
     providers,
     debtFees,
     paidThisMonth,
-    residentCount: residents.length,
+    residentCount: residents.filter((r) => r.role === "COLONO").length,
   };
 }
 

@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -47,6 +47,7 @@ model User {
 
   newsPosts     NewsPost[]
   reactions     NewsReaction[]
+  newsReads     NewsRead[]
   reservations  Reservation[]
   notifications Notification[]
 }
@@ -65,7 +66,9 @@ model NewsPost {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
-  reactions NewsReaction[]
+  reactions     NewsReaction[]
+  reads         NewsRead[]
+  notifications Notification[]
 }
 
 model NewsReaction {
@@ -79,6 +82,18 @@ model NewsReaction {
   user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([newsId, userId, emoji])
+}
+
+model NewsRead {
+  id     String   @id @default(cuid())
+  newsId String
+  userId String
+  readAt DateTime @default(now())
+
+  news NewsPost @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([newsId, userId])
 }
 
 model Provider {
@@ -97,28 +112,33 @@ model Reservation {
   date        String
   eventName   String
   guests      Int
-  notes       String?
-  status      ReservationStatus @default(PENDING)
+  notes            String?
+  rejectionReason String?
+  status           ReservationStatus @default(PENDING)
   userId      String
   user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
+  notifications Notification[]
 
   @@index([date])
 }
 
 model MonthlyFee {
-  id          String    @id @default(cuid())
-  houseNumber String
-  year        Int
-  month       Int
-  amount      Float     @default(1500)
-  status      FeeStatus @default(PENDIENTE)
-  paidAt      DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  houseNumber    String
+  year           Int
+  month          Int
+  concept        String    @default("MANTENIMIENTO")
+  amount         Float     @default(200)
+  status         FeeStatus @default(PENDIENTE)
+  paidAt         DateTime?
+  financeEntryId String?   @unique
+  financeEntry   FinanceEntry? @relation(fields: [financeEntryId], references: [id], onDelete: SetNull)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  @@unique([houseNumber, year, month])
+  @@unique([houseNumber, year, month, concept])
 }
 
 model FinanceEntry {
@@ -129,16 +149,22 @@ model FinanceEntry {
   amount      Float
   date        DateTime @default(now())
   createdAt   DateTime @default(now())
+
+  monthlyFee MonthlyFee?
 }
 
 model Notification {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title     String
-  body      String
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title          String
+  body           String
+  read           Boolean  @default(false)
+  newsId         String?
+  news           NewsPost? @relation(fields: [newsId], references: [id], onDelete: SetNull)
+  reservationId  String?
+  reservation    Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
 }
 
 model PrivadaSettings {

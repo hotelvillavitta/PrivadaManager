@@ -4,17 +4,16 @@ import {
   CalendarDays,
   Check,
   CircleDollarSign,
-  Home,
   Newspaper,
   Users,
   Wallet,
-  X,
 } from "lucide-react";
 import { PageHero } from "@/components/PageHero";
 import { auth } from "@/lib/auth";
 import { updateReservationStatus } from "@/lib/actions/portal";
 import { getAdminDashboard } from "@/lib/queries";
 import { feeLabel, formatCurrency } from "@/lib/utils";
+import { ResidentsAdmin } from "./residents-admin";
 
 export default async function AdminPage() {
   const session = await auth();
@@ -95,7 +94,13 @@ export default async function AdminPage() {
                       · {r.guests} personas
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      href={`/reservaciones?solicitud=${r.id}`}
+                      className="inline-flex items-center rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-primary hover:bg-surface"
+                    >
+                      Ver / decidir
+                    </Link>
                     <form
                       action={async () => {
                         "use server";
@@ -110,20 +115,6 @@ export default async function AdminPage() {
                         Aprobar
                       </button>
                     </form>
-                    <form
-                      action={async () => {
-                        "use server";
-                        await updateReservationStatus(r.id, "REJECTED");
-                      }}
-                    >
-                      <button
-                        type="submit"
-                        className="inline-flex items-center gap-1 rounded-lg bg-danger px-3 py-1.5 text-xs font-medium text-white"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                        Rechazar
-                      </button>
-                    </form>
                   </div>
                 </li>
               ))}
@@ -133,31 +124,18 @@ export default async function AdminPage() {
 
         <div className="grid gap-6 lg:grid-cols-2">
           <section className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-            <h2 className="mb-4 flex items-center gap-2 font-display text-2xl text-primary-dark">
-              <Home className="h-5 w-5 text-primary" />
-              Residentes
-            </h2>
-            <ul className="divide-y divide-border">
-              {data.residents.map((u) => (
-                <li
-                  key={u.id}
-                  className="flex items-center justify-between gap-3 py-3 text-sm"
-                >
-                  <div>
-                    <p className="font-medium text-primary-dark">
-                      {u.firstName} {u.lastName}
-                    </p>
-                    <p className="text-muted">{u.email}</p>
-                  </div>
-                  <Link
-                    href={`/cuotas?casa=${u.houseNumber ?? ""}`}
-                    className="rounded-full bg-primary-soft px-3 py-1 text-xs font-medium text-primary hover:bg-primary hover:text-white"
-                  >
-                    Casa {u.houseNumber ?? "—"}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <ResidentsAdmin
+              currentUserId={session.user.id}
+              residents={data.residents.map((u) => ({
+                id: u.id,
+                firstName: u.firstName,
+                lastName: u.lastName,
+                email: u.email,
+                houseNumber: u.houseNumber,
+                accessCode: u.accessCode,
+                role: u.role,
+              }))}
+            />
           </section>
 
           <section className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
@@ -184,7 +162,8 @@ export default async function AdminPage() {
                         f.status === "ADEUDO" ? "text-danger" : "text-warning"
                       }`}
                     >
-                      {f.status} · {formatCurrency(f.amount)}
+                      {f.status} · {f.concept === "PALAPA" ? "Palapa" : "Mantenimiento"} ·{" "}
+                      {formatCurrency(f.amount)}
                     </span>
                   </li>
                 ))}

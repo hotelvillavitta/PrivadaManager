@@ -24,7 +24,10 @@ function extensionFor(file: File) {
 
 export async function saveUploadedDocument(file: File | null) {
   if (!file || file.size === 0) {
-    return { documentUrl: null as string | null, documentName: null as string | null };
+    return {
+      documentUrl: null as string | null,
+      documentName: null as string | null,
+    };
   }
 
   if (file.size > MAX_BYTES) {
@@ -34,12 +37,26 @@ export async function saveUploadedDocument(file: File | null) {
     throw new Error("Formato no permitido. Usa PDF, Word o imagen.");
   }
 
-  const uploadsDir = path.join(process.cwd(), "public", "uploads");
-  await mkdir(uploadsDir, { recursive: true });
-
   const safeExt = extensionFor(file) || ".bin";
   const filename = `${Date.now()}-${randomUUID()}${safeExt}`;
   const buffer = Buffer.from(await file.arrayBuffer());
+
+  // En Vercel: almacenamiento persistente con Blob
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    const { put } = await import("@vercel/blob");
+    const blob = await put(`grenache/uploads/${filename}`, buffer, {
+      access: "public",
+      contentType: file.type || undefined,
+    });
+    return {
+      documentUrl: blob.url,
+      documentName: file.name,
+    };
+  }
+
+  // Local / VPS: disco
+  const uploadsDir = path.join(process.cwd(), "public", "uploads");
+  await mkdir(uploadsDir, { recursive: true });
   await writeFile(path.join(uploadsDir, filename), buffer);
 
   return {

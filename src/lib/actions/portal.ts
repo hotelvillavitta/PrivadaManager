@@ -5,6 +5,16 @@ import type { NewsCategory, ReservationStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireAdmin, requireUser } from "@/lib/session";
 import { saveUploadedDocument } from "@/lib/uploads";
+import { overdueMaintenanceWhere } from "@/lib/utils";
+import {
+  FEE_BASE_AMOUNT,
+  FEE_CONCEPT,
+  FEE_CONCEPT_LABEL,
+  FEE_LATE_SURCHARGE,
+  FEE_PALAPA_AMOUNT,
+  feeLabel,
+  isFeePaymentLate,
+} from "@/lib/utils";
 
 export async function toggleNewsReaction(newsId: string, emoji: string) {
   const user = await requireUser();
@@ -24,7 +34,25 @@ export async function toggleNewsReaction(newsId: string, emoji: string) {
   }
 
   revalidatePath("/noticias");
+  revalidatePath(`/noticias/${newsId}`);
   return { ok: true };
+}
+
+export async function markNewsAsRead(newsId: string) {
+  const user = await requireUser();
+  await prisma.newsRead.upsert({
+    where: { newsId_userId: { newsId, userId: user.id } },
+    create: { newsId, userId: user.id },
+    update: { readAt: new Date() },
+  });
+  await prisma.notification.updateMany({
+    where: { userId: user.id, newsId, read: false },
+    data: { read: true },
+  });
+  revalidatePath("/comunidad");
+  revalidatePath("/");
+  revalidatePath("/noticias");
+  revalidatePath(`/noticias/${newsId}`);
 }
 
 export async function createNewsPost(formData: FormData) {
@@ -55,7 +83,7 @@ export async function createNewsPost(formData: FormData) {
     };
   }
 
-  await prisma.newsPost.create({
+  const post = await prisma.newsPost.create({
     data: {
       title,
       body,
@@ -78,11 +106,13 @@ export async function createNewsPost(formData: FormData) {
         userId: r.id,
         title: "Nuevo comunicado",
         body: title,
+        newsId: post.id,
       })),
     });
   }
 
   revalidatePath("/noticias");
+  revalidatePath("/comunidad");
   return { ok: true };
 }
 
@@ -94,10 +124,24 @@ export async function createReservation(formData: FormData) {
   const notes = String(formData.get("notes") ?? "").trim() || null;
 
   if (!date || !eventName || !guests) {
-    return { error: "Completa fecha, evento e invitados." };
+    return { error: "Completa fecha, motivo e invitados." };
   }
   if (guests < 1 || guests > 50) {
     return { error: "La capacidad máxima es de 50 personas." };
+  }
+
+  if (!user.houseNumber) {
+    return { error: "Tu cuenta no tiene casa asignada. Contacta al comité." };
+  }
+
+  const pendingFees = await prisma.monthlyFee.count({
+    where: overdueMaintenanceWhere(user.houseNumber),
+  });
+  if (pendingFees > 0) {
+    return {
+      error:
+        "Tienes cuotas pendientes del mes en curso o anteriores. Regularízalas para poder reservar (meses futuros no bloquean).",
+    };
   }
 
   const conflict = await prisma.reservation.findFirst({
@@ -110,7 +154,18 @@ export async function createReservation(formData: FormData) {
     return { error: "Esa fecha ya tiene una reservación o solicitud." };
   }
 
-  await prisma.reservation.create({
+  // Mínimo 7 días de anticipación
+  const requested = new Date(`${date}T12:00:00`);
+  const minDate = new Date();
+  minDate.setHours(0, 0, 0, 0);
+  minDate.setDate(minDate.getDate() + 7);
+  if (Number.isNaN(requested.getTime()) || requested < minDate) {
+    return {
+      error: "Las reservaciones deben solicitarse con al menos 1 semana de anticipación.",
+    };
+  }
+
+  const reservation = await prisma.reservation.create({
     data: {
       date,
       eventName,
@@ -121,6 +176,7 @@ export async function createReservation(formData: FormData) {
     },
   });
 
+  const house = user.houseNumber;
   const admins = await prisma.user.findMany({
     where: { role: "ADMIN" },
     select: { id: true },
@@ -130,25 +186,43 @@ export async function createReservation(formData: FormData) {
       data: admins.map((a) => ({
         userId: a.id,
         title: "Nueva solicitud de palapa",
-        body: `${eventName} — ${date}`,
+        body: `Casa ${house} · ${eventName} · ${date} · ${guests} personas`,
+        reservationId: reservation.id,
       })),
     });
   }
 
   revalidatePath("/reservaciones");
-  return { ok: true };
+  revalidatePath("/comunidad");
+  revalidatePath("/admin");
+  return { ok: true, reservationId: reservation.id };
 }
 
 export async function updateReservationStatus(
   id: string,
   status: ReservationStatus,
+  rejectionReason?: string | null,
 ) {
   await requireAdmin();
 
+  const reason = String(rejectionReason ?? "").trim();
+  if (status === "REJECTED" && !reason) {
+    return { error: "Indica el motivo del rechazo." };
+  }
+
   const reservation = await prisma.reservation.update({
     where: { id },
-    data: { status },
+    data: {
+      status,
+      rejectionReason: status === "REJECTED" ? reason : null,
+    },
     include: { user: true },
+  });
+
+  // Marca leídas las notificaciones del comité ligadas a esta solicitud
+  await prisma.notification.updateMany({
+    where: { reservationId: id, read: false },
+    data: { read: true },
   });
 
   await prisma.notification.create({
@@ -160,12 +234,18 @@ export async function updateReservationStatus(
           : status === "REJECTED"
             ? "Reservación rechazada"
             : "Reservación actualizada",
-      body: `${reservation.eventName} (${reservation.date})`,
+      body:
+        status === "REJECTED"
+          ? `${reservation.eventName} (${reservation.date}). Motivo: ${reason}`
+          : `${reservation.eventName} (${reservation.date})`,
+      reservationId: reservation.id,
     },
   });
 
   revalidatePath("/reservaciones");
   revalidatePath("/admin");
+  revalidatePath("/comunidad");
+  revalidatePath("/");
   return { ok: true };
 }
 
@@ -189,6 +269,207 @@ export async function createProvider(formData: FormData) {
   return { ok: true };
 }
 
+export async function updateProvider(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim();
+  const role = String(formData.get("role") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim() || null;
+  const category = String(formData.get("category") ?? "Otro").trim();
+
+  if (!id || !name || !role || !phone) {
+    return { error: "Datos incompletos." };
+  }
+
+  await prisma.provider.update({
+    where: { id },
+    data: { name, role, phone, email, category },
+  });
+  revalidatePath("/directorio");
+  return { ok: true };
+}
+
+export async function deleteProvider(id: string) {
+  await requireAdmin();
+  if (!id) return { error: "Contacto inválido." };
+  await prisma.provider.delete({ where: { id } });
+  revalidatePath("/directorio");
+  return { ok: true };
+}
+
+export async function updateNewsPost(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "").trim();
+  const title = String(formData.get("title") ?? "").trim();
+  const body = String(formData.get("body") ?? "").trim();
+  const category = String(formData.get("category") ?? "AVISO") as NewsCategory;
+  const file = formData.get("document");
+  const removeDocument = formData.get("removeDocument") === "on";
+
+  if (!id || !title || !body) {
+    return { error: "Título y contenido son obligatorios." };
+  }
+
+  const existing = await prisma.newsPost.findUnique({ where: { id } });
+  if (!existing) return { error: "Comunicado no encontrado." };
+
+  let documentUrl = existing.documentUrl;
+  let documentName = existing.documentName;
+  let hasDocument = existing.hasDocument;
+
+  if (removeDocument) {
+    documentUrl = null;
+    documentName = null;
+    hasDocument = false;
+  }
+
+  try {
+    const saved = await saveUploadedDocument(
+      file instanceof File ? file : null,
+    );
+    if (saved.documentUrl) {
+      documentUrl = saved.documentUrl;
+      documentName = saved.documentName;
+      hasDocument = true;
+    }
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "No se pudo subir el documento.",
+    };
+  }
+
+  await prisma.newsPost.update({
+    where: { id },
+    data: {
+      title,
+      body,
+      category,
+      documentUrl,
+      documentName,
+      hasDocument,
+    },
+  });
+
+  revalidatePath("/noticias");
+  revalidatePath(`/noticias/${id}`);
+  revalidatePath("/comunidad");
+  return { ok: true };
+}
+
+export async function deleteNewsPost(id: string) {
+  await requireAdmin();
+  if (!id) return { error: "Comunicado inválido." };
+  await prisma.newsPost.delete({ where: { id } });
+  revalidatePath("/noticias");
+  revalidatePath("/comunidad");
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+export async function createResident(formData: FormData) {
+  await requireAdmin();
+  const { hash } = await import("bcryptjs");
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+  const firstName = String(formData.get("firstName") ?? "").trim();
+  const lastName = String(formData.get("lastName") ?? "").trim();
+  const houseNumber = String(formData.get("houseNumber") ?? "").trim() || null;
+  const accessCode = String(formData.get("accessCode") ?? "").trim() || null;
+  const role = String(formData.get("role") ?? "COLONO") as "COLONO" | "ADMIN";
+
+  if (!email || !password || !firstName || !lastName) {
+    return { error: "Nombre, correo y contraseña son obligatorios." };
+  }
+  if (password.length < 6) {
+    return { error: "La contraseña debe tener al menos 6 caracteres." };
+  }
+  if (role !== "COLONO" && role !== "ADMIN") {
+    return { error: "Rol inválido." };
+  }
+
+  const exists = await prisma.user.findUnique({ where: { email } });
+  if (exists) return { error: "Ese correo ya está registrado." };
+
+  await prisma.user.create({
+    data: {
+      email,
+      passwordHash: await hash(password, 10),
+      firstName,
+      lastName,
+      houseNumber,
+      accessCode,
+      role,
+    },
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/cuotas");
+  return { ok: true };
+}
+
+export async function updateResident(formData: FormData) {
+  await requireAdmin();
+  const { hash } = await import("bcryptjs");
+  const id = String(formData.get("id") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+  const firstName = String(formData.get("firstName") ?? "").trim();
+  const lastName = String(formData.get("lastName") ?? "").trim();
+  const houseNumber = String(formData.get("houseNumber") ?? "").trim() || null;
+  const accessCode = String(formData.get("accessCode") ?? "").trim() || null;
+  const role = String(formData.get("role") ?? "COLONO") as "COLONO" | "ADMIN";
+
+  if (!id || !email || !firstName || !lastName) {
+    return { error: "Datos incompletos." };
+  }
+  if (role !== "COLONO" && role !== "ADMIN") {
+    return { error: "Rol inválido." };
+  }
+
+  const other = await prisma.user.findFirst({
+    where: { email, NOT: { id } },
+  });
+  if (other) return { error: "Ese correo ya está en uso." };
+
+  const data: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    houseNumber: string | null;
+    accessCode: string | null;
+    role: "COLONO" | "ADMIN";
+    passwordHash?: string;
+  } = { email, firstName, lastName, houseNumber, accessCode, role };
+
+  if (password) {
+    if (password.length < 6) {
+      return { error: "La contraseña debe tener al menos 6 caracteres." };
+    }
+    data.passwordHash = await hash(password, 10);
+  }
+
+  await prisma.user.update({ where: { id }, data });
+  revalidatePath("/admin");
+  revalidatePath("/cuotas");
+  return { ok: true };
+}
+
+export async function deleteResident(id: string) {
+  const admin = await requireAdmin();
+  if (!id) return { error: "Residente inválido." };
+  if (id === admin.id) {
+    return { error: "No puedes eliminar tu propia cuenta." };
+  }
+  await prisma.user.delete({ where: { id } });
+  revalidatePath("/admin");
+  revalidatePath("/cuotas");
+  return { ok: true };
+}
+
 export async function markNotificationsRead(_formData?: FormData) {
   const user = await requireUser();
   await prisma.notification.updateMany({
@@ -199,44 +480,209 @@ export async function markNotificationsRead(_formData?: FormData) {
   revalidatePath("/comunidad");
 }
 
-export async function upsertMonthlyFee(formData: FormData) {
-  await requireAdmin();
-  const houseNumber = String(formData.get("houseNumber") ?? "").trim();
-  const year = Number(formData.get("year"));
-  const month = Number(formData.get("month"));
-  const status = String(formData.get("status") ?? "PENDIENTE") as
-    | "PAGADO"
-    | "ADEUDO"
-    | "PENDIENTE";
-  const amount = Number(formData.get("amount") ?? 1500);
+export async function markNotificationRead(notificationId: string) {
+  const user = await requireUser();
+  await prisma.notification.updateMany({
+    where: { id: notificationId, userId: user.id },
+    data: { read: true },
+  });
+  revalidatePath("/");
+  revalidatePath("/comunidad");
+  return { ok: true };
+}
 
-  if (!houseNumber || !year || !month) {
-    return { error: "Datos incompletos." };
+async function upsertPaidConcept(opts: {
+  houseNumber: string;
+  year: number;
+  month: number;
+  concept: string;
+  amount: number;
+  description: string;
+  paidAt: Date;
+}) {
+  const { houseNumber, year, month, concept, amount, description, paidAt } =
+    opts;
+
+  const existing = await prisma.monthlyFee.findUnique({
+    where: {
+      houseNumber_year_month_concept: {
+        houseNumber,
+        year,
+        month,
+        concept,
+      },
+    },
+  });
+
+  if (existing?.status === "PAGADO") {
+    return {
+      error: `${FEE_CONCEPT_LABEL[concept] ?? concept} de ${feeLabel(year, month)} ya está pagado.`,
+    } as const;
   }
 
-  await prisma.monthlyFee.upsert({
+  let financeEntryId = existing?.financeEntryId ?? null;
+  if (financeEntryId) {
+    await prisma.financeEntry.update({
+      where: { id: financeEntryId },
+      data: {
+        type: "INGRESO",
+        category: "Cuotas",
+        description,
+        amount,
+        date: paidAt,
+      },
+    });
+  } else {
+    const entry = await prisma.financeEntry.create({
+      data: {
+        type: "INGRESO",
+        category: "Cuotas",
+        description,
+        amount,
+        date: paidAt,
+      },
+    });
+    financeEntryId = entry.id;
+  }
+
+  const fee = await prisma.monthlyFee.upsert({
     where: {
-      houseNumber_year_month: { houseNumber, year, month },
+      houseNumber_year_month_concept: {
+        houseNumber,
+        year,
+        month,
+        concept,
+      },
     },
     create: {
       houseNumber,
       year,
       month,
-      status,
+      concept,
+      status: "PAGADO",
       amount,
-      paidAt: status === "PAGADO" ? new Date() : null,
+      paidAt,
+      financeEntryId,
     },
     update: {
-      status,
+      status: "PAGADO",
       amount,
-      paidAt: status === "PAGADO" ? new Date() : null,
+      paidAt,
+      financeEntryId,
     },
   });
+
+  return { ok: true as const, feeId: fee.id, amount };
+}
+
+/** Cobranza: mantenimiento (+ recargo opcional) y/o palapa. */
+export async function registerCobranza(formData: FormData) {
+  await requireAdmin();
+  const houseNumber = String(formData.get("houseNumber") ?? "").trim();
+  const year = Number(formData.get("year"));
+  const month = Number(formData.get("month"));
+  const includeMaintenance = formData.get("includeMaintenance") === "on";
+  const includeLate = formData.get("includeLate") === "on";
+  const includePalapa = formData.get("includePalapa") === "on";
+  const maintenanceAmount = Number(
+    formData.get("maintenanceAmount") ?? FEE_BASE_AMOUNT,
+  );
+  const lateAmount = Number(formData.get("lateAmount") ?? FEE_LATE_SURCHARGE);
+  const palapaAmount = Number(formData.get("palapaAmount") ?? FEE_PALAPA_AMOUNT);
+
+  if (!houseNumber || !year || !month || month < 1 || month > 12) {
+    return { error: "Selecciona casa, año y mes." };
+  }
+  if (!includeMaintenance && !includePalapa) {
+    return { error: "Elige al menos un concepto a cobrar." };
+  }
+  if (includeMaintenance && (Number.isNaN(maintenanceAmount) || maintenanceAmount < 0)) {
+    return { error: "Monto de mantenimiento inválido." };
+  }
+  if (includeLate && (!includeMaintenance || Number.isNaN(lateAmount) || lateAmount < 0)) {
+    return { error: "El recargo solo aplica con mantenimiento y monto válido." };
+  }
+  if (includePalapa && (Number.isNaN(palapaAmount) || palapaAmount <= 0)) {
+    return { error: "Monto de palapa inválido." };
+  }
+
+  const paidAt = new Date();
+  const label = feeLabel(year, month);
+  const parts: string[] = [];
+  let total = 0;
+
+  if (includeMaintenance) {
+    const applyLate = includeLate;
+    const maintTotal = maintenanceAmount + (applyLate ? lateAmount : 0);
+    const descParts = [FEE_CONCEPT_LABEL.MANTENIMIENTO];
+    if (applyLate) descParts.push(`recargo $${lateAmount}`);
+    const description = `Casa ${houseNumber} · ${label} · ${descParts.join(" + ")}`;
+
+    const res = await upsertPaidConcept({
+      houseNumber,
+      year,
+      month,
+      concept: FEE_CONCEPT.MANTENIMIENTO,
+      amount: maintTotal,
+      description,
+      paidAt,
+    });
+    if ("error" in res) return res;
+    total += res.amount;
+    parts.push(`${FEE_CONCEPT_LABEL.MANTENIMIENTO} $${maintTotal}`);
+  }
+
+  if (includePalapa) {
+    const description = `Casa ${houseNumber} · ${label} · ${FEE_CONCEPT_LABEL.PALAPA}`;
+    const res = await upsertPaidConcept({
+      houseNumber,
+      year,
+      month,
+      concept: FEE_CONCEPT.PALAPA,
+      amount: palapaAmount,
+      description,
+      paidAt,
+    });
+    if ("error" in res) return res;
+    total += res.amount;
+    parts.push(`${FEE_CONCEPT_LABEL.PALAPA} $${palapaAmount}`);
+  }
+
+  const residents = await prisma.user.findMany({
+    where: { houseNumber, role: "COLONO" },
+    select: { id: true },
+  });
+  if (residents.length) {
+    await prisma.notification.createMany({
+      data: residents.map((r) => ({
+        userId: r.id,
+        title: "Pago registrado",
+        body: `Casa ${houseNumber} · ${label}: ${parts.join(", ")} (total $${total}).`,
+      })),
+    });
+  }
 
   revalidatePath("/cuotas");
   revalidatePath("/finanzas");
   revalidatePath("/admin");
-  return { ok: true };
+  revalidatePath("/comunidad");
+  return { ok: true, amount: total, concepts: parts };
+}
+
+/** Compatibilidad: redirige al flujo de cobranza de mantenimiento. */
+export async function upsertMonthlyFee(formData: FormData) {
+  if (!formData.has("includeMaintenance") && !formData.has("includePalapa")) {
+    formData.set("includeMaintenance", "on");
+    const year = Number(formData.get("year"));
+    const month = Number(formData.get("month"));
+    const paidAt = new Date();
+    formData.set("maintenanceAmount", String(FEE_BASE_AMOUNT));
+    if (isFeePaymentLate(year, month, paidAt)) {
+      formData.set("includeLate", "on");
+      formData.set("lateAmount", String(FEE_LATE_SURCHARGE));
+    }
+  }
+  return registerCobranza(formData);
 }
 
 export async function createFinanceEntry(formData: FormData) {
@@ -255,5 +701,34 @@ export async function createFinanceEntry(formData: FormData) {
   });
 
   revalidatePath("/finanzas");
+  return { ok: true };
+}
+
+export async function updateFinanceEntry(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "").trim();
+  const type = String(formData.get("type") ?? "GASTO");
+  const category = String(formData.get("category") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const amount = Number(formData.get("amount") ?? 0);
+
+  if (!id || !category || !description || !amount) {
+    return { error: "Completa todos los campos." };
+  }
+
+  await prisma.financeEntry.update({
+    where: { id },
+    data: { type, category, description, amount },
+  });
+  revalidatePath("/finanzas");
+  return { ok: true };
+}
+
+export async function deleteFinanceEntry(id: string) {
+  await requireAdmin();
+  if (!id) return { error: "Movimiento inválido." };
+  await prisma.financeEntry.delete({ where: { id } });
+  revalidatePath("/finanzas");
+  revalidatePath("/cuotas");
   return { ok: true };
 }

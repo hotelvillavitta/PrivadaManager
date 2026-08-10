@@ -1,13 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Calendar, Filter, Paperclip } from "lucide-react";
+import {
+  Calendar,
+  Filter,
+  Paperclip,
+  Pencil,
+  Trash2,
+  X,
+} from "lucide-react";
 import { PageHero } from "@/components/PageHero";
 import { toast } from "@/components/Toast";
 import {
   createNewsPost,
+  deleteNewsPost,
   toggleNewsReaction,
+  updateNewsPost,
 } from "@/lib/actions/portal";
 import { NEWS_CATEGORY_LABEL } from "@/lib/utils";
 
@@ -63,6 +73,11 @@ export function NoticiasClient({
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
   const [local, setLocal] = useState(posts);
+  const [editing, setEditing] = useState<Post | null>(null);
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [category, setCategory] = useState("AVISO");
+  const [removeDocument, setRemoveDocument] = useState(false);
 
   useEffect(() => {
     setLocal(posts);
@@ -96,6 +111,24 @@ export function NoticiasClient({
     });
   }
 
+  function startEdit(p: Post) {
+    setEditing(p);
+    setTitle(p.title);
+    setBody(p.body);
+    setCategory(p.category);
+    setRemoveDocument(false);
+    setMessage("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelEdit() {
+    setEditing(null);
+    setTitle("");
+    setBody("");
+    setCategory("AVISO");
+    setRemoveDocument(false);
+  }
+
   return (
     <div className="pb-16">
       <PageHero
@@ -111,32 +144,53 @@ export function NoticiasClient({
             action={(fd) => {
               setMessage("");
               startTransition(async () => {
-                const res = await createNewsPost(fd);
+                const res = editing
+                  ? await updateNewsPost(fd)
+                  : await createNewsPost(fd);
                 if (res.error) {
                   setMessage(res.error);
                   toast(res.error, "error");
                 } else {
-                  setMessage("Comunicado publicado.");
-                  toast("Comunicado publicado.");
+                  const msg = editing
+                    ? "Comunicado actualizado."
+                    : "Comunicado publicado.";
+                  setMessage(msg);
+                  toast(msg);
+                  cancelEdit();
                   router.refresh();
                 }
               });
             }}
           >
-            <h3 className="mb-3 font-display text-xl text-primary-dark">
-              Publicar comunicado
-            </h3>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h3 className="font-display text-xl text-primary-dark">
+                {editing ? "Editar comunicado" : "Publicar comunicado"}
+              </h3>
+              {editing && (
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  className="inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"
+                >
+                  <X className="h-4 w-4" /> Cancelar
+                </button>
+              )}
+            </div>
+            {editing && <input type="hidden" name="id" value={editing.id} />}
             <div className="grid gap-3 md:grid-cols-2">
               <input
                 name="title"
                 required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
                 placeholder="Título"
                 className="rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary"
               />
               <select
                 name="category"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
                 className="rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary"
-                defaultValue="AVISO"
               >
                 {Object.entries(categoryToEnum).map(([label, value]) => (
                   <option key={value} value={value}>
@@ -149,12 +203,14 @@ export function NoticiasClient({
               name="body"
               required
               rows={3}
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
               placeholder="Contenido del aviso"
               className="mt-3 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary"
             />
             <label className="mt-3 block text-sm text-muted">
               <span className="mb-1.5 block font-medium text-foreground">
-                Documento (opcional)
+                Documento {editing ? "(opcional, reemplaza el actual)" : "(opcional)"}
               </span>
               <input
                 type="file"
@@ -166,16 +222,25 @@ export function NoticiasClient({
                 PDF, Word o imagen · máx. 8 MB
               </span>
             </label>
+            {editing?.documentUrl && (
+              <label className="mt-2 flex items-center gap-2 text-sm text-muted">
+                <input
+                  type="checkbox"
+                  name="removeDocument"
+                  checked={removeDocument}
+                  onChange={(e) => setRemoveDocument(e.target.checked)}
+                />
+                Quitar documento actual ({editing.documentName ?? "archivo"})
+              </label>
+            )}
             <button
               type="submit"
               disabled={pending}
               className="mt-3 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-60"
             >
-              Publicar
+              {editing ? "Guardar cambios" : "Publicar"}
             </button>
-            {message && (
-              <p className="mt-2 text-sm text-muted">{message}</p>
-            )}
+            {message && <p className="mt-2 text-sm text-muted">{message}</p>}
           </form>
         )}
 
@@ -211,21 +276,57 @@ export function NoticiasClient({
                   >
                     {label}
                   </span>
-                  <span className="inline-flex items-center gap-1 text-xs text-muted">
-                    <Calendar className="h-3.5 w-3.5" />
-                    {new Date(item.publishedAt).toLocaleDateString("es-MX", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className="inline-flex items-center gap-1 text-xs text-muted">
+                      <Calendar className="h-3.5 w-3.5" />
+                      {new Date(item.publishedAt).toLocaleDateString("es-MX", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </span>
+                    {isAdmin && (
+                      <>
+                        <button
+                          type="button"
+                          title="Editar"
+                          onClick={() => startEdit(item)}
+                          className="rounded-lg p-1.5 text-muted hover:bg-background hover:text-primary"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          title="Eliminar"
+                          disabled={pending}
+                          onClick={() => {
+                            if (!confirm(`¿Eliminar “${item.title}”?`)) return;
+                            startTransition(async () => {
+                              const res = await deleteNewsPost(item.id);
+                              if (res.error) toast(res.error, "error");
+                              else {
+                                toast("Comunicado eliminado.");
+                                if (editing?.id === item.id) cancelEdit();
+                                router.refresh();
+                              }
+                            });
+                          }}
+                          className="rounded-lg p-1.5 text-muted hover:bg-danger-soft hover:text-danger"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <h2 className="font-display text-xl uppercase tracking-wide text-primary-dark">
-                  {item.title}
-                </h2>
-                <p className="mt-2 flex-1 text-sm leading-relaxed text-muted">
-                  {item.body}
-                </p>
+                <Link href={`/noticias/${item.id}`} className="group">
+                  <h2 className="font-display text-xl uppercase tracking-wide text-primary-dark group-hover:underline">
+                    {item.title}
+                  </h2>
+                  <p className="mt-2 flex-1 text-sm leading-relaxed text-muted">
+                    {item.body}
+                  </p>
+                </Link>
                 {item.documentUrl ? (
                   <a
                     href={item.documentUrl}

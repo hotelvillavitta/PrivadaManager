@@ -184,7 +184,7 @@ async function main() {
         year,
         month,
         status: FeeStatus.PAGADO,
-        amount: 1500,
+        amount: 200,
         paidAt: new Date(year, month - 1, 5),
       });
     }

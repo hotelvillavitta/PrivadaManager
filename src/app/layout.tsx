@@ -7,6 +7,10 @@ import { auth } from "@/lib/auth";
 import { getPrivada, getUnreadCount } from "@/lib/queries";
 import "./globals.css";
 
+/** Portal autenticado: nunca cachear HTML en CDN/navegador. */
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const display = Libre_Baskerville({
   variable: "--font-display",
   subsets: ["latin"],

@@ -50,6 +50,7 @@ export default async function CuotasPage({
         year: f.year,
         month: f.month,
         amount: f.amount,
+        concept: f.concept,
         status: f.status,
       }))}
     />

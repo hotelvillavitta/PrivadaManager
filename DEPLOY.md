@@ -1,59 +1,70 @@
-# Deploy — Grenaché
+# Deploy — Grenaché en Vercel
 
-## Opción recomendada (rápida): Railway / Render / VPS
+La app está preparada para **Vercel + Postgres (Neon)** + **Vercel Blob** (documentos).
 
-El proyecto usa **SQLite** + archivos en `public/uploads`. En serverless puro (Vercel) SQLite y uploads locales no persisten bien.
+## 1. Base de datos (Neon)
 
-1. Crea un servicio Node con disco persistente.
-2. Variables de entorno:
+1. Crea un proyecto gratis en [neon.tech](https://neon.tech).
+2. Copia la connection string (**pooled** o direct) con `?sslmode=require`.
+3. En local, ponla en `.env`:
 
 ```env
-DATABASE_URL="file:./dev.db"
-AUTH_SECRET="genera-un-secreto-largo"
+DATABASE_URL="postgresql://...@.../neondb?sslmode=require"
+AUTH_SECRET="un-secreto-largo-aleatorio"
 AUTH_TRUST_HOST="true"
 ```
 
-3. Build / start:
+4. Inicializa datos:
 
 ```bash
-npm ci
-npx prisma generate
 npx prisma db push
-npm run db:seed   # solo la primera vez
-npm run build
-npm run start
+npm run db:seed
 ```
 
-Con `output: "standalone"` también puedes usar el `Dockerfile` incluido.
+## 2. Vercel
 
-## Opción Vercel + Neon (Postgres)
+1. Sube el repo a GitHub.
+2. En [vercel.com](https://vercel.com) → **Add New Project** → importa el repo.
+3. Variables de entorno (Production + Preview):
 
-1. Crea un proyecto en [Neon](https://neon.tech) y copia la connection string.
-2. En `prisma/schema.prisma` cambia:
+| Variable | Valor |
+|---|---|
+| `DATABASE_URL` | Connection string de Neon |
+| `AUTH_SECRET` | `openssl rand -base64 32` |
+| `AUTH_TRUST_HOST` | `true` |
+| `AUTH_URL` | `https://tu-proyecto.vercel.app` (o tu dominio) |
+| `BLOB_READ_WRITE_TOKEN` | Token de Vercel Blob (Storage → Blob) |
 
-```prisma
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-```
+4. Deploy. El `buildCommand` ya hace `prisma generate && prisma db push && next build`.
 
-3. En Vercel agrega:
-
-```env
-DATABASE_URL="postgresql://..."
-AUTH_SECRET="..."
-AUTH_TRUST_HOST="true"
-```
-
-4. Build command:
+5. Si el seed no corrió en el build, ejecuta una vez en local apuntando a la misma `DATABASE_URL`:
 
 ```bash
-prisma generate && prisma db push && next build
+npm run db:seed
 ```
 
-5. Para documentos en producción, migra uploads a un storage (Vercel Blob / S3). Localmente siguen en `public/uploads`.
+## Actualizaciones sin reinstalar
 
-## Dominio
+La app está configurada para que **cada deploy nuevo llegue a todos los usuarios** sin borrar/reinstalar:
 
-Apunta `residex` o el dominio de tu privada al servicio desplegado y actualiza `AUTH_URL` si Auth.js lo pide en producción.
+- HTML y datos: `Cache-Control` / `Vercel-CDN-Cache-Control: no-store`
+- Rutas dinámicas (`force-dynamic`)
+- El cliente consulta `/api/version` y **recarga solo** cuando hay un deploy distinto
+- Se desregistran service workers/cachés viejos si existían
+
+Los archivos de `/_next/static/*` sí se cachean (tienen hash en el nombre); al desplegar, el HTML apunta a los hashes nuevos.
+## 3. Cuentas demo (cambiar en producción)
+
+| Rol | Email | Password |
+|---|---|---|
+| Colono | `juan@grenache.mx` | `demo1234` |
+| Admin | `admin@grenache.mx` | `demo1234` |
+
+## 4. Desarrollo local
+
+- Usa la misma Neon DB o una rama/branch de Neon.
+- Sin `BLOB_READ_WRITE_TOKEN`, los archivos van a `public/uploads/` (solo local).
+
+## Alternativa: Railway / Docker
+
+Si prefieres SQLite + disco, revierte `provider` a `sqlite` y usa el `Dockerfile`. En Vercel no se recomienda SQLite.

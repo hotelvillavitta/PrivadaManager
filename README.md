@@ -7,15 +7,20 @@ App de gestión para la privada **Grenaché**: auth, noticias (con documentos), 
 
 ## Arranque local
 
+Necesitas una base **Postgres** (recomendado: [Neon](https://neon.tech) gratis).
+
 ```bash
 cd ~/Projects/Gestion-de-Privadas
 npm install
-cp .env.example .env   # si no existe .env
-npm run db:reset       # primera vez
+cp .env.example .env   # pega tu DATABASE_URL de Neon + AUTH_SECRET
+npx prisma db push
+npm run db:seed        # primera vez
 npm run dev
 ```
 
 Abre [http://localhost:3000](http://localhost:3000).
+
+Para publicar en Vercel, sigue [DEPLOY.md](./DEPLOY.md).
 
 ## Cuentas demo
 

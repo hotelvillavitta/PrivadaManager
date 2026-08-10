@@ -7,11 +7,18 @@ import {
   ArrowUpRight,
   Building2,
   FileText,
+  Pencil,
   Receipt,
+  Trash2,
   Wallet,
+  X,
 } from "lucide-react";
 import { PageHero } from "@/components/PageHero";
-import { createFinanceEntry } from "@/lib/actions/portal";
+import {
+  createFinanceEntry,
+  deleteFinanceEntry,
+  updateFinanceEntry,
+} from "@/lib/actions/portal";
 import { formatCurrency } from "@/lib/utils";
 
 type Summary = {
@@ -46,6 +53,8 @@ export function FinanzasClient({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editing = f.entries.find((e) => e.id === editingId) ?? null;
 
   return (
     <div className="pb-16">
@@ -59,26 +68,44 @@ export function FinanzasClient({
         {isAdmin && (
           <form
             className="rounded-2xl border border-border bg-surface p-5"
+            key={editing?.id ?? "new"}
             action={(fd) => {
               setMessage("");
               startTransition(async () => {
-                const res = await createFinanceEntry(fd);
+                const res = editing
+                  ? await updateFinanceEntry(fd)
+                  : await createFinanceEntry(fd);
                 if (res.error) setMessage(res.error);
                 else {
-                  setMessage("Movimiento registrado.");
+                  setMessage(
+                    editing ? "Movimiento actualizado." : "Movimiento registrado.",
+                  );
+                  setEditingId(null);
                   router.refresh();
                 }
               });
             }}
           >
-            <h3 className="mb-3 font-display text-lg text-primary-dark">
-              Registrar movimiento
-            </h3>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h3 className="font-display text-lg text-primary-dark">
+                {editing ? "Editar movimiento" : "Registrar movimiento"}
+              </h3>
+              {editing && (
+                <button
+                  type="button"
+                  onClick={() => setEditingId(null)}
+                  className="inline-flex items-center gap-1 text-sm text-muted"
+                >
+                  <X className="h-4 w-4" /> Cancelar
+                </button>
+              )}
+            </div>
+            {editing && <input type="hidden" name="id" value={editing.id} />}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <select
                 name="type"
                 className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
-                defaultValue="INGRESO"
+                defaultValue={editing?.type ?? "INGRESO"}
               >
                 <option value="INGRESO">Ingreso</option>
                 <option value="GASTO">Gasto</option>
@@ -87,12 +114,14 @@ export function FinanzasClient({
                 name="category"
                 required
                 placeholder="Categoría"
+                defaultValue={editing?.category ?? ""}
                 className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
               />
               <input
                 name="description"
                 required
                 placeholder="Descripción"
+                defaultValue={editing?.description ?? ""}
                 className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
               />
               <input
@@ -101,6 +130,7 @@ export function FinanzasClient({
                 step="0.01"
                 required
                 placeholder="Monto"
+                defaultValue={editing?.amount ?? ""}
                 className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
               />
             </div>
@@ -109,7 +139,7 @@ export function FinanzasClient({
               disabled={pending}
               className="mt-3 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
             >
-              Guardar
+              {editing ? "Guardar cambios" : "Guardar"}
             </button>
             {message && <p className="mt-2 text-sm text-muted">{message}</p>}
           </form>
@@ -187,7 +217,7 @@ export function FinanzasClient({
                 key={e.id}
                 className="flex items-center justify-between gap-3 py-3 text-sm"
               >
-                <div>
+                <div className="min-w-0">
                   <p className="font-medium text-primary-dark">
                     {e.description}
                   </p>
@@ -196,14 +226,50 @@ export function FinanzasClient({
                     {new Date(e.date).toLocaleDateString("es-MX")}
                   </p>
                 </div>
-                <span
-                  className={`font-semibold ${
-                    e.type === "INGRESO" ? "text-success" : "text-danger"
-                  }`}
-                >
-                  {e.type === "INGRESO" ? "+" : "-"}
-                  {formatCurrency(e.amount)}
-                </span>
+                <div className="flex shrink-0 items-center gap-1">
+                  <span
+                    className={`font-semibold ${
+                      e.type === "INGRESO" ? "text-success" : "text-danger"
+                    }`}
+                  >
+                    {e.type === "INGRESO" ? "+" : "-"}
+                    {formatCurrency(e.amount)}
+                  </span>
+                  {isAdmin && (
+                    <>
+                      <button
+                        type="button"
+                        title="Editar"
+                        onClick={() => {
+                          setEditingId(e.id);
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                        className="rounded-lg p-2 text-muted hover:bg-background hover:text-primary"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        title="Eliminar"
+                        disabled={pending}
+                        onClick={() => {
+                          if (!confirm("¿Eliminar este movimiento?")) return;
+                          startTransition(async () => {
+                            const res = await deleteFinanceEntry(e.id);
+                            if (res.error) setMessage(res.error);
+                            else {
+                              if (editingId === e.id) setEditingId(null);
+                              router.refresh();
+                            }
+                          });
+                        }}
+                        className="rounded-lg p-2 text-muted hover:bg-danger-soft hover:text-danger"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
