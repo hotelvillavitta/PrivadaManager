@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  COLONO
+  ADMIN
+}
+
+enum NewsCategory {
+  IMPORTANTE
+  REGLAMENTO
+  MANTENIMIENTO
+  AVISO
+  COMUNIDAD
+}
+
+enum ReservationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum FeeStatus {
+  PAGADO
+  ADEUDO
+  PENDIENTE
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         Role     @default(COLONO)
+  houseNumber  String?
+  accessCode   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  newsPosts     NewsPost[]
+  reactions     NewsReaction[]
+  reservations  Reservation[]
+  notifications Notification[]
+}
+
+model NewsPost {
+  id          String       @id @default(cuid())
+  title       String
+  body        String
+  category    NewsCategory
+  hasDocument Boolean      @default(false)
+  publishedAt DateTime     @default(now())
+  authorId    String?
+  author      User?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  reactions NewsReaction[]
+}
+
+model NewsReaction {
+  id        String   @id @default(cuid())
+  emoji     String
+  newsId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  news NewsPost @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([newsId, userId, emoji])
+}
+
+model Provider {
+  id        String   @id @default(cuid())
+  name      String
+  role      String
+  phone     String
+  email     String?
+  category  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Reservation {
+  id          String            @id @default(cuid())
+  date        String
+  eventName   String
+  guests      Int
+  notes       String?
+  status      ReservationStatus @default(PENDING)
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([date])
+}
+
+model MonthlyFee {
+  id          String    @id @default(cuid())
+  houseNumber String
+  year        Int
+  month       Int
+  amount      Float     @default(1500)
+  status      FeeStatus @default(PENDIENTE)
+  paidAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([houseNumber, year, month])
+}
+
+model FinanceEntry {
+  id          String   @id @default(cuid())
+  type        String
+  category    String
+  description String
+  amount      Float
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model PrivadaSettings {
+  id      Int    @id @default(1)
+  name    String
+  address String
+  phone   String
+  email   String
+  tagline String
+}

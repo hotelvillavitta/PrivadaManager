@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f6f2ec;
+  --foreground: #3a2a38;
+  --surface: #ffffff;
+  --muted: #6f5f6c;
+  --border: #e8e0d8;
+  --primary: #5c3d56;
+  --primary-soft: #efe8ef;
+  --primary-dark: #3f2a3c;
+  --accent: #8b6b86;
+  --success: #2f7a5b;
+  --success-soft: #e7f5ee;
+  --danger: #b4545a;
+  --danger-soft: #f8e8e9;
+  --warning: #c48a2e;
+  --warning-soft: #f8efd9;
+  --info: #4a6fa5;
+  --info-soft: #e8eef7;
+  --footer: #efe9e2;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-dark: var(--primary-dark);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-footer: var(--footer);
+  --font-sans: var(--font-body);
+  --font-serif: var(--font-display);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body), system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display), Georgia, serif;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--primary) 25%, white);
+}

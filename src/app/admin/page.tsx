@@ -1,0 +1,227 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import {
+  CalendarDays,
+  Check,
+  CircleDollarSign,
+  Home,
+  Newspaper,
+  Users,
+  Wallet,
+  X,
+} from "lucide-react";
+import { PageHero } from "@/components/PageHero";
+import { auth } from "@/lib/auth";
+import { updateReservationStatus } from "@/lib/actions/portal";
+import { getAdminDashboard } from "@/lib/queries";
+import { feeLabel, formatCurrency } from "@/lib/utils";
+
+export default async function AdminPage() {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+  if (session.user.role !== "ADMIN") redirect("/");
+
+  const data = await getAdminDashboard();
+
+  return (
+    <div className="pb-16">
+      <PageHero
+        eyebrow="Panel administrativo"
+        title="Administración"
+        description="Resumen operativo de residentes, reservaciones, cuotas y comunicación."
+      />
+
+      <div className="mx-auto max-w-6xl space-y-6 px-4 lg:px-6">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat
+            icon={<Users className="h-5 w-5" />}
+            value={String(data.residentCount)}
+            label="Residentes"
+          />
+          <Stat
+            icon={<CalendarDays className="h-5 w-5" />}
+            value={String(data.pendingReservations.length)}
+            label="Reservas pendientes"
+          />
+          <Stat
+            icon={<Newspaper className="h-5 w-5" />}
+            value={String(data.newsCount)}
+            label="Comunicados"
+          />
+          <Stat
+            icon={<Wallet className="h-5 w-5" />}
+            value={String(data.paidThisMonth)}
+            label="Pagos este mes"
+          />
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <QuickLink href="/noticias" label="Publicar noticia" />
+          <QuickLink href="/reservaciones" label="Ver reservaciones" />
+          <QuickLink href="/cuotas" label="Gestionar cuotas" />
+          <QuickLink href="/finanzas" label="Registrar finanzas" />
+        </div>
+
+        <section className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-display text-2xl text-primary-dark">
+              Reservaciones pendientes
+            </h2>
+            <Link
+              href="/reservaciones"
+              className="text-sm text-primary hover:underline"
+            >
+              Ver calendario
+            </Link>
+          </div>
+          {data.pendingReservations.length === 0 ? (
+            <p className="text-sm text-muted">No hay solicitudes pendientes.</p>
+          ) : (
+            <ul className="space-y-3">
+              {data.pendingReservations.map((r) => (
+                <li
+                  key={r.id}
+                  className="flex flex-col gap-3 rounded-xl bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="font-medium text-primary-dark">
+                      {r.eventName}
+                    </p>
+                    <p className="text-sm text-muted">
+                      {r.date} · {r.user.firstName} {r.user.lastName}
+                      {r.user.houseNumber
+                        ? ` · Casa ${r.user.houseNumber}`
+                        : ""}{" "}
+                      · {r.guests} personas
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <form
+                      action={async () => {
+                        "use server";
+                        await updateReservationStatus(r.id, "APPROVED");
+                      }}
+                    >
+                      <button
+                        type="submit"
+                        className="inline-flex items-center gap-1 rounded-lg bg-success px-3 py-1.5 text-xs font-medium text-white"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        Aprobar
+                      </button>
+                    </form>
+                    <form
+                      action={async () => {
+                        "use server";
+                        await updateReservationStatus(r.id, "REJECTED");
+                      }}
+                    >
+                      <button
+                        type="submit"
+                        className="inline-flex items-center gap-1 rounded-lg bg-danger px-3 py-1.5 text-xs font-medium text-white"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        Rechazar
+                      </button>
+                    </form>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <section className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+            <h2 className="mb-4 flex items-center gap-2 font-display text-2xl text-primary-dark">
+              <Home className="h-5 w-5 text-primary" />
+              Residentes
+            </h2>
+            <ul className="divide-y divide-border">
+              {data.residents.map((u) => (
+                <li
+                  key={u.id}
+                  className="flex items-center justify-between gap-3 py-3 text-sm"
+                >
+                  <div>
+                    <p className="font-medium text-primary-dark">
+                      {u.firstName} {u.lastName}
+                    </p>
+                    <p className="text-muted">{u.email}</p>
+                  </div>
+                  <Link
+                    href={`/cuotas?casa=${u.houseNumber ?? ""}`}
+                    className="rounded-full bg-primary-soft px-3 py-1 text-xs font-medium text-primary hover:bg-primary hover:text-white"
+                  >
+                    Casa {u.houseNumber ?? "—"}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+            <h2 className="mb-4 flex items-center gap-2 font-display text-2xl text-primary-dark">
+              <CircleDollarSign className="h-5 w-5 text-primary" />
+              Adeudos / pendientes
+            </h2>
+            {data.debtFees.length === 0 ? (
+              <p className="text-sm text-muted">
+                No hay cuotas con adeudo o pendientes.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {data.debtFees.map((f) => (
+                  <li
+                    key={f.id}
+                    className="flex items-center justify-between rounded-xl bg-background px-3 py-2 text-sm"
+                  >
+                    <span>
+                      Casa {f.houseNumber} · {feeLabel(f.year, f.month)}
+                    </span>
+                    <span
+                      className={`text-xs font-bold uppercase ${
+                        f.status === "ADEUDO" ? "text-danger" : "text-warning"
+                      }`}
+                    >
+                      {f.status} · {formatCurrency(f.amount)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Stat({
+  icon,
+  value,
+  label,
+}: {
+  icon: React.ReactNode;
+  value: string;
+  label: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-surface px-5 py-4 shadow-sm">
+      <div className="mb-2 text-primary">{icon}</div>
+      <p className="font-display text-3xl text-primary-dark">{value}</p>
+      <p className="mt-1 text-sm text-muted">{label}</p>
+    </div>
+  );
+}
+
+function QuickLink({ href, label }: { href: string; label: string }) {
+  return (
+    <Link
+      href={href}
+      className="rounded-xl border border-border bg-surface px-4 py-3 text-center text-sm font-medium text-primary-dark transition hover:border-primary/40 hover:bg-primary-soft"
+    >
+      {label}
+    </Link>
+  );
+}
