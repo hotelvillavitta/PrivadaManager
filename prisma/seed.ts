@@ -20,7 +20,7 @@ async function main() {
       name: "Grenaché",
       address: "Priv. Grenache 4176, Fracc. Viñas del Mar",
       phone: "+52 (664) 356-4100",
-      email: "comitegrenache@gmail.com",
+      email: "comitegrenche@gmail.com",
       tagline:
         "Comunidad residencial comprometida con la excelencia y el bienestar de todos sus residentes.",
     },
