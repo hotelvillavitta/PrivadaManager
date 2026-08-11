@@ -695,6 +695,7 @@ export async function registerCobranza(formData: FormData) {
           total,
           paidAt,
           privadaName: privada.name,
+          privadaAddress: privada.address,
           privadaEmail: privada.email,
           privadaPhone: privada.phone,
         }),

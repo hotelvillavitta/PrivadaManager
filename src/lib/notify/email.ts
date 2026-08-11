@@ -15,7 +15,7 @@ function getFrom() {
   const explicit = process.env.EMAIL_FROM?.trim();
   if (explicit) return explicit;
   const gmail = gmailUser();
-  if (gmail) return `Privada Manager <${gmail}>`;
+  if (gmail) return `Comité ${process.env.PRIVADA_EMAIL_NAME?.trim() || "Grenaché"} <${gmail}>`;
   return "Privada Manager <onboarding@resend.dev>";
 }
 
@@ -91,12 +91,21 @@ async function sendViaGmail(opts: {
       },
     });
 
+    const headers: Record<string, string> = {
+      "X-Auto-Response-Suppress": "OOF, AutoReply",
+    };
+    if (opts.replyTo) {
+      headers["List-Unsubscribe"] =
+        `<mailto:${opts.replyTo}?subject=Consulta%20cuotas>`;
+    }
+
     const info = await transporter.sendMail({
       from: getFrom(),
       to: opts.to.join(", "),
       subject: opts.subject,
       html: opts.html,
       text: opts.text,
+      headers,
       ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
     });
 

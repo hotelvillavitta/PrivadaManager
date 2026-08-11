@@ -84,6 +84,19 @@ Project → **Settings** → **Environment Variables** (Production + Preview):
 
 Redeploy. Registra un cobro de prueba y revisa la bandeja del residente (y spam la primera vez).
 
+### Si cae en spam
+
+Es normal en los **primeros envíos** automáticos desde Gmail. Mitigaciones:
+
+1. En el correo de prueba: **“No es spam”** / mover a Recibidos (entrena el filtro).
+2. En Gmail del residente: crear filtro  
+   `from:(comitegrenche@gmail.com)` → **Nunca enviar a spam**.
+3. Avisar a los vecinos una vez: “Los comprobantes llegan de `comitegrenche@gmail.com`; márquenlo como confiable”.
+4. Remitente en Vercel:  
+   `EMAIL_FROM="Comité Grenaché <comitegrenche@gmail.com>"`  
+   (mejor que un nombre de “app/marketing”).
+5. Solución fuerte a futuro: dominio propio + Resend (SPF/DKIM/DMARC) — casi elimina spam.
+
 ### Checklist Gmail
 
 - [ ] 2 pasos activado
