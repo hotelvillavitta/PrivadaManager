@@ -13,8 +13,14 @@ import {
   FEE_LATE_SURCHARGE,
   FEE_PALAPA_AMOUNT,
   feeLabel,
+  fullName,
   isFeePaymentLate,
 } from "@/lib/utils";
+import { getPrivada } from "@/lib/queries";
+import {
+  sendPaymentReceiptEmail,
+  type PaymentReceiptLine,
+} from "@/lib/notify/payment-receipt";
 
 export async function toggleNewsReaction(newsId: string, emoji: string) {
   const user = await requireUser();
@@ -38,6 +44,7 @@ export async function toggleNewsReaction(newsId: string, emoji: string) {
   return { ok: true };
 }
 
+/** Solo para invocación desde el cliente (form/onClick). No usar en render de RSC. */
 export async function markNewsAsRead(newsId: string) {
   const user = await requireUser();
   await prisma.newsRead.upsert({
@@ -52,7 +59,6 @@ export async function markNewsAsRead(newsId: string) {
   revalidatePath("/comunidad");
   revalidatePath("/");
   revalidatePath("/noticias");
-  revalidatePath(`/noticias/${newsId}`);
 }
 
 export async function createNewsPost(formData: FormData) {
@@ -609,6 +615,7 @@ export async function registerCobranza(formData: FormData) {
   const paidAt = new Date();
   const label = feeLabel(year, month);
   const parts: string[] = [];
+  const receiptLines: PaymentReceiptLine[] = [];
   let total = 0;
 
   if (includeMaintenance) {
@@ -630,6 +637,12 @@ export async function registerCobranza(formData: FormData) {
     if ("error" in res) return res;
     total += res.amount;
     parts.push(`${FEE_CONCEPT_LABEL.MANTENIMIENTO} $${maintTotal}`);
+    receiptLines.push({
+      label: applyLate
+        ? `${FEE_CONCEPT_LABEL.MANTENIMIENTO} (incluye recargo)`
+        : FEE_CONCEPT_LABEL.MANTENIMIENTO,
+      amount: maintTotal,
+    });
   }
 
   if (includePalapa) {
@@ -646,11 +659,20 @@ export async function registerCobranza(formData: FormData) {
     if ("error" in res) return res;
     total += res.amount;
     parts.push(`${FEE_CONCEPT_LABEL.PALAPA} $${palapaAmount}`);
+    receiptLines.push({
+      label: FEE_CONCEPT_LABEL.PALAPA,
+      amount: palapaAmount,
+    });
   }
 
   const residents = await prisma.user.findMany({
     where: { houseNumber, role: "COLONO" },
-    select: { id: true },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+    },
   });
   if (residents.length) {
     await prisma.notification.createMany({
@@ -660,6 +682,24 @@ export async function registerCobranza(formData: FormData) {
         body: `Casa ${houseNumber} · ${label}: ${parts.join(", ")} (total $${total}).`,
       })),
     });
+
+    const privada = await getPrivada();
+    await Promise.all(
+      residents.map((r) =>
+        sendPaymentReceiptEmail({
+          residentName: fullName(r),
+          residentEmail: r.email,
+          houseNumber,
+          periodLabel: label,
+          lines: receiptLines,
+          total,
+          paidAt,
+          privadaName: privada.name,
+          privadaEmail: privada.email,
+          privadaPhone: privada.phone,
+        }),
+      ),
+    );
   }
 
   revalidatePath("/cuotas");

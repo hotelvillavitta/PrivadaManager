@@ -4,7 +4,6 @@ import { ArrowLeft, FileText } from "lucide-react";
 import { PageHero } from "@/components/PageHero";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { markNewsAsRead } from "@/lib/actions/portal";
 import { NEWS_CATEGORY_LABEL } from "@/lib/utils";
 
 export default async function NoticiaDetallePage({
@@ -19,7 +18,20 @@ export default async function NoticiaDetallePage({
   const post = await prisma.newsPost.findUnique({ where: { id } });
   if (!post) notFound();
 
-  await markNewsAsRead(id);
+  // Marcar leído en DB durante el render (sin server action / revalidatePath:
+  // eso provoca error 500 en esta ruta).
+  const userId = session.user.id;
+  if (userId) {
+    await prisma.newsRead.upsert({
+      where: { newsId_userId: { newsId: id, userId } },
+      create: { newsId: id, userId },
+      update: { readAt: new Date() },
+    });
+    await prisma.notification.updateMany({
+      where: { userId, newsId: id, read: false },
+      data: { read: true },
+    });
+  }
 
   return (
     <div className="pb-16">

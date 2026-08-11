@@ -356,6 +356,12 @@ export function CuotasClient({
                   ? "Registrando…"
                   : `Registrar cobro · ${formatCurrency(total)}`}
             </button>
+            {isAdmin && (
+              <p className="mt-2 text-xs text-muted">
+                Al registrar el cobro se envía un comprobante por correo a los
+                residentes de esa casa.
+              </p>
+            )}
             {message && <p className="mt-2 text-sm text-muted">{message}</p>}
           </form>
         )}
@@ -363,7 +369,7 @@ export function CuotasClient({
         {!isAdmin && (
           <p className="rounded-2xl border border-border bg-surface px-4 py-3 text-sm text-muted">
             Tu historial lo actualiza el comité. Cuando registren un pago,
-            aparecerá aquí y en Finanzas de la privada.
+            aparecerá aquí, en Finanzas, y recibirás el comprobante por correo.
           </p>
         )}
 
