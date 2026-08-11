@@ -3,39 +3,6 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { authConfig } from "@/lib/auth.config";
-import type { Role } from "@prisma/client";
-
-declare module "next-auth" {
-  interface User {
-    role: Role;
-    firstName: string;
-    lastName: string;
-    houseNumber: string | null;
-    accessCode: string | null;
-  }
-  interface Session {
-    user: {
-      id: string;
-      email: string;
-      role: Role;
-      firstName: string;
-      lastName: string;
-      houseNumber: string | null;
-      accessCode: string | null;
-    };
-  }
-}
-
-declare module "next-auth/jwt" {
-  interface JWT {
-    id: string;
-    role: Role;
-    firstName: string;
-    lastName: string;
-    houseNumber: string | null;
-    accessCode: string | null;
-  }
-}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,

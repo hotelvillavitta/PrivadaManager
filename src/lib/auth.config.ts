@@ -27,15 +27,13 @@ export const authConfig = {
       return token;
     },
     async session({ session, token }) {
-      session.user = {
-        id: String(token.id ?? ""),
-        email: String(token.email ?? ""),
-        role: (token.role as "COLONO" | "ADMIN") ?? "COLONO",
-        firstName: String(token.firstName ?? ""),
-        lastName: String(token.lastName ?? ""),
-        houseNumber: (token.houseNumber as string | null) ?? null,
-        accessCode: (token.accessCode as string | null) ?? null,
-      };
+      session.user.id = String(token.id ?? "");
+      session.user.email = String(token.email ?? session.user.email ?? "");
+      session.user.role = (token.role as "COLONO" | "ADMIN") ?? "COLONO";
+      session.user.firstName = String(token.firstName ?? "");
+      session.user.lastName = String(token.lastName ?? "");
+      session.user.houseNumber = (token.houseNumber as string | null) ?? null;
+      session.user.accessCode = (token.accessCode as string | null) ?? null;
       return session;
     },
   },
