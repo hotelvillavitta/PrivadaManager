@@ -2,6 +2,7 @@
 
 import { useState, useActionState } from "react";
 import { loginAction, registerAction } from "@/lib/actions/auth";
+import { BrandLogo } from "@/components/BrandLogo";
 
 type AuthState = { error?: string; ok?: boolean } | undefined;
 
@@ -45,9 +46,11 @@ export default function LoginPage() {
       />
       <div className="relative w-full max-w-md rounded-3xl border border-border bg-surface p-8 shadow-[0_20px_60px_-30px_rgba(63,42,60,0.35)]">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary text-2xl font-semibold text-white">
-            G
-          </div>
+          <BrandLogo
+            variant="full"
+            className="mx-auto mb-5 w-full max-w-[280px] rounded-2xl"
+            priority
+          />
           <p className="text-xs font-semibold tracking-[0.2em] text-accent uppercase">
             Bienvenido
           </p>

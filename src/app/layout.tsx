@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Libre_Baskerville, Source_Sans_3 } from "next/font/google";
 import { Providers } from "@/components/Providers";
 import { Navbar } from "@/components/Navbar";
@@ -23,10 +23,44 @@ const body = Source_Sans_3({
   weight: ["400", "500", "600", "700"],
 });
 
+export const viewport: Viewport = {
+  themeColor: "#0a1628",
+  colorScheme: "light",
+};
+
 export const metadata: Metadata = {
-  title: "Grenaché | Portal Residencial",
+  title: {
+    default: "Privada Manager | Grenaché",
+    template: "%s | Privada Manager",
+  },
   description:
-    "Portal de gestión residencial: noticias, reservaciones, cuotas y finanzas de Grenaché.",
+    "Portal de gestión residencial: noticias, reservaciones, cuotas y finanzas. Tu privada, siempre en orden.",
+  applicationName: "Privada Manager",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Privada Manager",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    icon: [
+      { url: "/icons/icon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-icon", sizes: "180x180", type: "image/png" }],
+  },
+  openGraph: {
+    title: "Privada Manager | Grenaché",
+    description:
+      "Portal de gestión residencial. Tu privada, siempre en orden.",
+    images: [{ url: "/brand/og-icon.png", width: 512, height: 512 }],
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
 };
 
 export default async function RootLayout({

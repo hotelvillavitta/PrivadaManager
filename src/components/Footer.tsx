@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Mail, MapPin, Phone } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
 
 type Privada = {
   name: string;
@@ -14,9 +15,13 @@ export function Footer({ privada }: { privada: Privada }) {
     <footer className="mt-auto border-t border-border bg-footer">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4 lg:px-6">
         <div>
-          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-lg font-semibold text-white">
-            G
-          </div>
+          <BrandLogo
+            variant="mark"
+            className="mb-4 h-12 w-12 rounded-xl ring-1 ring-border"
+          />
+          <p className="mb-1 text-sm font-semibold text-primary-dark">
+            Privada Manager
+          </p>
           <p className="max-w-xs text-sm leading-relaxed text-muted">
             {privada.tagline}
           </p>

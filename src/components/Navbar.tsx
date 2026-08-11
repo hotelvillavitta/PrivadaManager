@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { logoutAction } from "@/lib/actions/auth";
+import { BrandLogo } from "@/components/BrandLogo";
 
 type NavUser = {
   firstName: string;
@@ -62,12 +63,14 @@ export function Navbar({
     <header className="sticky top-0 z-50 border-b border-border bg-surface/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 lg:px-6">
         <Link href="/" className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white shadow-sm">
-            G
-          </span>
+          <BrandLogo
+            variant="mark"
+            className="h-10 w-10 rounded-xl shadow-sm ring-1 ring-border"
+            priority
+          />
           <div className="leading-tight">
             <p className="font-display text-lg text-primary-dark">{privadaName}</p>
-            <p className="text-xs text-muted">Portal residencial</p>
+            <p className="text-xs text-muted">Privada Manager</p>
           </div>
         </Link>
 
