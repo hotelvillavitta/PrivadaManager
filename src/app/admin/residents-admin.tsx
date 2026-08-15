@@ -101,7 +101,7 @@ export function ResidentsAdmin({
 
       {showForm && (
         <form
-          className="mb-4 rounded-xl border border-border bg-background p-4"
+          className="mb-4 rounded-xl border border-border bg-background p-3 sm:p-4"
           action={(fd) => {
             startTransition(async () => {
               const res = editing
@@ -219,7 +219,7 @@ export function ResidentsAdmin({
         {residents.map((u) => (
           <li
             key={u.id}
-            className="flex items-center justify-between gap-3 py-3 text-sm"
+            className="flex flex-col gap-2 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
           >
             <div className="min-w-0">
               <p className="font-medium text-primary-dark">
@@ -232,7 +232,7 @@ export function ResidentsAdmin({
               </p>
               <p className="truncate text-muted">{u.email}</p>
             </div>
-            <div className="flex shrink-0 items-center gap-1">
+            <div className="flex w-full shrink-0 items-center justify-between gap-1 sm:w-auto sm:justify-start">
               <Link
                 href={`/cuotas?casa=${u.houseNumber ?? ""}`}
                 className="rounded-full bg-primary-soft px-3 py-1 text-xs font-medium text-primary hover:bg-primary hover:text-white"
@@ -243,7 +243,7 @@ export function ResidentsAdmin({
                 type="button"
                 title="Editar"
                 onClick={() => openEdit(u)}
-                className="rounded-lg p-2 text-muted hover:bg-background hover:text-primary"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary"
               >
                 <Pencil className="h-3.5 w-3.5" />
               </button>
@@ -268,7 +268,7 @@ export function ResidentsAdmin({
                     }
                   });
                 }}
-                className="rounded-lg p-2 text-muted hover:bg-danger-soft hover:text-danger disabled:opacity-40"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:bg-danger-soft hover:text-danger disabled:opacity-40"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>

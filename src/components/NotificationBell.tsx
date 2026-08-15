@@ -80,7 +80,7 @@ export function NotificationBell({
         <div
           role="dialog"
           aria-label="Últimas notificaciones"
-          className="absolute right-0 z-50 mt-2 w-[min(100vw-1.5rem,22rem)] overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_18px_50px_-20px_rgba(47,29,45,0.45)]"
+          className="fixed inset-x-3 top-[4.25rem] z-50 max-h-[calc(100dvh-10rem)] overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_18px_50px_-20px_rgba(47,29,45,0.45)] sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[22rem] sm:max-h-none"
         >
           <div className="flex items-center justify-between border-b border-border bg-primary-soft/70 px-4 py-3">
             <p className="text-sm font-semibold text-primary-dark">
@@ -95,7 +95,7 @@ export function NotificationBell({
             )}
           </div>
 
-          <ul className="max-h-[22rem] overflow-y-auto">
+          <ul className="max-h-[calc(100dvh-17rem)] overflow-y-auto overscroll-contain sm:max-h-[22rem]">
             {items.length === 0 ? (
               <li className="px-4 py-8 text-center text-sm text-muted">
                 No tienes notificaciones.

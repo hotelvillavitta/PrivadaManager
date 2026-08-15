@@ -64,10 +64,10 @@ export function FinanzasClient({
         description={`Estado de cuenta consolidado de ${privadaName}.`}
       />
 
-      <div className="mx-auto grid max-w-6xl gap-4 px-4 lg:px-6">
+      <div className="mx-auto grid max-w-6xl gap-3 px-4 sm:gap-4 lg:px-6">
         {isAdmin && (
           <form
-            className="rounded-2xl border border-border bg-surface p-5"
+            className="rounded-2xl border border-border bg-surface p-4 sm:p-5"
             key={editing?.id ?? "new"}
             action={(fd) => {
               setMessage("");
@@ -154,7 +154,7 @@ export function FinanzasClient({
           subtitle="Ingresos totales menos gastos totales"
         />
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <MetricCard
             className="border-success/20 bg-success-soft/70"
             icon={<ArrowUpRight className="h-5 w-5 text-success" />}
@@ -183,7 +183,7 @@ export function FinanzasClient({
           />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-3 sm:gap-4">
           <MetricCard
             className="border-info/20 bg-info-soft/80"
             icon={<FileText className="h-5 w-5 text-info" />}
@@ -207,7 +207,7 @@ export function FinanzasClient({
           />
         </div>
 
-        <section className="rounded-2xl border border-border bg-surface p-5">
+        <section className="rounded-2xl border border-border bg-surface p-4 sm:p-5">
           <h3 className="mb-4 font-display text-xl text-primary-dark">
             Movimientos recientes
           </h3>
@@ -215,7 +215,7 @@ export function FinanzasClient({
             {f.entries.map((e) => (
               <li
                 key={e.id}
-                className="flex items-center justify-between gap-3 py-3 text-sm"
+                className="flex flex-col gap-2 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
               >
                 <div className="min-w-0">
                   <p className="font-medium text-primary-dark">
@@ -226,7 +226,7 @@ export function FinanzasClient({
                     {new Date(e.date).toLocaleDateString("es-MX")}
                   </p>
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="flex w-full shrink-0 items-center justify-between gap-1 sm:w-auto sm:justify-start">
                   <span
                     className={`font-semibold ${
                       e.type === "INGRESO" ? "text-success" : "text-danger"
@@ -244,7 +244,7 @@ export function FinanzasClient({
                           setEditingId(e.id);
                           window.scrollTo({ top: 0, behavior: "smooth" });
                         }}
-                        className="rounded-lg p-2 text-muted hover:bg-background hover:text-primary"
+                        className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
@@ -263,7 +263,7 @@ export function FinanzasClient({
                             }
                           });
                         }}
-                        className="rounded-lg p-2 text-muted hover:bg-danger-soft hover:text-danger"
+                        className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:bg-danger-soft hover:text-danger"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -296,13 +296,13 @@ function MetricCard({
 }) {
   return (
     <div
-      className={`rounded-2xl border border-border px-6 py-7 text-center shadow-sm ${className}`}
+      className={`min-w-0 rounded-2xl border border-border px-3 py-5 text-center shadow-sm sm:px-6 sm:py-7 ${className}`}
     >
       <div className="mb-3 flex justify-center">{icon}</div>
-      <p className={`font-display text-3xl font-bold sm:text-4xl ${valueClass}`}>
+      <p className={`break-words font-display text-xl font-bold leading-tight sm:text-4xl ${valueClass}`}>
         {value}
       </p>
-      <p className="mt-2 font-medium text-primary-dark">{title}</p>
+      <p className="mt-2 text-sm font-medium leading-tight text-primary-dark sm:text-base">{title}</p>
       {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
     </div>
   );

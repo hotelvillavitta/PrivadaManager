@@ -40,6 +40,13 @@ const baseLinks = [
   { href: "/finanzas", label: "Finanzas", icon: CircleDollarSign },
 ];
 
+const mobilePrimaryHrefs = new Set([
+  "/",
+  "/noticias",
+  "/reservaciones",
+  "/cuotas",
+]);
+
 export function Navbar({
   user,
   unread,
@@ -62,19 +69,20 @@ export function Navbar({
   if (pathname === "/login") return null;
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-surface/95 shadow-sm backdrop-blur">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 lg:px-6">
+    <>
+    <header className="sticky top-0 z-50 border-b border-border bg-surface/95 pt-[env(safe-area-inset-top)] shadow-sm backdrop-blur">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3 lg:px-6">
         <Link href="/" className="flex min-w-0 items-center gap-3">
           <BrandLogo
             variant="mark"
-            className="h-11 w-11 rounded-xl shadow-sm ring-1 ring-border"
+            className="h-10 w-10 rounded-xl shadow-sm ring-1 ring-border sm:h-11 sm:w-11"
             priority
           />
           <div className="min-w-0 leading-tight">
-            <p className="truncate font-display text-lg text-primary-dark">
+            <p className="truncate font-display text-base text-primary-dark sm:text-lg">
               {privadaName}
             </p>
-            <p className="text-xs font-medium tracking-wide text-accent">
+            <p className="hidden text-xs font-medium tracking-wide text-accent sm:block">
               Portal residencial
             </p>
           </div>
@@ -129,7 +137,7 @@ export function Navbar({
                 type="button"
                 disabled={pending}
                 onClick={() => startTransition(() => logoutAction())}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-2 text-sm font-medium text-muted transition hover:border-primary/30 hover:bg-primary-soft hover:text-primary-dark disabled:opacity-60"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface text-muted transition hover:border-primary/30 hover:bg-primary-soft hover:text-primary-dark disabled:opacity-60 sm:h-auto sm:w-auto sm:gap-1.5 sm:px-3 sm:py-2 sm:text-sm"
               >
                 <LogOut className="h-4 w-4" />
                 <span className="hidden sm:inline">Salir</span>
@@ -146,7 +154,7 @@ export function Navbar({
 
           <button
             type="button"
-            className="rounded-full border border-border bg-surface p-2.5 text-primary-dark hover:bg-primary-soft xl:hidden"
+            className="hidden rounded-full border border-border bg-surface p-2.5 text-primary-dark hover:bg-primary-soft md:inline-flex xl:hidden"
             onClick={() => setOpen((v) => !v)}
             aria-label="Menú"
             aria-expanded={open}
@@ -157,7 +165,15 @@ export function Navbar({
       </div>
 
       {open && (
-        <nav className="border-t border-border bg-surface px-4 py-3 shadow-inner xl:hidden">
+        <button
+          type="button"
+          aria-label="Cerrar menú"
+          onClick={() => setOpen(false)}
+          className="fixed inset-0 top-[3.75rem] z-[54] bg-primary-dark/20 backdrop-blur-[1px] md:hidden"
+        />
+      )}
+      {open && (
+        <nav className="fixed inset-x-3 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-[55] max-h-[70vh] overflow-y-auto rounded-2xl border border-border bg-surface p-3 shadow-[0_18px_60px_-18px_rgba(47,29,45,0.5)] md:static md:max-h-none md:rounded-none md:border-x-0 md:border-b-0 md:px-4 md:py-3 md:shadow-inner xl:hidden">
           <div className="mx-auto flex max-w-7xl flex-col gap-1.5">
             {links.map(({ href, label, icon: Icon }) => {
               const active =
@@ -190,5 +206,51 @@ export function Navbar({
         </nav>
       )}
     </header>
+    {user && (
+      <nav
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-surface/95 px-2 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-8px_30px_-20px_rgba(47,29,45,0.5)] backdrop-blur md:hidden"
+        aria-label="Navegación principal"
+      >
+        <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
+          {links
+            .filter(({ href }) => mobilePrimaryHrefs.has(href))
+            .map(({ href, label, icon: Icon }) => {
+              const active =
+                href === "/" ? pathname === "/" : pathname.startsWith(href);
+              const shortLabel =
+                href === "/reservaciones" ? "Reservas" : label;
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={() => setOpen(false)}
+                  className={`flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[10px] font-semibold transition ${
+                    active
+                      ? "bg-primary-soft text-primary"
+                      : "text-muted active:bg-background"
+                  }`}
+                >
+                  <Icon
+                    className={`h-5 w-5 ${active ? "stroke-[2.5]" : ""}`}
+                  />
+                  <span>{shortLabel}</span>
+                </Link>
+              );
+            })}
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className={`flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[10px] font-semibold transition ${
+              open ? "bg-primary-soft text-primary" : "text-muted"
+            }`}
+            aria-expanded={open}
+          >
+            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            <span>Más</span>
+          </button>
+        </div>
+      </nav>
+    )}
+    </>
   );
 }

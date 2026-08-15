@@ -85,7 +85,7 @@ export default async function ComunidadPage() {
         </div>
 
         <section className="rounded-2xl border border-border bg-surface p-5 shadow-sm sm:p-6">
-          <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="mb-4 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <h2 className="flex items-center gap-2 font-display text-2xl text-primary-dark">
               <Bell className="h-5 w-5 text-primary" />
               Notificaciones
@@ -93,7 +93,7 @@ export default async function ComunidadPage() {
             <form action={markNotificationsRead}>
               <button
                 type="submit"
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary-soft"
+                className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-border bg-background px-4 py-2 text-sm font-semibold text-primary hover:bg-primary-soft"
               >
                 <CheckCheck className="h-3.5 w-3.5" />
                 Marcar leídas

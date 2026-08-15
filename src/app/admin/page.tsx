@@ -31,7 +31,7 @@ export default async function AdminPage() {
       />
 
       <div className="mx-auto max-w-6xl space-y-6 px-4 lg:px-6">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <Stat
             icon={<Users className="h-5 w-5" />}
             value={String(data.residentCount)}
@@ -54,15 +54,15 @@ export default async function AdminPage() {
           />
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <QuickLink href="/noticias" label="Publicar noticia" />
           <QuickLink href="/reservaciones" label="Ver reservaciones" />
           <QuickLink href="/cuotas" label="Gestionar cuotas" />
           <QuickLink href="/finanzas" label="Registrar finanzas" />
         </div>
 
-        <section className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
+        <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-display text-2xl text-primary-dark">
               Reservaciones pendientes
             </h2>
@@ -152,13 +152,13 @@ export default async function AdminPage() {
                 {data.debtFees.map((f) => (
                   <li
                     key={f.id}
-                    className="flex items-center justify-between rounded-xl bg-background px-3 py-2 text-sm"
+                    className="flex flex-col gap-1 rounded-xl bg-background px-3 py-2.5 text-sm sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <span>
+                    <span className="min-w-0 break-words">
                       Casa {f.houseNumber} · {feeLabel(f.year, f.month)}
                     </span>
                     <span
-                      className={`text-xs font-bold uppercase ${
+                      className={`self-start text-xs font-bold uppercase sm:self-auto sm:text-right ${
                         f.status === "ADEUDO" ? "text-danger" : "text-warning"
                       }`}
                     >

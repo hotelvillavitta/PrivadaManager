@@ -136,8 +136,8 @@ export function CuotasClient({
         }
       />
 
-      <div className="mx-auto max-w-4xl space-y-6 px-4 lg:px-6">
-        <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mx-auto max-w-4xl space-y-5 px-4 sm:space-y-6 lg:px-6">
+        <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-soft text-primary">
               <Home className="h-5 w-5" />
@@ -184,7 +184,7 @@ export function CuotasClient({
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
           <StatCard
             icon={<Check className="h-5 w-5" />}
             value={String(summary.paid)}
@@ -208,7 +208,7 @@ export function CuotasClient({
 
         {isAdmin && (
           <form
-            className="rounded-2xl border border-border bg-surface p-5 sm:p-6"
+            className="rounded-2xl border border-border bg-surface p-4 sm:p-6"
             action={(fd) => {
               setMessage("");
               startTransition(async () => {
@@ -373,7 +373,7 @@ export function CuotasClient({
           </p>
         )}
 
-        <section className="rounded-2xl border border-border bg-surface p-5 shadow-sm sm:p-6">
+        <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-6">
           <h2 className="mb-4 font-display text-2xl text-primary-dark">
             Historial de pagos
           </h2>
@@ -509,10 +509,10 @@ function StatCard({
   label: string;
 }) {
   return (
-    <div className="rounded-2xl border border-success/20 bg-success-soft px-5 py-4 text-success">
-      <div className="mb-2">{icon}</div>
-      <p className="font-display text-3xl font-bold">{value}</p>
-      <p className="mt-1 text-sm font-medium opacity-80">{label}</p>
+    <div className="min-w-0 rounded-2xl border border-success/20 bg-success-soft px-2.5 py-3 text-success sm:px-5 sm:py-4">
+      <div className="mb-1.5 [&>svg]:h-4 [&>svg]:w-4 sm:mb-2 sm:[&>svg]:h-5 sm:[&>svg]:w-5">{icon}</div>
+      <p className="break-words font-display text-lg font-bold leading-tight sm:text-3xl">{value}</p>
+      <p className="mt-1 text-[11px] font-medium leading-tight opacity-80 sm:text-sm">{label}</p>
     </div>
   );
 }

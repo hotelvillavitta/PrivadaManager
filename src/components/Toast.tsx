@@ -35,7 +35,7 @@ export function ToastHost() {
   if (!items.length) return null;
 
   return (
-    <div className="pointer-events-none fixed right-4 bottom-4 z-[100] flex w-[min(360px,calc(100vw-2rem))] flex-col gap-2">
+    <div className="pointer-events-none fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[100] flex flex-col gap-2 md:inset-x-auto md:right-4 md:bottom-4 md:w-[min(360px,calc(100vw-2rem))]">
       {items.map((item) => (
         <div
           key={item.id}
@@ -53,13 +53,13 @@ export function ToastHost() {
           <p className="flex-1 text-sm font-medium">{item.message}</p>
           <button
             type="button"
-            className="rounded-full p-0.5 opacity-70 hover:opacity-100"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full opacity-70 hover:opacity-100"
             onClick={() =>
               setItems((prev) => prev.filter((t) => t.id !== item.id))
             }
             aria-label="Cerrar"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
       ))}

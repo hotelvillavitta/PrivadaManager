@@ -99,7 +99,7 @@ export function DirectorioClient({
       <div className="mx-auto max-w-5xl px-4 lg:px-6">
         {isAdmin && (
           <form
-            className="mb-8 rounded-2xl border border-border bg-surface p-5 shadow-sm"
+            className="mb-6 rounded-2xl border border-border bg-surface p-4 shadow-sm sm:mb-8 sm:p-5"
             action={(fd) => {
               setMessage("");
               startTransition(async () => {
@@ -223,11 +223,11 @@ export function DirectorioClient({
               <h2 className="mb-4 font-display text-2xl text-primary-dark">
                 {cat}
               </h2>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-3 md:grid-cols-2 md:gap-4">
                 {items.map((p) => (
                   <article
                     key={p.id}
-                    className="rounded-2xl border border-border bg-surface p-5 shadow-sm"
+                    className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-5"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -242,7 +242,7 @@ export function DirectorioClient({
                             type="button"
                             title="Editar"
                             onClick={() => startEdit(p)}
-                            className="rounded-lg p-2 text-muted hover:bg-background hover:text-primary"
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary"
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
@@ -267,7 +267,7 @@ export function DirectorioClient({
                                 }
                               });
                             }}
-                            className="rounded-lg p-2 text-muted hover:bg-danger-soft hover:text-danger"
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:bg-danger-soft hover:text-danger"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>

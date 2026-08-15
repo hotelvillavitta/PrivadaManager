@@ -58,6 +58,31 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    /* Evita el zoom automático de Safari al enfocar formularios. */
+    font-size: 16px;
+  }
+
+  body {
+    overscroll-behavior-y: none;
+  }
+}
+
 h1,
 h2,
 h3,

@@ -158,11 +158,11 @@ export function ReservacionesClient({
         description="Reserva la palapa para reuniones familiares y eventos especiales."
       />
 
-      <div className="mx-auto mb-8 flex max-w-md justify-center rounded-full bg-border/60 p-1">
+      <div className="mx-4 mb-6 flex max-w-md justify-center rounded-full bg-border/60 p-1 sm:mx-auto sm:mb-8">
         <button
           type="button"
           onClick={() => setTab("calendar")}
-          className={`flex-1 rounded-full px-4 py-2.5 text-sm font-medium transition ${
+          className={`flex-1 rounded-full px-2 py-2.5 text-xs font-medium transition sm:px-4 sm:text-sm ${
             tab === "calendar"
               ? "bg-surface text-primary-dark shadow-sm"
               : "text-muted"
@@ -173,7 +173,7 @@ export function ReservacionesClient({
         <button
           type="button"
           onClick={() => setTab("new")}
-          className={`flex-1 rounded-full px-4 py-2.5 text-sm font-medium transition ${
+          className={`flex-1 rounded-full px-2 py-2.5 text-xs font-medium transition sm:px-4 sm:text-sm ${
             tab === "new"
               ? "bg-surface text-primary-dark shadow-sm"
               : "text-muted"
@@ -184,7 +184,7 @@ export function ReservacionesClient({
       </div>
 
       <div className="mx-auto grid max-w-6xl gap-6 px-4 lg:grid-cols-[280px_1fr] lg:px-6">
-        <aside className="space-y-4">
+        <aside className="order-2 space-y-4 lg:order-1">
           <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
             <div className="mb-3 flex items-center gap-2 text-primary">
               <Clock className="h-5 w-5" />
@@ -269,7 +269,7 @@ export function ReservacionesClient({
           )}
         </aside>
 
-        <div className="space-y-4">
+        <div className="order-1 space-y-4 lg:order-2">
           {focused && (
             <section
               id={`solicitud-${focused.id}`}
@@ -424,7 +424,7 @@ export function ReservacionesClient({
             </section>
           )}
 
-          <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm sm:p-6">
+          <div className="rounded-2xl border border-border bg-surface p-3 shadow-sm sm:p-6">
             {tab === "calendar" ? (
               <>
                 <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -504,7 +504,7 @@ export function ReservacionesClient({
                 <div className="grid grid-cols-7 gap-1">
                   {(view === "month" ? cells : weekCells).map((cell, idx) => {
                     if (!cell.key || !cell.day) {
-                      return <div key={`empty-${idx}`} className="min-h-16" />;
+                      return <div key={`empty-${idx}`} className="min-h-12 sm:min-h-16" />;
                     }
                     const status = statusFor(cell.key);
                     const isSelected = selected === cell.key;
@@ -518,7 +518,7 @@ export function ReservacionesClient({
                             setTab("new");
                           }
                         }}
-                        className={`min-h-16 rounded-xl border p-2 text-left transition ${
+                        className={`min-h-12 rounded-lg border p-0.5 text-center transition sm:min-h-16 sm:rounded-xl sm:p-2 sm:text-left ${
                           isSelected
                             ? "border-primary bg-primary text-white"
                             : status === "reserved"
@@ -528,16 +528,16 @@ export function ReservacionesClient({
                                 : "border-border bg-surface hover:border-primary/40"
                         }`}
                       >
-                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold">
+                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold sm:text-sm">
                           {cell.day}
                         </span>
                         {status === "reserved" && !isSelected && (
-                          <p className="mt-1 text-[10px] font-medium text-danger">
+                          <p className="mt-1 hidden text-[10px] font-medium text-danger sm:block">
                             Reservado
                           </p>
                         )}
                         {status === "pending" && !isSelected && (
-                          <p className="mt-1 text-[10px] font-medium text-warning">
+                          <p className="mt-1 hidden text-[10px] font-medium text-warning sm:block">
                             Pendiente
                           </p>
                         )}
@@ -546,7 +546,7 @@ export function ReservacionesClient({
                   })}
                 </div>
 
-                <div className="mt-5 flex flex-wrap gap-4 text-xs text-muted">
+                <div className="mt-4 flex flex-wrap gap-2.5 text-[11px] text-muted sm:mt-5 sm:gap-4 sm:text-xs">
                   <Legend color="bg-[#f3c9cd]" label="Reservado" />
                   <Legend color="bg-[#f0d9a0]" label="Pendiente" />
                   <Legend color="bg-[#b7dfc8]" label="Disponible" />

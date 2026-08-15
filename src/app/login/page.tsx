@@ -36,7 +36,7 @@ export default function LoginPage() {
     mode === "login" ? loginState?.error : registerState?.error;
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-16">
+    <div className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden px-3 py-5 sm:px-4 sm:py-10">
       <div
         className="pointer-events-none absolute inset-0 opacity-70"
         style={{
@@ -44,11 +44,11 @@ export default function LoginPage() {
             "radial-gradient(ellipse 80% 50% at 50% -20%, #efe4ec, transparent), radial-gradient(ellipse 60% 40% at 100% 100%, #ebe3da, transparent)",
         }}
       />
-      <div className="relative w-full max-w-md rounded-3xl border border-border bg-surface p-8 shadow-[0_20px_60px_-30px_rgba(63,42,60,0.35)]">
-        <div className="mb-8 text-center">
+      <div className="relative w-full max-w-md rounded-3xl border border-border bg-surface p-5 shadow-[0_20px_60px_-30px_rgba(63,42,60,0.35)] sm:p-8">
+        <div className="mb-6 text-center sm:mb-8">
           <BrandLogo
             variant="full"
-            className="mx-auto mb-5 w-full max-w-[280px] rounded-2xl"
+            className="mx-auto mb-4 w-full max-w-[220px] rounded-2xl sm:mb-5 sm:max-w-[280px]"
             priority
           />
           <p className="text-xs font-semibold tracking-[0.2em] text-accent uppercase">
@@ -71,7 +71,7 @@ export default function LoginPage() {
         >
           {mode === "register" && (
             <>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium">
                     Nombre

@@ -140,7 +140,7 @@ export function NoticiasClient({
       <div className="mx-auto max-w-6xl px-4 lg:px-6">
         {isAdmin && (
           <form
-            className="mb-8 rounded-2xl border border-border bg-surface p-5 shadow-sm"
+            className="mb-6 rounded-2xl border border-border bg-surface p-4 shadow-sm sm:mb-8 sm:p-5"
             action={(fd) => {
               setMessage("");
               startTransition(async () => {
@@ -244,14 +244,14 @@ export function NoticiasClient({
           </form>
         )}
 
-        <div className="mb-8 flex flex-wrap items-center gap-2">
-          <Filter className="mr-1 h-4 w-4 text-muted" />
+        <div className="-mx-4 mb-6 flex items-center gap-2 overflow-x-auto px-4 pb-2 sm:mx-0 sm:mb-8 sm:flex-wrap sm:px-0 sm:pb-0">
+          <Filter className="mr-1 h-4 w-4 shrink-0 text-muted" />
           {filters.map((f) => (
             <button
               key={f}
               type="button"
               onClick={() => setFilter(f)}
-              className={`rounded-full px-4 py-2 text-sm transition ${
+              className={`shrink-0 rounded-full px-4 py-2 text-sm transition ${
                 filter === f
                   ? "bg-primary text-white"
                   : "border border-border bg-surface text-muted hover:bg-background"
@@ -262,13 +262,13 @@ export function NoticiasClient({
           ))}
         </div>
 
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 xl:gap-5">
           {items.map((item) => {
             const label = NEWS_CATEGORY_LABEL[item.category] ?? item.category;
             return (
               <article
                 key={item.id}
-                className="flex flex-col rounded-2xl border border-border bg-surface p-5 shadow-sm"
+                className="flex flex-col rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-5"
               >
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <span
@@ -291,7 +291,7 @@ export function NoticiasClient({
                           type="button"
                           title="Editar"
                           onClick={() => startEdit(item)}
-                          className="rounded-lg p-1.5 text-muted hover:bg-background hover:text-primary"
+                          className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary"
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
@@ -311,7 +311,7 @@ export function NoticiasClient({
                               }
                             });
                           }}
-                          className="rounded-lg p-1.5 text-muted hover:bg-danger-soft hover:text-danger"
+                          className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:bg-danger-soft hover:text-danger"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -323,7 +323,7 @@ export function NoticiasClient({
                   <h2 className="font-display text-xl uppercase tracking-wide text-primary-dark group-hover:underline">
                     {item.title}
                   </h2>
-                  <p className="mt-2 flex-1 text-sm leading-relaxed text-muted">
+                  <p className="mt-2 line-clamp-3 flex-1 text-sm leading-relaxed text-muted">
                     {item.body}
                   </p>
                 </Link>
@@ -352,7 +352,7 @@ export function NoticiasClient({
                         key={emoji}
                         type="button"
                         onClick={() => react(item.id, emoji)}
-                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-sm ${
+                        className={`inline-flex min-h-10 items-center gap-1 rounded-full px-3 py-2 text-sm ${
                           active
                             ? "bg-primary-soft ring-1 ring-primary/30"
                             : "bg-background hover:bg-primary-soft"

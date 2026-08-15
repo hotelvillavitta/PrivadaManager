@@ -12,7 +12,7 @@ type Privada = {
 
 export function Footer({ privada }: { privada: Privada }) {
   return (
-    <footer className="mt-auto border-t border-border bg-footer">
+    <footer className="mt-auto hidden border-t border-border bg-footer md:block">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4 lg:px-6">
         <div>
           <BrandLogo
