@@ -16,8 +16,9 @@ import {
   formatCurrency,
   fullName,
   isFeePaymentLate,
+  calendarPartsInTijuana,
   nextFeePeriod,
-  resolveFineBillingPeriod,
+  pickFineBillingPeriod,
 } from "@/lib/utils";
 import { getPrivada } from "@/lib/queries";
 import {
@@ -878,9 +879,38 @@ export async function issueFine(formData: FormData) {
   if (!cause) return { error: "La falta seleccionada no es válida." };
 
   const issuedAt = new Date();
-  let billing = resolveFineBillingPeriod(issuedAt);
+  const { year: cy, month: cm } = calendarPartsInTijuana(issuedAt);
 
-  // Si ese periodo ya está pagado, pasar al siguiente mes abierto.
+  const [unpaidFees, currentMonthFee] = await Promise.all([
+    prisma.monthlyFee.findMany({
+      where: {
+        houseNumber,
+        concept: FEE_CONCEPT.MANTENIMIENTO,
+        status: { in: ["ADEUDO", "PENDIENTE"] },
+      },
+      select: { year: true, month: true, status: true },
+      orderBy: [{ year: "asc" }, { month: "asc" }],
+    }),
+    prisma.monthlyFee.findUnique({
+      where: {
+        houseNumber_year_month_concept: {
+          houseNumber,
+          year: cy,
+          month: cm,
+          concept: FEE_CONCEPT.MANTENIMIENTO,
+        },
+      },
+      select: { status: true },
+    }),
+  ]);
+
+  let billing = pickFineBillingPeriod({
+    asOf: issuedAt,
+    unpaidFees,
+    currentMonthFeeStatus: currentMonthFee?.status ?? null,
+  });
+
+  // Si ese periodo ya está pagado (carrera rara), pasar al siguiente mes abierto.
   for (let i = 0; i < 24; i++) {
     const existing = await prisma.monthlyFee.findUnique({
       where: {

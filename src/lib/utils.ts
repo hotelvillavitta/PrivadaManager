@@ -96,7 +96,7 @@ export function calendarPartsInTijuana(asOf: Date = new Date()) {
 }
 
 /**
- * Periodo de cuota al que se suma una multa económica:
+ * Periodo sugerido sin mirar adeudos de la casa:
  * mes en curso si estamos dentro de los primeros FEE_GRACE_DAYS días;
  * si no, el mes siguiente.
  */
@@ -112,6 +112,36 @@ export function resolveFineBillingPeriod(asOf: Date = new Date()) {
 export function nextFeePeriod(year: number, month: number) {
   if (month === 12) return { year: year + 1, month: 1 };
   return { year, month: month + 1 };
+}
+
+/**
+ * Elige el periodo de cuota al que debe sumarse una multa:
+ * 1) adeudo más antiguo ya registrado (mes actual o anterior);
+ * 2) si no hay filas, el mes calendario actual si aún no está pagado;
+ * 3) si está al corriente, el siguiente mes abierto / periodo de cobro.
+ */
+export function pickFineBillingPeriod(opts: {
+  asOf?: Date;
+  unpaidFees: { year: number; month: number; status: string }[];
+  currentMonthFeeStatus?: string | null;
+}) {
+  const asOf = opts.asOf ?? new Date();
+  const { year: cy, month: cm } = calendarPartsInTijuana(asOf);
+  const currentKey = cy * 12 + cm;
+
+  const dueUnpaid = opts.unpaidFees
+    .filter((f) => f.year * 12 + f.month <= currentKey)
+    .sort((a, b) => a.year * 12 + a.month - (b.year * 12 + b.month));
+
+  if (dueUnpaid.length) {
+    return { year: dueUnpaid[0].year, month: dueUnpaid[0].month };
+  }
+
+  if (opts.currentMonthFeeStatus !== "PAGADO") {
+    return { year: cy, month: cm };
+  }
+
+  return resolveFineBillingPeriod(asOf);
 }
 
 /** Compara periodos de cuota: negativo si a < b, 0 si iguales, positivo si a > b. */

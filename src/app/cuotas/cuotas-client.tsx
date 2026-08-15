@@ -549,10 +549,9 @@ export function CuotasClient({
               Multas y sanciones
             </h2>
             <p className="mt-1 text-sm text-muted">
-              Cada multa se suma a la cuota de mantenimiento del periodo
-              indicado (mes en curso si es dentro de los primeros{" "}
-              {FEE_GRACE_DAYS} días; si no, el mes siguiente). Se liquida al
-              pagar esa cuota.
+              Cada multa se suma a la cuota del mes con adeudo más antiguo del
+              residente. Se liquida al pagar esa cuota (no se cobra en un mes
+              futuro si aún debe el actual o anteriores).
             </p>
           </div>
           {fines.length === 0 ? (

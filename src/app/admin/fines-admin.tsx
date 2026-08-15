@@ -12,10 +12,8 @@ import {
   type FineCategory,
 } from "@/lib/fines/catalog";
 import {
-  FEE_GRACE_DAYS,
   feeLabel,
   formatCurrency,
-  resolveFineBillingPeriod,
 } from "@/lib/utils";
 
 type PendingFine = {
@@ -48,7 +46,6 @@ export function FinesAdmin({
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
 
-  const previewPeriod = resolveFineBillingPeriod();
   const causes = useMemo(
     () => FINE_CAUSES.filter((c) => c.category === category),
     [category],
@@ -69,9 +66,9 @@ export function FinesAdmin({
           Multas y sanciones
         </h2>
         <p className="text-sm text-muted">
-          El monto se suma a la cuota de mantenimiento del mes en curso si
-          estamos en los primeros {FEE_GRACE_DAYS} días; si no, al mes
-          siguiente. Se cobra al registrar esa cuota.
+          El monto se suma a la cuota del mes con adeudo más antiguo del
+          residente (actual o anterior). Si está al corriente, se usa el
+          periodo de cobro vigente. Se liquida al registrar esa cuota.
         </p>
       </div>
 
@@ -87,7 +84,7 @@ export function FinesAdmin({
             const period =
               "billingYear" in res && res.billingYear && res.billingMonth
                 ? feeLabel(res.billingYear, res.billingMonth)
-                : feeLabel(previewPeriod.year, previewPeriod.month);
+                : "la cuota con adeudo";
             toast(`Multa aplicada · se suma a cuota ${period}.`);
             setAmount("");
             setNotes("");
@@ -129,13 +126,9 @@ export function FinesAdmin({
         </div>
 
         <p className="rounded-xl bg-primary-soft/50 px-3 py-2 text-xs text-primary-dark">
-          Periodo sugerido hoy:{" "}
-          <strong>{feeLabel(previewPeriod.year, previewPeriod.month)}</strong>
-          {previewPeriod.month === new Date().getMonth() + 1 &&
-          previewPeriod.year === new Date().getFullYear()
-            ? ` (mes en curso · día ≤ ${FEE_GRACE_DAYS})`
-            : " (mes siguiente)"}
-          . Si esa cuota ya está pagada, se usa el siguiente mes abierto.
+          Si la casa debe meses anteriores o el mes en curso, la multa se carga
+          ahí (no a un mes futuro). Ejemplo: adeudo de agosto → se cobra con
+          agosto, aunque ya no estemos en periodo de cobro.
         </p>
 
         <label className="flex flex-col gap-1.5 text-sm">
