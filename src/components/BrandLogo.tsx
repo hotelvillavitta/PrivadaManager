@@ -27,8 +27,8 @@ export function BrandLogo({
 
   return (
     <Image
-      src="/icons/icon-192.png"
-      alt="Privada Manager"
+      src="/brand/icon-light.png"
+      alt="Grenaché"
       width={192}
       height={192}
       className={className}

@@ -2,14 +2,14 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Privada Manager",
-    short_name: "Privada",
+    name: "Grenaché",
+    short_name: "Grenaché",
     description:
       "Portal de gestión residencial: noticias, reservaciones, cuotas y finanzas.",
     start_url: "/",
     display: "standalone",
-    background_color: "#0a1628",
-    theme_color: "#0a1628",
+    background_color: "#f4efe8",
+    theme_color: "#4f334a",
     orientation: "portrait-primary",
     lang: "es",
     icons: [
@@ -31,7 +31,7 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: "any",
       },
       {
-        src: "/icons/icon-512.png",
+        src: "/icons/icon-maskable-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",

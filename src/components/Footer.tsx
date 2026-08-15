@@ -20,7 +20,7 @@ export function Footer({ privada }: { privada: Privada }) {
             className="mb-4 h-12 w-12 rounded-xl ring-1 ring-border"
           />
           <p className="mb-1 text-sm font-semibold text-primary-dark">
-            Privada Manager
+            {privada.name}
           </p>
           <p className="max-w-xs text-sm leading-relaxed text-muted">
             {privada.tagline}

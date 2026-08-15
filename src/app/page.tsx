@@ -46,8 +46,8 @@ export default async function HomePage() {
       </section>
 
       <section className="mx-auto max-w-5xl px-4 lg:px-6">
-        <div className="flex items-center gap-4 rounded-2xl border border-border bg-primary-soft/60 px-5 py-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary text-white">
+        <div className="flex items-center gap-4 rounded-2xl border border-border bg-surface px-5 py-4 shadow-sm">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary text-white shadow-sm">
             <Users className="h-5 w-5" />
           </div>
           <div>
@@ -74,10 +74,10 @@ export default async function HomePage() {
             <Link
               key={title}
               href={href}
-              className="group rounded-2xl border border-border bg-surface p-6 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+              className="group rounded-2xl border border-border bg-surface p-6 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
             >
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary-soft text-primary transition group-hover:bg-primary group-hover:text-white">
-                <Icon className="h-5 w-5" />
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-soft text-primary transition group-hover:bg-primary group-hover:text-white">
+                <Icon className="h-5 w-5" strokeWidth={2.25} />
               </div>
               <h3 className="font-display text-xl text-primary-dark">
                 {title}

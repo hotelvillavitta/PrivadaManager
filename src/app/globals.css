@@ -1,24 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f6f2ec;
-  --foreground: #3a2a38;
+  /* Grenaché — identidad residencial con contraste reforzado */
+  --background: #f4efe8;
+  --foreground: #2a1c28;
   --surface: #ffffff;
-  --muted: #6f5f6c;
-  --border: #e8e0d8;
-  --primary: #5c3d56;
-  --primary-soft: #efe8ef;
-  --primary-dark: #3f2a3c;
-  --accent: #8b6b86;
-  --success: #2f7a5b;
-  --success-soft: #e7f5ee;
-  --danger: #b4545a;
-  --danger-soft: #f8e8e9;
-  --warning: #c48a2e;
-  --warning-soft: #f8efd9;
-  --info: #4a6fa5;
-  --info-soft: #e8eef7;
-  --footer: #efe9e2;
+  --muted: #5a4a57;
+  --border: #d9cfc4;
+  --primary: #4f334a;
+  --primary-soft: #efe4ec;
+  --primary-dark: #2f1d2d;
+  --accent: #9a6b3f;
+  --success: #1f6b4a;
+  --success-soft: #e3f3eb;
+  --danger: #a63d45;
+  --danger-soft: #f8e6e8;
+  --warning: #b07820;
+  --warning-soft: #f7edd8;
+  --info: #3d5f8f;
+  --info-soft: #e6eef8;
+  --footer: #ebe3da;
+  --ring: #4f334a;
+  --unread: #4f334a;
+  --unread-soft: #f3e8f0;
 }
 
 @theme inline {
@@ -40,6 +44,9 @@
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
   --color-footer: var(--footer);
+  --color-ring: var(--ring);
+  --color-unread: var(--unread);
+  --color-unread-soft: var(--unread-soft);
   --font-sans: var(--font-body);
   --font-serif: var(--font-display);
 }
@@ -59,5 +66,10 @@ h3,
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--primary) 25%, white);
+  background: color-mix(in srgb, var(--primary) 28%, white);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }

@@ -4,7 +4,7 @@ import { Providers } from "@/components/Providers";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { auth } from "@/lib/auth";
-import { getPrivada, getUnreadCount } from "@/lib/queries";
+import { getPrivada, getRecentNotifications, getUnreadCount } from "@/lib/queries";
 import "./globals.css";
 
 /** Portal autenticado: nunca cachear HTML en CDN/navegador. */
@@ -24,22 +24,22 @@ const body = Source_Sans_3({
 });
 
 export const viewport: Viewport = {
-  themeColor: "#0a1628",
+  themeColor: "#4f334a",
   colorScheme: "light",
 };
 
 export const metadata: Metadata = {
   title: {
-    default: "Privada Manager | Grenaché",
-    template: "%s | Privada Manager",
+    default: "Grenaché | Portal residencial",
+    template: "%s | Grenaché",
   },
   description:
     "Portal de gestión residencial: noticias, reservaciones, cuotas y finanzas. Tu privada, siempre en orden.",
-  applicationName: "Privada Manager",
+  applicationName: "Grenaché",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
-    title: "Privada Manager",
+    statusBarStyle: "default",
+    title: "Grenaché",
   },
   formatDetection: {
     telephone: false,
@@ -53,7 +53,7 @@ export const metadata: Metadata = {
     apple: [{ url: "/apple-icon", sizes: "180x180", type: "image/png" }],
   },
   openGraph: {
-    title: "Privada Manager | Grenaché",
+    title: "Grenaché | Portal residencial",
     description:
       "Portal de gestión residencial. Tu privada, siempre en orden.",
     images: [{ url: "/brand/og-icon.png", width: 512, height: 512 }],
@@ -70,9 +70,13 @@ export default async function RootLayout({
 }) {
   const session = await auth();
   const privada = await getPrivada();
-  const unread = session?.user?.id
-    ? await getUnreadCount(session.user.id)
-    : 0;
+  const userId = session?.user?.id;
+  const [unread, recent] = userId
+    ? await Promise.all([
+        getUnreadCount(userId),
+        getRecentNotifications(userId, 5),
+      ])
+    : [0, [] as Awaited<ReturnType<typeof getRecentNotifications>>];
 
   return (
     <html
@@ -85,6 +89,15 @@ export default async function RootLayout({
             user={session?.user ?? null}
             unread={unread}
             privadaName={privada.name}
+            notifications={recent.map((n) => ({
+              id: n.id,
+              title: n.title,
+              body: n.body,
+              read: n.read,
+              newsId: n.newsId,
+              reservationId: n.reservationId,
+              createdAt: n.createdAt.toISOString(),
+            }))}
           />
           <main className="flex-1">{children}</main>
           {session?.user && <Footer privada={privada} />}

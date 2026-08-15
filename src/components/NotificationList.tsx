@@ -3,6 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { markNotificationRead } from "@/lib/actions/portal";
+import {
+  hrefForNotification,
+  relativeTimeEs,
+} from "@/lib/notifications";
 
 type Item = {
   id: string;
@@ -13,17 +17,6 @@ type Item = {
   reservationId: string | null;
   createdAt: string;
 };
-
-function hrefFor(n: Item) {
-  if (n.reservationId) {
-    return `/reservaciones?solicitud=${n.reservationId}`;
-  }
-  if (n.newsId) return `/noticias/${n.newsId}`;
-  const t = n.title.toLowerCase();
-  if (t.includes("cuota") || t.includes("pago")) return "/cuotas";
-  if (t.includes("reserv") || t.includes("palapa")) return "/reservaciones";
-  return null;
-}
 
 export function NotificationList({ items }: { items: Item[] }) {
   const router = useRouter();
@@ -36,7 +29,7 @@ export function NotificationList({ items }: { items: Item[] }) {
   return (
     <ul className="space-y-3">
       {items.map((n) => {
-        const href = hrefFor(n);
+        const href = hrefForNotification(n);
         return (
           <li key={n.id}>
             <button
@@ -49,19 +42,39 @@ export function NotificationList({ items }: { items: Item[] }) {
                   else router.refresh();
                 });
               }}
-              className={`block w-full rounded-xl border px-4 py-3 text-left transition hover:border-primary/40 disabled:opacity-60 ${
+              className={`relative block w-full overflow-hidden rounded-2xl border px-4 py-3.5 text-left transition hover:shadow-sm disabled:opacity-60 ${
                 n.read
-                  ? "border-border bg-background"
-                  : "border-primary/20 bg-primary-soft/50"
+                  ? "border-border bg-surface text-foreground"
+                  : "border-primary/35 bg-unread-soft shadow-[inset_4px_0_0_0_var(--unread)]"
               }`}
             >
-              <p className="font-medium text-primary-dark">{n.title}</p>
-              <p className="mt-1 text-sm text-muted">{n.body}</p>
-              <p className="mt-2 text-xs text-muted">
-                {new Date(n.createdAt).toLocaleString("es-MX")}
-                {!n.read ? " · Sin leer" : ""}
-                {href ? " · Abrir" : ""}
-              </p>
+              <div className="flex items-start gap-3">
+                <span
+                  className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${
+                    n.read ? "bg-border" : "bg-unread"
+                  }`}
+                  aria-hidden
+                />
+                <div className="min-w-0 flex-1">
+                  <p
+                    className={`leading-snug ${
+                      n.read
+                        ? "font-medium text-foreground"
+                        : "font-semibold text-primary-dark"
+                    }`}
+                  >
+                    {n.title}
+                  </p>
+                  <p className="mt-1 text-sm leading-relaxed text-muted">
+                    {n.body}
+                  </p>
+                  <p className="mt-2 text-xs font-medium text-accent">
+                    {relativeTimeEs(n.createdAt)}
+                    {!n.read ? " · Sin leer" : " · Leída"}
+                    {href ? " · Abrir" : ""}
+                  </p>
+                </div>
+              </div>
             </button>
           </li>
         );

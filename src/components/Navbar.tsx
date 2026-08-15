@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Bell,
   Building2,
   CalendarDays,
   CircleDollarSign,
@@ -19,6 +18,10 @@ import {
 import { useState, useTransition } from "react";
 import { logoutAction } from "@/lib/actions/auth";
 import { BrandLogo } from "@/components/BrandLogo";
+import {
+  NotificationBell,
+  type NavNotification,
+} from "@/components/NotificationBell";
 
 type NavUser = {
   firstName: string;
@@ -40,10 +43,12 @@ const baseLinks = [
 export function Navbar({
   user,
   unread,
+  notifications,
   privadaName,
 }: {
   user: NavUser;
   unread: number;
+  notifications: NavNotification[];
   privadaName: string;
 }) {
   const pathname = usePathname();
@@ -52,29 +57,30 @@ export function Navbar({
 
   const links =
     user?.role === "ADMIN"
-      ? [
-          ...baseLinks,
-          { href: "/admin", label: "Admin", icon: Shield },
-        ]
+      ? [...baseLinks, { href: "/admin", label: "Admin", icon: Shield }]
       : baseLinks;
   if (pathname === "/login") return null;
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-surface/95 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 lg:px-6">
-        <Link href="/" className="flex items-center gap-3">
+    <header className="sticky top-0 z-50 border-b border-border bg-surface/95 shadow-sm backdrop-blur">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 lg:px-6">
+        <Link href="/" className="flex min-w-0 items-center gap-3">
           <BrandLogo
             variant="mark"
-            className="h-10 w-10 rounded-xl shadow-sm ring-1 ring-border"
+            className="h-11 w-11 rounded-xl shadow-sm ring-1 ring-border"
             priority
           />
-          <div className="leading-tight">
-            <p className="font-display text-lg text-primary-dark">{privadaName}</p>
-            <p className="text-xs text-muted">Privada Manager</p>
+          <div className="min-w-0 leading-tight">
+            <p className="truncate font-display text-lg text-primary-dark">
+              {privadaName}
+            </p>
+            <p className="text-xs font-medium tracking-wide text-accent">
+              Portal residencial
+            </p>
           </div>
         </Link>
 
-        <nav className="hidden items-center gap-1 xl:flex">
+        <nav className="hidden items-center gap-1 rounded-2xl border border-border bg-background/80 p-1 xl:flex">
           {links.map(({ href, label, icon: Icon }) => {
             const active =
               href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -82,40 +88,35 @@ export function Navbar({
               <Link
                 key={href}
                 href={href}
-                className={`flex items-center gap-1.5 rounded-full px-3 py-2 text-sm transition ${
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm transition ${
                   active
-                    ? "bg-primary-soft font-medium text-primary"
-                    : "text-muted hover:bg-background hover:text-foreground"
+                    ? "bg-primary font-semibold text-white shadow-sm"
+                    : "font-medium text-muted hover:bg-surface hover:text-primary-dark"
                 }`}
               >
-                <Icon className="h-4 w-4" />
+                <span
+                  className={`flex h-6 w-6 items-center justify-center rounded-lg ${
+                    active ? "bg-white/15" : "bg-primary-soft text-primary"
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" strokeWidth={2.25} />
+                </span>
                 {label}
               </Link>
             );
           })}
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {user ? (
             <>
-              <Link
-                href="/comunidad"
-                className="relative rounded-full p-2 text-muted hover:bg-background"
-                aria-label="Notificaciones"
-              >
-                <Bell className="h-5 w-5" />
-                {unread > 0 && (
-                  <span className="absolute -right-0.5 -top-0.5 rounded-full bg-danger px-1.5 text-[10px] font-semibold text-white">
-                    {unread > 9 ? "9+" : unread}
-                  </span>
-                )}
-              </Link>
+              <NotificationBell unread={unread} items={notifications} />
               <div className="hidden text-right sm:block">
-                <p className="text-sm font-medium uppercase tracking-wide text-primary-dark">
+                <p className="text-sm font-semibold uppercase tracking-wide text-primary-dark">
                   {user.firstName}
                 </p>
                 <span
-                  className={`mt-0.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${
+                  className={`mt-0.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase ${
                     user.role === "ADMIN"
                       ? "bg-primary text-white"
                       : "bg-primary-soft text-primary"
@@ -128,7 +129,7 @@ export function Navbar({
                 type="button"
                 disabled={pending}
                 onClick={() => startTransition(() => logoutAction())}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-2 text-sm text-muted transition hover:bg-background hover:text-foreground disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-2 text-sm font-medium text-muted transition hover:border-primary/30 hover:bg-primary-soft hover:text-primary-dark disabled:opacity-60"
               >
                 <LogOut className="h-4 w-4" />
                 <span className="hidden sm:inline">Salir</span>
@@ -137,7 +138,7 @@ export function Navbar({
           ) : (
             <Link
               href="/login"
-              className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark"
+              className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark"
             >
               Ingresar
             </Link>
@@ -145,9 +146,10 @@ export function Navbar({
 
           <button
             type="button"
-            className="rounded-full p-2 text-muted hover:bg-background xl:hidden"
+            className="rounded-full border border-border bg-surface p-2.5 text-primary-dark hover:bg-primary-soft xl:hidden"
             onClick={() => setOpen((v) => !v)}
             aria-label="Menú"
+            aria-expanded={open}
           >
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -155,8 +157,8 @@ export function Navbar({
       </div>
 
       {open && (
-        <nav className="border-t border-border bg-surface px-4 py-3 xl:hidden">
-          <div className="mx-auto flex max-w-7xl flex-col gap-1">
+        <nav className="border-t border-border bg-surface px-4 py-3 shadow-inner xl:hidden">
+          <div className="mx-auto flex max-w-7xl flex-col gap-1.5">
             {links.map(({ href, label, icon: Icon }) => {
               const active =
                 href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -165,13 +167,21 @@ export function Navbar({
                   key={href}
                   href={href}
                   onClick={() => setOpen(false)}
-                  className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm ${
+                  className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm ${
                     active
-                      ? "bg-primary-soft font-medium text-primary"
-                      : "text-muted hover:bg-background"
+                      ? "bg-primary font-semibold text-white"
+                      : "font-medium text-foreground hover:bg-primary-soft"
                   }`}
                 >
-                  <Icon className="h-4 w-4" />
+                  <span
+                    className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                      active
+                        ? "bg-white/15"
+                        : "bg-primary-soft text-primary"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" strokeWidth={2.25} />
+                  </span>
                   {label}
                 </Link>
               );

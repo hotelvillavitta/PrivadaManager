@@ -93,7 +93,7 @@ export default async function ComunidadPage() {
             <form action={markNotificationsRead}>
               <button
                 type="submit"
-                className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-muted hover:bg-background"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary-soft"
               >
                 <CheckCheck className="h-3.5 w-3.5" />
                 Marcar leídas

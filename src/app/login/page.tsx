@@ -41,7 +41,7 @@ export default function LoginPage() {
         className="pointer-events-none absolute inset-0 opacity-70"
         style={{
           background:
-            "radial-gradient(ellipse 80% 50% at 50% -20%, #efe8ef, transparent), radial-gradient(ellipse 60% 40% at 100% 100%, #e8efe9, transparent)",
+            "radial-gradient(ellipse 80% 50% at 50% -20%, #efe4ec, transparent), radial-gradient(ellipse 60% 40% at 100% 100%, #ebe3da, transparent)",
         }}
       />
       <div className="relative w-full max-w-md rounded-3xl border border-border bg-surface p-8 shadow-[0_20px_60px_-30px_rgba(63,42,60,0.35)]">
