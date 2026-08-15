@@ -4,6 +4,7 @@ import {
   getFeeSummary,
   getFeesForHouse,
   getHouseNumbers,
+  getPalapaPaymentsForHouse,
 } from "@/lib/queries";
 import { CuotasClient } from "./cuotas-client";
 
@@ -23,8 +24,9 @@ export default async function CuotasPage({
       ? requested
       : (session.user.houseNumber ?? "0");
 
-  const [fees, summary, houses] = await Promise.all([
+  const [fees, palapaPayments, summary, houses] = await Promise.all([
     getFeesForHouse(houseNumber),
+    getPalapaPaymentsForHouse(houseNumber),
     getFeeSummary(houseNumber),
     isAdmin ? getHouseNumbers() : Promise.resolve([] as string[]),
   ]);
@@ -52,6 +54,11 @@ export default async function CuotasPage({
         amount: f.amount,
         concept: f.concept,
         status: f.status,
+      }))}
+      palapaPayments={palapaPayments.map((payment) => ({
+        id: payment.id,
+        amount: payment.amount,
+        paidAt: payment.paidAt.toISOString(),
       }))}
     />
   );

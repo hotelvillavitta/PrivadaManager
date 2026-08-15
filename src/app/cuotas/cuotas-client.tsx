@@ -35,11 +35,18 @@ type Fee = {
   status: "PAGADO" | "ADEUDO" | "PENDIENTE";
 };
 
+type PalapaPayment = {
+  id: string;
+  amount: number;
+  paidAt: string;
+};
+
 export function CuotasClient({
   houseNumber,
   houses = [],
   accessCode,
   fees,
+  palapaPayments,
   summary,
   isAdmin,
 }: {
@@ -47,6 +54,7 @@ export function CuotasClient({
   houses?: string[];
   accessCode: string | null;
   fees: Fee[];
+  palapaPayments: PalapaPayment[];
   summary: { paid: number; debt: number; pendingAmount: number };
   isAdmin: boolean;
 }) {
@@ -78,18 +86,13 @@ export function CuotasClient({
       f.month === chargeMonth &&
       f.concept === FEE_CONCEPT.MANTENIMIENTO,
   );
-  const palapaFee = fees.find(
-    (f) =>
-      f.year === chargeYear &&
-      f.month === chargeMonth &&
-      f.concept === FEE_CONCEPT.PALAPA,
-  );
   const maintenancePaid = maintenanceFee?.status === "PAGADO";
-  const palapaPaid = palapaFee?.status === "PAGADO";
   const suggestedLate = isFeePaymentLate(chargeYear, chargeMonth);
 
   useEffect(() => {
     if (maintenancePaid) {
+      // El periodo seleccionado define el estado inicial del formulario.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIncludeMaintenance(false);
       setIncludeLate(false);
     } else {
@@ -98,13 +101,12 @@ export function CuotasClient({
       setMaintenanceAmount(FEE_BASE_AMOUNT);
       setLateAmount(FEE_LATE_SURCHARGE);
     }
-    if (palapaPaid) setIncludePalapa(false);
-  }, [houseNumber, chargeYear, chargeMonth, maintenancePaid, palapaPaid, suggestedLate]);
+  }, [houseNumber, chargeYear, chargeMonth, maintenancePaid, suggestedLate]);
 
   const total =
     (includeMaintenance && !maintenancePaid ? maintenanceAmount : 0) +
     (includeMaintenance && includeLate && !maintenancePaid ? lateAmount : 0) +
-    (includePalapa && !palapaPaid ? palapaAmount : 0);
+    (includePalapa ? palapaAmount : 0);
 
   const conceptSummary = [
     includeMaintenance && !maintenancePaid
@@ -113,7 +115,7 @@ export function CuotasClient({
     includeMaintenance && includeLate && !maintenancePaid
       ? `Recargo (después del día ${FEE_GRACE_DAYS})`
       : null,
-    includePalapa && !palapaPaid ? FEE_CONCEPT_LABEL.PALAPA : null,
+    includePalapa ? FEE_CONCEPT_LABEL.PALAPA : null,
   ]
     .filter(Boolean)
     .join(" + ");
@@ -122,7 +124,7 @@ export function CuotasClient({
     !pending &&
     total > 0 &&
     ((includeMaintenance && !maintenancePaid) ||
-      (includePalapa && !palapaPaid));
+      includePalapa);
 
   return (
     <div className="pb-16">
@@ -131,7 +133,7 @@ export function CuotasClient({
         title={isAdmin ? "Cobranza de cuotas" : "Cuotas de mantenimiento"}
         description={
           isAdmin
-            ? `Mantenimiento ${formatCurrency(FEE_BASE_AMOUNT)}, palapa ${formatCurrency(FEE_PALAPA_AMOUNT)}. Recargo ${formatCurrency(FEE_LATE_SURCHARGE)} después del día ${FEE_GRACE_DAYS}.`
+            ? `Mantenimiento ${formatCurrency(FEE_BASE_AMOUNT)}. El uso de palapa (${formatCurrency(FEE_PALAPA_AMOUNT)}) es un cargo independiente y puede registrarse cada vez que se use. Recargo ${formatCurrency(FEE_LATE_SURCHARGE)} después del día ${FEE_GRACE_DAYS}.`
             : `Consulta tu historial. Cuota mensual ${formatCurrency(FEE_BASE_AMOUNT)}.`
         }
       />
@@ -273,19 +275,13 @@ export function CuotasClient({
               </label>
             </div>
 
-            {(maintenancePaid || palapaPaid) && (
+            {maintenancePaid && (
               <div className="mb-4 space-y-2">
                 {maintenancePaid && (
                   <p className="rounded-xl border border-success/30 bg-success-soft px-4 py-3 text-sm font-medium text-success">
                     Mantenimiento {feeLabel(chargeYear, chargeMonth)}:{" "}
                     <strong>PAGADO</strong> ({formatCurrency(maintenanceFee!.amount)}).
                     No se puede duplicar.
-                  </p>
-                )}
-                {palapaPaid && (
-                  <p className="rounded-xl border border-success/30 bg-success-soft px-4 py-3 text-sm font-medium text-success">
-                    Palapa {feeLabel(chargeYear, chargeMonth)}:{" "}
-                    <strong>PAGADO</strong> ({formatCurrency(palapaFee!.amount)}).
                   </p>
                 )}
               </div>
@@ -322,15 +318,14 @@ export function CuotasClient({
                 }
               />
               <ConceptRow
-                checked={includePalapa && !palapaPaid}
-                disabled={palapaPaid}
+                checked={includePalapa}
                 onCheckedChange={setIncludePalapa}
                 name="includePalapa"
                 title={FEE_CONCEPT_LABEL.PALAPA}
                 amountName="palapaAmount"
                 amount={palapaAmount}
                 onAmountChange={setPalapaAmount}
-                amountDisabled={palapaPaid || !includePalapa}
+                amountDisabled={!includePalapa}
               />
             </div>
 
@@ -375,8 +370,12 @@ export function CuotasClient({
 
         <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-6">
           <h2 className="mb-4 font-display text-2xl text-primary-dark">
-            Historial de pagos
+            Historial de cuotas de mantenimiento
           </h2>
+          <p className="mb-4 text-sm text-muted">
+            Incluye únicamente mantenimiento y sus recargos. Los usos de
+            palapa se muestran por separado.
+          </p>
           <div className="mb-5 flex flex-wrap gap-2">
             {years.map((y) => (
               <button
@@ -427,6 +426,46 @@ export function CuotasClient({
               </p>
             )}
           </div>
+        </section>
+
+        <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-6">
+          <div className="mb-4">
+            <h2 className="font-display text-2xl text-primary-dark">
+              Pagos por uso de palapa
+            </h2>
+            <p className="mt-1 text-sm text-muted">
+              Cada uso se registra por separado; puede haber varios pagos en
+              el mismo mes.
+            </p>
+          </div>
+          {palapaPayments.length === 0 ? (
+            <p className="rounded-xl bg-background px-4 py-3 text-sm text-muted">
+              Aún no hay pagos de palapa registrados.
+            </p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {palapaPayments.map((payment) => (
+                <li
+                  key={payment.id}
+                  className="flex items-center justify-between gap-3 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold text-primary-dark">
+                      Uso de palapa
+                    </p>
+                    <p className="text-sm text-muted">
+                      {new Date(payment.paidAt).toLocaleDateString("es-MX", {
+                        dateStyle: "long",
+                      })}
+                    </p>
+                  </div>
+                  <p className="shrink-0 font-semibold text-success">
+                    {formatCurrency(payment.amount)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
     </div>

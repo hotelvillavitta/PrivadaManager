@@ -477,6 +477,7 @@ export async function deleteResident(id: string) {
 }
 
 export async function markNotificationsRead(_formData?: FormData) {
+  void _formData;
   const user = await requireUser();
   await prisma.notification.updateMany({
     where: { userId: user.id, read: false },
@@ -581,7 +582,7 @@ async function upsertPaidConcept(opts: {
   return { ok: true as const, feeId: fee.id, amount };
 }
 
-/** Cobranza: mantenimiento (+ recargo opcional) y/o palapa. */
+/** Cobranza: mantenimiento (+ recargo opcional) y/o usos independientes de palapa. */
 export async function registerCobranza(formData: FormData) {
   await requireAdmin();
   const houseNumber = String(formData.get("houseNumber") ?? "").trim();
@@ -646,18 +647,25 @@ export async function registerCobranza(formData: FormData) {
   }
 
   if (includePalapa) {
-    const description = `Casa ${houseNumber} · ${label} · ${FEE_CONCEPT_LABEL.PALAPA}`;
-    const res = await upsertPaidConcept({
-      houseNumber,
-      year,
-      month,
-      concept: FEE_CONCEPT.PALAPA,
-      amount: palapaAmount,
-      description,
-      paidAt,
+    // Cada uso de palapa es un pago independiente: no se limita por mes y
+    // no se registra en MonthlyFee (historial de cuotas de mantenimiento).
+    await prisma.financeEntry.create({
+      data: {
+        type: "INGRESO",
+        category: "Palapa",
+        description: `Casa ${houseNumber} · Uso de palapa · ${label}`,
+        amount: palapaAmount,
+        date: paidAt,
+        palapaPayment: {
+          create: {
+            houseNumber,
+            amount: palapaAmount,
+            paidAt,
+          },
+        },
+      },
     });
-    if ("error" in res) return res;
-    total += res.amount;
+    total += palapaAmount;
     parts.push(`${FEE_CONCEPT_LABEL.PALAPA} $${palapaAmount}`);
     receiptLines.push({
       label: FEE_CONCEPT_LABEL.PALAPA,

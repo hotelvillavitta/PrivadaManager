@@ -141,6 +141,20 @@ model MonthlyFee {
   @@unique([houseNumber, year, month, concept])
 }
 
+/// Cargo independiente por cada uso de palapa. No es una cuota mensual:
+/// una casa puede registrar varios pagos durante el mismo mes.
+model PalapaPayment {
+  id             String   @id @default(cuid())
+  houseNumber    String
+  amount         Float    @default(200)
+  paidAt         DateTime @default(now())
+  financeEntryId String?  @unique
+  financeEntry   FinanceEntry? @relation(fields: [financeEntryId], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
+
+  @@index([houseNumber, paidAt])
+}
+
 model FinanceEntry {
   id          String   @id @default(cuid())
   type        String
@@ -151,6 +165,7 @@ model FinanceEntry {
   createdAt   DateTime @default(now())
 
   monthlyFee MonthlyFee?
+  palapaPayment PalapaPayment?
 }
 
 model Notification {

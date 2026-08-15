@@ -48,13 +48,23 @@ export async function getReservations() {
 
 export async function getFeesForHouse(houseNumber: string) {
   return prisma.monthlyFee.findMany({
-    where: { houseNumber },
+    // Solo mantenimiento y sus recargos forman parte del historial de cuotas.
+    where: { houseNumber, concept: "MANTENIMIENTO" },
     orderBy: [{ year: "desc" }, { month: "asc" }],
   });
 }
 
+export async function getPalapaPaymentsForHouse(houseNumber: string) {
+  return prisma.palapaPayment.findMany({
+    where: { houseNumber },
+    orderBy: { paidAt: "desc" },
+  });
+}
+
 export async function getFeeSummary(houseNumber: string) {
-  const fees = await prisma.monthlyFee.findMany({ where: { houseNumber } });
+  const fees = await prisma.monthlyFee.findMany({
+    where: { houseNumber, concept: "MANTENIMIENTO" },
+  });
   const paid = fees.filter((f) => f.status === "PAGADO").length;
   const debt = fees.filter((f) => f.status === "ADEUDO").length;
   const pendingAmount = fees
