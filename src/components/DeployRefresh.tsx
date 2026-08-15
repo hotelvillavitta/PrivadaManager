@@ -7,22 +7,17 @@ const POLL_MS = 60_000;
 /**
  * Cuando hay un deploy nuevo en Vercel, recarga la app en todos los clientes
  * (incluye “Añadir a inicio” / PWA) sin reinstalar.
+ * También registra el service worker mínimo para que la app sea instalable.
  */
 export function DeployRefresh() {
   useEffect(() => {
     const builtVersion = process.env.NEXT_PUBLIC_APP_VERSION ?? "dev";
     let cancelled = false;
 
-    // Limpia service workers viejos de instalaciones anteriores.
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.getRegistrations().then((regs) => {
-        for (const reg of regs) void reg.unregister();
-      });
-    }
-    if ("caches" in window) {
-      caches.keys().then((keys) => {
-        for (const key of keys) void caches.delete(key);
-      });
+      void navigator.serviceWorker
+        .register("/sw.js")
+        .catch((err) => console.warn("[sw] register failed", err));
     }
 
     async function check() {
@@ -35,7 +30,6 @@ export function DeployRefresh() {
         const data = (await res.json()) as { version?: string };
         const live = data.version;
         if (live && live !== builtVersion) {
-          // Hard reload para tomar HTML/JS/CSS del deploy nuevo.
           window.location.reload();
         }
       } catch {
