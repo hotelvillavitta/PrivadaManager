@@ -24,6 +24,7 @@ import {
   feeLabel,
   formatCurrency,
   isFeePaymentLate,
+  isFeePeriodBefore,
 } from "@/lib/utils";
 
 type Fee = {
@@ -113,6 +114,19 @@ export function CuotasClient({
   );
   const periodFinesTotal = periodFines.reduce((sum, f) => sum + f.amount, 0);
   const suggestedMaintenance = FEE_BASE_AMOUNT + periodFinesTotal;
+  const priorUnpaidFees = fees
+    .filter(
+      (f) =>
+        f.concept === FEE_CONCEPT.MANTENIMIENTO &&
+        f.status !== "PAGADO" &&
+        isFeePeriodBefore(
+          { year: f.year, month: f.month },
+          { year: chargeYear, month: chargeMonth },
+        ),
+    )
+    .sort((a, b) => a.year * 12 + a.month - (b.year * 12 + b.month));
+  const blockedByPriorDebt =
+    includeMaintenance && !maintenancePaid && priorUnpaidFees.length > 0;
 
   useEffect(() => {
     if (maintenancePaid) {
@@ -156,6 +170,7 @@ export function CuotasClient({
 
   const canCharge =
     !pending &&
+    !blockedByPriorDebt &&
     total > 0 &&
     ((includeMaintenance && !maintenancePaid) ||
       includePalapa);
@@ -321,6 +336,18 @@ export function CuotasClient({
               </div>
             )}
 
+            {blockedByPriorDebt && (
+              <p className="mb-4 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-sm text-foreground">
+                No puedes cobrar{" "}
+                <strong>{feeLabel(chargeYear, chargeMonth)}</strong> mientras
+                haya adeudos anteriores:{" "}
+                {priorUnpaidFees
+                  .map((f) => feeLabel(f.year, f.month))
+                  .join(", ")}
+                . Cobra primero el mes más antiguo.
+              </p>
+            )}
+
             <div className="space-y-3">
               <ConceptRow
                 checked={includeMaintenance && !maintenancePaid}
@@ -388,11 +415,13 @@ export function CuotasClient({
               disabled={!canCharge}
               className="mt-4 w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
-              {maintenancePaid && !includePalapa
-                ? "Periodo ya pagado"
-                : pending
-                  ? "Registrando…"
-                  : `Registrar cobro · ${formatCurrency(total)}`}
+              {blockedByPriorDebt
+                ? "Hay adeudos anteriores"
+                : maintenancePaid && !includePalapa
+                  ? "Periodo ya pagado"
+                  : pending
+                    ? "Registrando…"
+                    : `Registrar cobro · ${formatCurrency(total)}`}
             </button>
             {isAdmin && (
               <p className="mt-2 text-xs text-muted">

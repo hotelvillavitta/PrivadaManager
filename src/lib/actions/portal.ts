@@ -618,6 +618,29 @@ export async function registerCobranza(formData: FormData) {
     return { error: "Monto de palapa inválido." };
   }
 
+  // No cobrar mantenimiento de un mes posterior si hay adeudos anteriores.
+  if (includeMaintenance) {
+    const priorUnpaid = await prisma.monthlyFee.findMany({
+      where: {
+        houseNumber,
+        concept: FEE_CONCEPT.MANTENIMIENTO,
+        status: { in: ["ADEUDO", "PENDIENTE"] },
+        OR: [
+          { year: { lt: year } },
+          { year, month: { lt: month } },
+        ],
+      },
+      orderBy: [{ year: "asc" }, { month: "asc" }],
+      take: 6,
+    });
+    if (priorUnpaid.length) {
+      const labels = priorUnpaid.map((f) => feeLabel(f.year, f.month)).join(", ");
+      return {
+        error: `No se puede cobrar ${feeLabel(year, month)} mientras haya adeudos anteriores (${labels}). Cobra primero el mes más antiguo.`,
+      };
+    }
+  }
+
   const paidAt = new Date();
   const label = feeLabel(year, month);
   const parts: string[] = [];

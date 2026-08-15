@@ -114,6 +114,22 @@ export function nextFeePeriod(year: number, month: number) {
   return { year, month: month + 1 };
 }
 
+/** Compara periodos de cuota: negativo si a < b, 0 si iguales, positivo si a > b. */
+export function compareFeePeriod(
+  a: { year: number; month: number },
+  b: { year: number; month: number },
+) {
+  return a.year * 12 + a.month - (b.year * 12 + b.month);
+}
+
+/** True si el periodo a es estrictamente anterior al periodo b. */
+export function isFeePeriodBefore(
+  a: { year: number; month: number },
+  b: { year: number; month: number },
+) {
+  return compareFeePeriod(a, b) < 0;
+}
+
 /** Monto a cobrar: $200, o $250 si hay recargo por pago tardío. */
 export function calculateFeeAmount(
   year: number,
