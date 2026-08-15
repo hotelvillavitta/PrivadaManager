@@ -15,6 +15,7 @@ type Item = {
   read: boolean;
   newsId: string | null;
   reservationId: string | null;
+  fineId?: string | null;
   createdAt: string;
 };
 

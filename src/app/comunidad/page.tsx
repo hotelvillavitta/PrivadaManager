@@ -109,6 +109,7 @@ export default async function ComunidadPage() {
               read: n.read,
               newsId: n.newsId,
               reservationId: n.reservationId,
+              fineId: n.fineId,
               createdAt: n.createdAt.toISOString(),
             }))}
           />

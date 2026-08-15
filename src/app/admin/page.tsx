@@ -11,23 +11,27 @@ import {
 import { PageHero } from "@/components/PageHero";
 import { auth } from "@/lib/auth";
 import { updateReservationStatus } from "@/lib/actions/portal";
-import { getAdminDashboard } from "@/lib/queries";
+import { getAdminDashboard, getHouseNumbers } from "@/lib/queries";
 import { feeLabel, formatCurrency } from "@/lib/utils";
 import { ResidentsAdmin } from "./residents-admin";
+import { FinesAdmin } from "./fines-admin";
 
 export default async function AdminPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (session.user.role !== "ADMIN") redirect("/");
 
-  const data = await getAdminDashboard();
+  const [data, houses] = await Promise.all([
+    getAdminDashboard(),
+    getHouseNumbers(),
+  ]);
 
   return (
     <div className="pb-16">
       <PageHero
         eyebrow="Panel administrativo"
         title="Administración"
-        description="Resumen operativo de residentes, reservaciones, cuotas y comunicación."
+        description="Resumen operativo de residentes, reservaciones, cuotas, multas y comunicación."
       />
 
       <div className="mx-auto max-w-6xl space-y-6 px-4 lg:px-6">
@@ -122,6 +126,22 @@ export default async function AdminPage() {
           )}
         </section>
 
+        <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-5">
+          <FinesAdmin
+            houses={houses}
+            pendingFines={data.pendingFines.map((f) => ({
+              id: f.id,
+              houseNumber: f.houseNumber,
+              category: f.category,
+              cause: f.cause,
+              regulationArticle: f.regulationArticle,
+              amount: f.amount,
+              notes: f.notes,
+              issuedAt: f.issuedAt.toISOString(),
+            }))}
+          />
+        </section>
+
         <div className="grid gap-6 lg:grid-cols-2">
           <section className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
             <ResidentsAdmin
@@ -162,7 +182,8 @@ export default async function AdminPage() {
                         f.status === "ADEUDO" ? "text-danger" : "text-warning"
                       }`}
                     >
-                      {f.status} · {f.concept === "PALAPA" ? "Palapa" : "Mantenimiento"} ·{" "}
+                      {f.status} ·{" "}
+                      {f.concept === "PALAPA" ? "Palapa" : "Mantenimiento"} ·{" "}
                       {formatCurrency(f.amount)}
                     </span>
                   </li>

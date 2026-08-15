@@ -61,6 +61,21 @@ export async function getPalapaPaymentsForHouse(houseNumber: string) {
   });
 }
 
+export async function getFinesForHouse(houseNumber: string) {
+  return prisma.fine.findMany({
+    where: { houseNumber },
+    orderBy: { issuedAt: "desc" },
+  });
+}
+
+export async function getPendingFines(take = 30) {
+  return prisma.fine.findMany({
+    where: { status: "PENDIENTE" },
+    orderBy: { issuedAt: "desc" },
+    take,
+  });
+}
+
 export async function getFeeSummary(houseNumber: string) {
   const fees = await prisma.monthlyFee.findMany({
     where: { houseNumber, concept: "MANTENIMIENTO" },
@@ -152,6 +167,7 @@ export async function getAdminDashboard() {
     providers,
     debtFees,
     paidThisMonth,
+    pendingFines,
   ] = await Promise.all([
     prisma.user.findMany({
       where: { role: { in: ["COLONO", "ADMIN"] } },
@@ -191,6 +207,11 @@ export async function getAdminDashboard() {
         },
       },
     }),
+    prisma.fine.findMany({
+      where: { status: "PENDIENTE" },
+      orderBy: { issuedAt: "desc" },
+      take: 30,
+    }),
   ]);
 
   return {
@@ -200,6 +221,7 @@ export async function getAdminDashboard() {
     providers,
     debtFees,
     paidThisMonth,
+    pendingFines,
     residentCount: residents.filter((r) => r.role === "COLONO").length,
   };
 }

@@ -4,6 +4,7 @@ export type NotificationLinkItem = {
   title: string;
   newsId?: string | null;
   reservationId?: string | null;
+  fineId?: string | null;
 };
 
 export function hrefForNotification(n: NotificationLinkItem): string | null {
@@ -11,7 +12,11 @@ export function hrefForNotification(n: NotificationLinkItem): string | null {
     return `/reservaciones?solicitud=${n.reservationId}`;
   }
   if (n.newsId) return `/noticias/${n.newsId}`;
+  if (n.fineId) return "/cuotas#multas";
   const t = n.title.toLowerCase();
+  if (t.includes("multa") || t.includes("sanción") || t.includes("sancion")) {
+    return "/cuotas#multas";
+  }
   if (t.includes("cuota") || t.includes("pago")) return "/cuotas";
   if (t.includes("reserv") || t.includes("palapa")) return "/reservaciones";
   if (t.includes("comunicado") || t.includes("noticia") || t.includes("aviso")) {

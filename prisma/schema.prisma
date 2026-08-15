@@ -33,6 +33,12 @@ enum FeeStatus {
   PENDIENTE
 }
 
+enum FineStatus {
+  PENDIENTE
+  PAGADO
+  ANULADA
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -50,6 +56,7 @@ model User {
   newsReads     NewsRead[]
   reservations  Reservation[]
   notifications Notification[]
+  issuedFines   Fine[]          @relation("FineIssuedBy")
 }
 
 model NewsPost {
@@ -155,6 +162,32 @@ model PalapaPayment {
   @@index([houseNumber, paidAt])
 }
 
+/// Multa o sanción por falta al reglamento interno. Independiente de cuotas y palapa.
+model Fine {
+  id                 String     @id @default(cuid())
+  houseNumber        String
+  category           String
+  cause              String
+  causeId            String?
+  regulationArticle  String
+  regulationExcerpt  String
+  amount             Float
+  status             FineStatus @default(PENDIENTE)
+  notes              String?
+  issuedAt           DateTime   @default(now())
+  paidAt             DateTime?
+  issuedById         String?
+  issuedBy           User?      @relation("FineIssuedBy", fields: [issuedById], references: [id], onDelete: SetNull)
+  financeEntryId     String?    @unique
+  financeEntry       FinanceEntry? @relation(fields: [financeEntryId], references: [id], onDelete: SetNull)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  notifications      Notification[]
+
+  @@index([houseNumber, status])
+  @@index([status, issuedAt])
+}
+
 model FinanceEntry {
   id          String   @id @default(cuid())
   type        String
@@ -164,8 +197,9 @@ model FinanceEntry {
   date        DateTime @default(now())
   createdAt   DateTime @default(now())
 
-  monthlyFee MonthlyFee?
+  monthlyFee    MonthlyFee?
   palapaPayment PalapaPayment?
+  fine          Fine?
 }
 
 model Notification {
@@ -179,6 +213,8 @@ model Notification {
   news           NewsPost? @relation(fields: [newsId], references: [id], onDelete: SetNull)
   reservationId  String?
   reservation    Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  fineId         String?
+  fine           Fine?    @relation(fields: [fineId], references: [id], onDelete: SetNull)
   createdAt      DateTime @default(now())
 }
 

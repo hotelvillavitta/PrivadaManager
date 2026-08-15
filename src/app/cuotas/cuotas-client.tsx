@@ -41,12 +41,26 @@ type PalapaPayment = {
   paidAt: string;
 };
 
+type FineRow = {
+  id: string;
+  category: string;
+  cause: string;
+  regulationArticle: string;
+  regulationExcerpt: string;
+  amount: number;
+  status: "PENDIENTE" | "PAGADO" | "ANULADA";
+  notes: string | null;
+  issuedAt: string;
+  paidAt: string | null;
+};
+
 export function CuotasClient({
   houseNumber,
   houses = [],
   accessCode,
   fees,
   palapaPayments,
+  fines,
   summary,
   isAdmin,
 }: {
@@ -55,6 +69,7 @@ export function CuotasClient({
   accessCode: string | null;
   fees: Fee[];
   palapaPayments: PalapaPayment[];
+  fines: FineRow[];
   summary: { paid: number; debt: number; pendingAmount: number };
   isAdmin: boolean;
 }) {
@@ -462,6 +477,90 @@ export function CuotasClient({
                   <p className="shrink-0 font-semibold text-success">
                     {formatCurrency(payment.amount)}
                   </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section
+          id="multas"
+          className="scroll-mt-24 rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-6"
+        >
+          <div className="mb-4">
+            <h2 className="font-display text-2xl text-primary-dark">
+              Multas y sanciones
+            </h2>
+            <p className="mt-1 text-sm text-muted">
+              Faltas al reglamento aplicadas por el comité. El pago lo registra
+              la administración; no bloquea el uso de la app.
+            </p>
+          </div>
+          {fines.length === 0 ? (
+            <p className="rounded-xl bg-background px-4 py-3 text-sm text-muted">
+              No hay multas registradas para esta casa.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {fines.map((fine) => (
+                <li
+                  key={fine.id}
+                  className={`rounded-xl border px-4 py-3 ${
+                    fine.status === "PENDIENTE"
+                      ? "border-warning/30 bg-warning-soft/40"
+                      : fine.status === "PAGADO"
+                        ? "border-success/20 bg-success-soft/30"
+                        : "border-border bg-background"
+                  }`}
+                >
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-primary-dark">
+                        {fine.cause}
+                      </p>
+                      <p className="text-sm text-muted">
+                        {fine.category} · {fine.regulationArticle}
+                      </p>
+                      <p className="mt-1 text-xs text-muted">
+                        Emitida{" "}
+                        {new Date(fine.issuedAt).toLocaleDateString("es-MX", {
+                          dateStyle: "medium",
+                        })}
+                        {fine.paidAt
+                          ? ` · Pagada ${new Date(fine.paidAt).toLocaleDateString("es-MX", { dateStyle: "medium" })}`
+                          : ""}
+                      </p>
+                      {fine.notes && (
+                        <p className="mt-1 text-xs text-muted">
+                          Notas: {fine.notes}
+                        </p>
+                      )}
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-xs font-medium text-primary">
+                          Ver extracto del reglamento
+                        </summary>
+                        <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-muted">
+                          {fine.regulationExcerpt}
+                        </p>
+                      </details>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="font-semibold text-primary-dark">
+                        {formatCurrency(fine.amount)}
+                      </p>
+                      <p
+                        className={`text-xs font-bold uppercase ${
+                          fine.status === "PENDIENTE"
+                            ? "text-warning"
+                            : fine.status === "PAGADO"
+                              ? "text-success"
+                              : "text-muted"
+                        }`}
+                      >
+                        {fine.status}
+                      </p>
+                    </div>
+                  </div>
                 </li>
               ))}
             </ul>

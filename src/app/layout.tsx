@@ -96,6 +96,7 @@ export default async function RootLayout({
               read: n.read,
               newsId: n.newsId,
               reservationId: n.reservationId,
+              fineId: n.fineId,
               createdAt: n.createdAt.toISOString(),
             }))}
           />

@@ -13,6 +13,7 @@ import {
   FEE_LATE_SURCHARGE,
   FEE_PALAPA_AMOUNT,
   feeLabel,
+  formatCurrency,
   fullName,
   isFeePaymentLate,
 } from "@/lib/utils";
@@ -21,6 +22,8 @@ import {
   sendPaymentReceiptEmail,
   type PaymentReceiptLine,
 } from "@/lib/notify/payment-receipt";
+import { sendFineNoticeEmail } from "@/lib/notify/fine-notice";
+import { getFineCauseById } from "@/lib/fines/catalog";
 
 export async function toggleNewsReaction(newsId: string, emoji: string) {
   const user = await requireUser();
@@ -779,5 +782,162 @@ export async function deleteFinanceEntry(id: string) {
   await prisma.financeEntry.delete({ where: { id } });
   revalidatePath("/finanzas");
   revalidatePath("/cuotas");
+  return { ok: true };
+}
+
+/** Emite una multa: notifica in-app y por correo con extracto del reglamento. */
+export async function issueFine(formData: FormData) {
+  const admin = await requireAdmin();
+  const houseNumber = String(formData.get("houseNumber") ?? "").trim();
+  const causeId = String(formData.get("causeId") ?? "").trim();
+  const amount = Number(formData.get("amount") ?? 0);
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  if (!houseNumber) return { error: "Selecciona la casa." };
+  if (!causeId) return { error: "Selecciona la falta." };
+  if (Number.isNaN(amount) || amount <= 0) {
+    return { error: "Indica un monto válido mayor a cero." };
+  }
+
+  const cause = getFineCauseById(causeId);
+  if (!cause) return { error: "La falta seleccionada no es válida." };
+
+  const issuedAt = new Date();
+  const fine = await prisma.fine.create({
+    data: {
+      houseNumber,
+      category: cause.category,
+      cause: cause.label,
+      causeId: cause.id,
+      regulationArticle: cause.article,
+      regulationExcerpt: cause.excerpt,
+      amount,
+      notes,
+      status: "PENDIENTE",
+      issuedAt,
+      issuedById: admin.id,
+    },
+  });
+
+  const residents = await prisma.user.findMany({
+    where: { houseNumber, role: "COLONO" },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+    },
+  });
+
+  if (residents.length) {
+    await prisma.notification.createMany({
+      data: residents.map((r) => ({
+        userId: r.id,
+        title: "Multa aplicada",
+        body: `Casa ${houseNumber} · ${cause.label} · ${formatCurrency(amount)}.`,
+        fineId: fine.id,
+      })),
+    });
+
+    const privada = await getPrivada();
+    await Promise.all(
+      residents.map((r) =>
+        sendFineNoticeEmail({
+          residentName: fullName(r),
+          residentEmail: r.email,
+          houseNumber,
+          category: cause.category,
+          cause: cause.label,
+          regulationArticle: cause.article,
+          regulationExcerpt: cause.excerpt,
+          amount,
+          notes,
+          issuedAt,
+          privadaName: privada.name,
+          privadaAddress: privada.address,
+          privadaEmail: privada.email,
+          privadaPhone: privada.phone,
+        }),
+      ),
+    );
+  }
+
+  revalidatePath("/cuotas");
+  revalidatePath("/admin");
+  revalidatePath("/comunidad");
+  revalidatePath("/finanzas");
+  return { ok: true, fineId: fine.id };
+}
+
+export async function markFinePaid(fineId: string) {
+  await requireAdmin();
+  if (!fineId) return { error: "Multa inválida." };
+
+  const fine = await prisma.fine.findUnique({ where: { id: fineId } });
+  if (!fine) return { error: "No se encontró la multa." };
+  if (fine.status !== "PENDIENTE") {
+    return { error: "Solo se pueden cobrar multas pendientes." };
+  }
+
+  const paidAt = new Date();
+  const entry = await prisma.financeEntry.create({
+    data: {
+      type: "INGRESO",
+      category: "Multas",
+      description: `Casa ${fine.houseNumber} · Multa · ${fine.cause}`,
+      amount: fine.amount,
+      date: paidAt,
+    },
+  });
+
+  await prisma.fine.update({
+    where: { id: fine.id },
+    data: {
+      status: "PAGADO",
+      paidAt,
+      financeEntryId: entry.id,
+    },
+  });
+
+  const residents = await prisma.user.findMany({
+    where: { houseNumber: fine.houseNumber, role: "COLONO" },
+    select: { id: true },
+  });
+  if (residents.length) {
+    await prisma.notification.createMany({
+      data: residents.map((r) => ({
+        userId: r.id,
+        title: "Multa pagada",
+        body: `Casa ${fine.houseNumber} · ${fine.cause} · ${formatCurrency(fine.amount)}.`,
+        fineId: fine.id,
+      })),
+    });
+  }
+
+  revalidatePath("/cuotas");
+  revalidatePath("/admin");
+  revalidatePath("/finanzas");
+  revalidatePath("/comunidad");
+  return { ok: true };
+}
+
+export async function annulFine(fineId: string) {
+  await requireAdmin();
+  if (!fineId) return { error: "Multa inválida." };
+
+  const fine = await prisma.fine.findUnique({ where: { id: fineId } });
+  if (!fine) return { error: "No se encontró la multa." };
+  if (fine.status !== "PENDIENTE") {
+    return { error: "Solo se pueden anular multas pendientes." };
+  }
+
+  await prisma.fine.update({
+    where: { id: fineId },
+    data: { status: "ANULADA" },
+  });
+
+  revalidatePath("/cuotas");
+  revalidatePath("/admin");
+  revalidatePath("/comunidad");
   return { ok: true };
 }

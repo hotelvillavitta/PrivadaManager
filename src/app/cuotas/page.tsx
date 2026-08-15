@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import {
   getFeeSummary,
   getFeesForHouse,
+  getFinesForHouse,
   getHouseNumbers,
   getPalapaPaymentsForHouse,
 } from "@/lib/queries";
@@ -24,9 +25,10 @@ export default async function CuotasPage({
       ? requested
       : (session.user.houseNumber ?? "0");
 
-  const [fees, palapaPayments, summary, houses] = await Promise.all([
+  const [fees, palapaPayments, fines, summary, houses] = await Promise.all([
     getFeesForHouse(houseNumber),
     getPalapaPaymentsForHouse(houseNumber),
+    getFinesForHouse(houseNumber),
     getFeeSummary(houseNumber),
     isAdmin ? getHouseNumbers() : Promise.resolve([] as string[]),
   ]);
@@ -59,6 +61,18 @@ export default async function CuotasPage({
         id: payment.id,
         amount: payment.amount,
         paidAt: payment.paidAt.toISOString(),
+      }))}
+      fines={fines.map((f) => ({
+        id: f.id,
+        category: f.category,
+        cause: f.cause,
+        regulationArticle: f.regulationArticle,
+        regulationExcerpt: f.regulationExcerpt,
+        amount: f.amount,
+        status: f.status,
+        notes: f.notes,
+        issuedAt: f.issuedAt.toISOString(),
+        paidAt: f.paidAt?.toISOString() ?? null,
       }))}
     />
   );
