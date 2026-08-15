@@ -47,6 +47,11 @@ function toKey(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+function todayKey() {
+  const d = new Date();
+  return toKey(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
 function minReservationDate() {
   const d = new Date();
   d.setDate(d.getDate() + 7);
@@ -74,12 +79,21 @@ export function ReservacionesClient({
   );
   const [view, setView] = useState<"month" | "week">("month");
   const [cursor, setCursor] = useState(() => new Date());
-  const [selected, setSelected] = useState(minReservationDate);
+  const [selected, setSelected] = useState(todayKey);
   const [message, setMessage] = useState("");
   const [pending, startTransition] = useTransition();
   const [focusId, setFocusId] = useState<string | null>(focusReservationId);
   const [rejecting, setRejecting] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
+  const today = todayKey();
+  const minBookable = minReservationDate();
+  const bookingDate = selected >= minBookable ? selected : minBookable;
+
+  function goToNewReservation(dateKey?: string) {
+    const next = dateKey && dateKey >= minBookable ? dateKey : minBookable;
+    setSelected(next);
+    setTab("new");
+  }
 
   useEffect(() => {
     setFocusId(focusReservationId);
@@ -172,7 +186,7 @@ export function ReservacionesClient({
         </button>
         <button
           type="button"
-          onClick={() => setTab("new")}
+          onClick={() => goToNewReservation(selected)}
           className={`flex-1 rounded-full px-2 py-2.5 text-xs font-medium transition sm:px-4 sm:text-sm ${
             tab === "new"
               ? "bg-surface text-primary-dark shadow-sm"
@@ -478,6 +492,7 @@ export function ReservacionesClient({
                       onClick={() => {
                         const d = new Date();
                         setCursor(new Date(d.getFullYear(), d.getMonth(), 1));
+                        setSelected(todayKey());
                       }}
                     >
                       Hoy
@@ -508,29 +523,41 @@ export function ReservacionesClient({
                     }
                     const status = statusFor(cell.key);
                     const isSelected = selected === cell.key;
+                    const isToday = cell.key === today;
                     return (
                       <button
                         key={cell.key}
                         type="button"
                         onClick={() => {
                           setSelected(cell.key!);
-                          if (status === "available" && !hasPendingFees) {
-                            setTab("new");
+                          if (
+                            status === "available" &&
+                            !hasPendingFees &&
+                            cell.key! >= minBookable
+                          ) {
+                            goToNewReservation(cell.key!);
                           }
                         }}
                         className={`min-h-12 rounded-lg border p-0.5 text-center transition sm:min-h-16 sm:rounded-xl sm:p-2 sm:text-left ${
                           isSelected
                             ? "border-primary bg-primary text-white"
-                            : status === "reserved"
-                              ? "border-danger/20 bg-danger-soft"
-                              : status === "pending"
-                                ? "border-warning/20 bg-warning-soft"
-                                : "border-border bg-surface hover:border-primary/40"
+                            : isToday
+                              ? "border-primary bg-primary-soft ring-2 ring-primary/30"
+                              : status === "reserved"
+                                ? "border-danger/20 bg-danger-soft"
+                                : status === "pending"
+                                  ? "border-warning/20 bg-warning-soft"
+                                  : "border-border bg-surface hover:border-primary/40"
                         }`}
                       >
                         <span className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold sm:text-sm">
                           {cell.day}
                         </span>
+                        {isToday && !isSelected && (
+                          <p className="mt-1 hidden text-[10px] font-medium text-primary sm:block">
+                            Hoy
+                          </p>
+                        )}
                         {status === "reserved" && !isSelected && (
                           <p className="mt-1 hidden text-[10px] font-medium text-danger sm:block">
                             Reservado
@@ -665,8 +692,8 @@ export function ReservacionesClient({
                     type="date"
                     name="date"
                     required
-                    min={minReservationDate()}
-                    value={selected}
+                    min={minBookable}
+                    value={bookingDate}
                     onChange={(e) => setSelected(e.target.value)}
                     disabled={hasPendingFees}
                     className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary disabled:opacity-60"
