@@ -78,6 +78,42 @@ export function isFeePaymentLate(
   return paidAt.getTime() > deadline.getTime();
 }
 
+/** Partes de fecha calendario en zona America/Tijuana. */
+export function calendarPartsInTijuana(asOf: Date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Tijuana",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(asOf);
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((p) => p.type === type)?.value);
+  return {
+    year: get("year"),
+    month: get("month"),
+    day: get("day"),
+  };
+}
+
+/**
+ * Periodo de cuota al que se suma una multa económica:
+ * mes en curso si estamos dentro de los primeros FEE_GRACE_DAYS días;
+ * si no, el mes siguiente.
+ */
+export function resolveFineBillingPeriod(asOf: Date = new Date()) {
+  const { year, month, day } = calendarPartsInTijuana(asOf);
+  if (day <= FEE_GRACE_DAYS) {
+    return { year, month };
+  }
+  if (month === 12) return { year: year + 1, month: 1 };
+  return { year, month: month + 1 };
+}
+
+export function nextFeePeriod(year: number, month: number) {
+  if (month === 12) return { year: year + 1, month: 1 };
+  return { year, month: month + 1 };
+}
+
 /** Monto a cobrar: $200, o $250 si hay recargo por pago tardío. */
 export function calculateFeeAmount(
   year: number,

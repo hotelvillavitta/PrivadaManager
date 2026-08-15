@@ -73,6 +73,8 @@ export default async function CuotasPage({
         notes: f.notes,
         issuedAt: f.issuedAt.toISOString(),
         paidAt: f.paidAt?.toISOString() ?? null,
+        billingYear: f.billingYear,
+        billingMonth: f.billingMonth,
       }))}
     />
   );

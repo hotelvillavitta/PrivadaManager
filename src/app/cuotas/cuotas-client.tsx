@@ -52,6 +52,8 @@ type FineRow = {
   notes: string | null;
   issuedAt: string;
   paidAt: string | null;
+  billingYear: number;
+  billingMonth: number;
 };
 
 export function CuotasClient({
@@ -103,6 +105,14 @@ export function CuotasClient({
   );
   const maintenancePaid = maintenanceFee?.status === "PAGADO";
   const suggestedLate = isFeePaymentLate(chargeYear, chargeMonth);
+  const periodFines = fines.filter(
+    (f) =>
+      f.status === "PENDIENTE" &&
+      f.billingYear === chargeYear &&
+      f.billingMonth === chargeMonth,
+  );
+  const periodFinesTotal = periodFines.reduce((sum, f) => sum + f.amount, 0);
+  const suggestedMaintenance = FEE_BASE_AMOUNT + periodFinesTotal;
 
   useEffect(() => {
     if (maintenancePaid) {
@@ -113,10 +123,17 @@ export function CuotasClient({
     } else {
       setIncludeMaintenance(true);
       setIncludeLate(suggestedLate);
-      setMaintenanceAmount(FEE_BASE_AMOUNT);
+      setMaintenanceAmount(suggestedMaintenance);
       setLateAmount(FEE_LATE_SURCHARGE);
     }
-  }, [houseNumber, chargeYear, chargeMonth, maintenancePaid, suggestedLate]);
+  }, [
+    houseNumber,
+    chargeYear,
+    chargeMonth,
+    maintenancePaid,
+    suggestedLate,
+    suggestedMaintenance,
+  ]);
 
   const total =
     (includeMaintenance && !maintenancePaid ? maintenanceAmount : 0) +
@@ -125,7 +142,9 @@ export function CuotasClient({
 
   const conceptSummary = [
     includeMaintenance && !maintenancePaid
-      ? FEE_CONCEPT_LABEL.MANTENIMIENTO
+      ? periodFinesTotal > 0
+        ? `${FEE_CONCEPT_LABEL.MANTENIMIENTO} + multas`
+        : FEE_CONCEPT_LABEL.MANTENIMIENTO
       : null,
     includeMaintenance && includeLate && !maintenancePaid
       ? `Recargo (después del día ${FEE_GRACE_DAYS})`
@@ -147,9 +166,9 @@ export function CuotasClient({
         eyebrow="Área financiera"
         title={isAdmin ? "Cobranza de cuotas" : "Cuotas de mantenimiento"}
         description={
-          isAdmin
-            ? `Mantenimiento ${formatCurrency(FEE_BASE_AMOUNT)}. El uso de palapa (${formatCurrency(FEE_PALAPA_AMOUNT)}) es un cargo independiente y puede registrarse cada vez que se use. Recargo ${formatCurrency(FEE_LATE_SURCHARGE)} después del día ${FEE_GRACE_DAYS}.`
-            : `Consulta tu historial. Cuota mensual ${formatCurrency(FEE_BASE_AMOUNT)}.`
+            isAdmin
+            ? `Mantenimiento ${formatCurrency(FEE_BASE_AMOUNT)}. Las multas se suman a la cuota del periodo. Palapa ${formatCurrency(FEE_PALAPA_AMOUNT)} es independiente. Recargo ${formatCurrency(FEE_LATE_SURCHARGE)} después del día ${FEE_GRACE_DAYS}.`
+            : `Consulta tu historial. Cuota mensual ${formatCurrency(FEE_BASE_AMOUNT)}. Las multas se incorporan a la cuota del periodo.`
         }
       />
 
@@ -308,7 +327,16 @@ export function CuotasClient({
                 disabled={maintenancePaid}
                 onCheckedChange={setIncludeMaintenance}
                 name="includeMaintenance"
-                title={FEE_CONCEPT_LABEL.MANTENIMIENTO}
+                title={
+                  periodFinesTotal > 0
+                    ? `${FEE_CONCEPT_LABEL.MANTENIMIENTO} + multas (${formatCurrency(periodFinesTotal)})`
+                    : FEE_CONCEPT_LABEL.MANTENIMIENTO
+                }
+                hint={
+                  periodFinesTotal > 0
+                    ? `${periodFines.length} multa(s) pendientes en ${feeLabel(chargeYear, chargeMonth)}.`
+                    : undefined
+                }
                 amountName="maintenanceAmount"
                 amount={maintenanceAmount}
                 onAmountChange={setMaintenanceAmount}
@@ -492,8 +520,10 @@ export function CuotasClient({
               Multas y sanciones
             </h2>
             <p className="mt-1 text-sm text-muted">
-              Faltas al reglamento aplicadas por el comité. El pago lo registra
-              la administración; no bloquea el uso de la app.
+              Cada multa se suma a la cuota de mantenimiento del periodo
+              indicado (mes en curso si es dentro de los primeros{" "}
+              {FEE_GRACE_DAYS} días; si no, el mes siguiente). Se liquida al
+              pagar esa cuota.
             </p>
           </div>
           {fines.length === 0 ? (
@@ -522,6 +552,8 @@ export function CuotasClient({
                         {fine.category} · {fine.regulationArticle}
                       </p>
                       <p className="mt-1 text-xs text-muted">
+                        Se suma a cuota{" "}
+                        {feeLabel(fine.billingYear, fine.billingMonth)} ·
                         Emitida{" "}
                         {new Date(fine.issuedAt).toLocaleDateString("es-MX", {
                           dateStyle: "medium",

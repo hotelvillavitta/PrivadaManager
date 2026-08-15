@@ -138,6 +138,8 @@ export default async function AdminPage() {
               amount: f.amount,
               notes: f.notes,
               issuedAt: f.issuedAt.toISOString(),
+              billingYear: f.billingYear,
+              billingMonth: f.billingMonth,
             }))}
           />
         </section>

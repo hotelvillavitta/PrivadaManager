@@ -1,20 +1,22 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Gavel, X } from "lucide-react";
+import { Gavel, X } from "lucide-react";
 import { toast } from "@/components/Toast";
-import {
-  annulFine,
-  issueFine,
-  markFinePaid,
-} from "@/lib/actions/portal";
+import { annulFine, issueFine } from "@/lib/actions/portal";
 import {
   FINE_CATEGORIES,
   FINE_CAUSES,
   type FineCategory,
 } from "@/lib/fines/catalog";
-import { formatCurrency } from "@/lib/utils";
+import {
+  FEE_GRACE_DAYS,
+  feeLabel,
+  formatCurrency,
+  resolveFineBillingPeriod,
+} from "@/lib/utils";
 
 type PendingFine = {
   id: string;
@@ -25,6 +27,8 @@ type PendingFine = {
   amount: number;
   notes: string | null;
   issuedAt: string;
+  billingYear: number;
+  billingMonth: number;
 };
 
 export function FinesAdmin({
@@ -44,6 +48,7 @@ export function FinesAdmin({
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
 
+  const previewPeriod = resolveFineBillingPeriod();
   const causes = useMemo(
     () => FINE_CAUSES.filter((c) => c.category === category),
     [category],
@@ -64,8 +69,9 @@ export function FinesAdmin({
           Multas y sanciones
         </h2>
         <p className="text-sm text-muted">
-          Aplica una falta al reglamento. El monto lo defines tú; se notifica
-          por correo con el extracto correspondiente.
+          El monto se suma a la cuota de mantenimiento del mes en curso si
+          estamos en los primeros {FEE_GRACE_DAYS} días; si no, al mes
+          siguiente. Se cobra al registrar esa cuota.
         </p>
       </div>
 
@@ -78,7 +84,11 @@ export function FinesAdmin({
               toast(res.error, "error");
               return;
             }
-            toast("Multa aplicada y notificada.");
+            const period =
+              "billingYear" in res && res.billingYear && res.billingMonth
+                ? feeLabel(res.billingYear, res.billingMonth)
+                : feeLabel(previewPeriod.year, previewPeriod.month);
+            toast(`Multa aplicada · se suma a cuota ${period}.`);
             setAmount("");
             setNotes("");
             router.refresh();
@@ -117,6 +127,16 @@ export function FinesAdmin({
             />
           </label>
         </div>
+
+        <p className="rounded-xl bg-primary-soft/50 px-3 py-2 text-xs text-primary-dark">
+          Periodo sugerido hoy:{" "}
+          <strong>{feeLabel(previewPeriod.year, previewPeriod.month)}</strong>
+          {previewPeriod.month === new Date().getMonth() + 1 &&
+          previewPeriod.year === new Date().getFullYear()
+            ? ` (mes en curso · día ≤ ${FEE_GRACE_DAYS})`
+            : " (mes siguiente)"}
+          . Si esa cuota ya está pagada, se usa el siguiente mes abierto.
+        </p>
 
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium text-primary-dark">Categoría</span>
@@ -186,7 +206,7 @@ export function FinesAdmin({
 
       <div>
         <h3 className="mb-3 font-display text-lg text-primary-dark">
-          Multas pendientes
+          Multas pendientes (van en cuota)
         </h3>
         {pendingFines.length === 0 ? (
           <p className="text-sm text-muted">No hay multas pendientes.</p>
@@ -204,7 +224,8 @@ export function FinesAdmin({
                     </p>
                     <p className="text-sm text-muted">{f.cause}</p>
                     <p className="mt-1 text-xs text-muted">
-                      {f.category} · {f.regulationArticle} ·{" "}
+                      {f.category} · {f.regulationArticle} · Cuota{" "}
+                      {feeLabel(f.billingYear, f.billingMonth)} ·{" "}
                       {new Date(f.issuedAt).toLocaleDateString("es-MX", {
                         dateStyle: "medium",
                       })}
@@ -214,24 +235,12 @@ export function FinesAdmin({
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={pending}
-                      onClick={() => {
-                        startTransition(async () => {
-                          const res = await markFinePaid(f.id);
-                          if (res.error) toast(res.error, "error");
-                          else {
-                            toast("Multa marcada como pagada.");
-                            router.refresh();
-                          }
-                        });
-                      }}
-                      className="inline-flex items-center gap-1 rounded-lg bg-success px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                    <Link
+                      href={`/cuotas?casa=${f.houseNumber}`}
+                      className="inline-flex items-center rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white"
                     >
-                      <Check className="h-3.5 w-3.5" />
-                      Marcar pagada
-                    </button>
+                      Ir a cobranza
+                    </Link>
                     <button
                       type="button"
                       disabled={pending}
@@ -240,7 +249,7 @@ export function FinesAdmin({
                           const res = await annulFine(f.id);
                           if (res.error) toast(res.error, "error");
                           else {
-                            toast("Multa anulada.");
+                            toast("Multa anulada y descontada de la cuota.");
                             router.refresh();
                           }
                         });

@@ -1,6 +1,7 @@
 import "server-only";
 import { sendEmail } from "@/lib/notify/email";
 import type { NotifyResult } from "@/lib/notify/channels";
+import { FEE_GRACE_DAYS } from "@/lib/utils";
 
 export type FineNoticePayload = {
   residentName: string;
@@ -13,6 +14,8 @@ export type FineNoticePayload = {
   amount: number;
   notes?: string | null;
   issuedAt: Date;
+  /** Ej. "Agosto26" — cuota a la que se suma la multa. */
+  billingPeriodLabel: string;
   privadaName: string;
   privadaAddress?: string | null;
   privadaEmail?: string | null;
@@ -86,7 +89,7 @@ export function buildFineNoticeEmail(p: FineNoticePayload) {
                 Hola <strong>${escapeHtml(p.residentName)}</strong>,
               </p>
               <p style="margin:0 0 22px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#5a4a57;">
-                El comité aplicó una multa con base en el Reglamento Interno del Condominio Grenaché (REV 04, junio 2026).
+                El comité aplicó una multa con base en el Reglamento Interno del Condominio Grenaché (REV 04, junio 2026). El monto se sumará a tu cuota de mantenimiento de <strong>${escapeHtml(p.billingPeriodLabel)}</strong>.
               </p>
 
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8f4ef;border:1px solid #e8dfd6;border-radius:12px;margin-bottom:20px;">
@@ -101,6 +104,10 @@ export function buildFineNoticeEmail(p: FineNoticePayload) {
                 <tr>
                   <td style="padding:0 16px 14px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#5a4a57;">Monto</td>
                   <td style="padding:0 16px 14px;font-family:Arial,Helvetica,sans-serif;font-size:16px;color:#8b2e3b;font-weight:700;text-align:right;">${money(p.amount)}</td>
+                </tr>
+                <tr>
+                  <td style="padding:0 16px 14px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#5a4a57;">Se cobra con cuota</td>
+                  <td style="padding:0 16px 14px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#2a1c28;font-weight:700;text-align:right;">${escapeHtml(p.billingPeriodLabel)}</td>
                 </tr>
                 <tr>
                   <td style="padding:0 16px 14px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#5a4a57;">Fecha</td>
@@ -131,7 +138,7 @@ export function buildFineNoticeEmail(p: FineNoticePayload) {
               </div>
 
               <p style="margin:0;padding:14px 16px;background:#fdf2f2;border:1px solid #f0c9cd;border-radius:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#8b2e3b;">
-                <strong>Importante:</strong> Toda multa económica debe ser pagada dentro de las primeras 24 horas, conforme al reglamento interno.
+                <strong>Importante:</strong> Esta multa económica se incorporará a la cuota de mantenimiento de <strong>${escapeHtml(p.billingPeriodLabel)}</strong> (periodo de cobro: primeros ${FEE_GRACE_DAYS} días del mes).
               </p>
             </td>
           </tr>
@@ -167,19 +174,20 @@ export function buildFineNoticeEmail(p: FineNoticePayload) {
     ``,
     `Hola ${p.residentName},`,
     ``,
-    `El comité aplicó una multa con base en el Reglamento Interno del Condominio Grenaché (REV 04, junio 2026).`,
+    `El comité aplicó una multa con base en el Reglamento Interno del Condominio Grenaché (REV 04, junio 2026). El monto se sumará a tu cuota de mantenimiento de ${p.billingPeriodLabel}.`,
     ``,
     `Casa: ${p.houseNumber}`,
     `Categoría: ${p.category}`,
     `Falta: ${p.cause}`,
     `Monto: ${money(p.amount)}`,
+    `Se cobra con cuota: ${p.billingPeriodLabel}`,
     `Fecha: ${formatIssuedAt(p.issuedAt)}`,
     p.notes ? `Notas: ${p.notes}` : null,
     ``,
     `Fundamento · ${p.regulationArticle}`,
     p.regulationExcerpt,
     ``,
-    `Importante: Toda multa económica debe ser pagada dentro de las primeras 24 horas, conforme al reglamento interno.`,
+    `Importante: Esta multa se incorpora a la cuota de mantenimiento de ${p.billingPeriodLabel}.`,
     ``,
     [p.privadaName, p.privadaAddress, ...contactBits].filter(Boolean).join(" · "),
   ]

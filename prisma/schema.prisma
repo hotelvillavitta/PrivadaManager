@@ -162,7 +162,9 @@ model PalapaPayment {
   @@index([houseNumber, paidAt])
 }
 
-/// Multa o sanción por falta al reglamento interno. Independiente de cuotas y palapa.
+/// Multa o sanción por falta al reglamento interno.
+/// El monto se suma a la cuota de mantenimiento del periodo indicado
+/// (mes en curso si estamos en los primeros 10 días; si no, el mes siguiente).
 model Fine {
   id                 String     @id @default(cuid())
   houseNumber        String
@@ -174,6 +176,9 @@ model Fine {
   amount             Float
   status             FineStatus @default(PENDIENTE)
   notes              String?
+  /// Periodo de cuota de mantenimiento al que se suma esta multa.
+  billingYear        Int
+  billingMonth       Int
   issuedAt           DateTime   @default(now())
   paidAt             DateTime?
   issuedById         String?
@@ -185,6 +190,7 @@ model Fine {
   notifications      Notification[]
 
   @@index([houseNumber, status])
+  @@index([houseNumber, billingYear, billingMonth, status])
   @@index([status, issuedAt])
 }
 

@@ -16,6 +16,8 @@ import {
   formatCurrency,
   fullName,
   isFeePaymentLate,
+  nextFeePeriod,
+  resolveFineBillingPeriod,
 } from "@/lib/utils";
 import { getPrivada } from "@/lib/queries";
 import {
@@ -624,8 +626,23 @@ export async function registerCobranza(formData: FormData) {
 
   if (includeMaintenance) {
     const applyLate = includeLate;
+    const pendingFines = await prisma.fine.findMany({
+      where: {
+        houseNumber,
+        billingYear: year,
+        billingMonth: month,
+        status: "PENDIENTE",
+      },
+      orderBy: { issuedAt: "asc" },
+    });
+    const finesTotal = pendingFines.reduce((sum, f) => sum + f.amount, 0);
     const maintTotal = maintenanceAmount + (applyLate ? lateAmount : 0);
     const descParts = [FEE_CONCEPT_LABEL.MANTENIMIENTO];
+    if (finesTotal > 0) {
+      descParts.push(
+        `${pendingFines.length} multa${pendingFines.length === 1 ? "" : "s"} $${finesTotal}`,
+      );
+    }
     if (applyLate) descParts.push(`recargo $${lateAmount}`);
     const description = `Casa ${houseNumber} · ${label} · ${descParts.join(" + ")}`;
 
@@ -641,12 +658,47 @@ export async function registerCobranza(formData: FormData) {
     if ("error" in res) return res;
     total += res.amount;
     parts.push(`${FEE_CONCEPT_LABEL.MANTENIMIENTO} $${maintTotal}`);
-    receiptLines.push({
-      label: applyLate
-        ? `${FEE_CONCEPT_LABEL.MANTENIMIENTO} (incluye recargo)`
-        : FEE_CONCEPT_LABEL.MANTENIMIENTO,
-      amount: maintTotal,
-    });
+
+    const basePortion = Math.max(0, maintenanceAmount - finesTotal);
+    if (basePortion > 0) {
+      receiptLines.push({
+        label: FEE_CONCEPT_LABEL.MANTENIMIENTO,
+        amount: basePortion,
+      });
+    }
+    for (const f of pendingFines) {
+      receiptLines.push({
+        label: `Multa · ${f.cause}`,
+        amount: f.amount,
+      });
+    }
+    if (applyLate && lateAmount > 0) {
+      receiptLines.push({
+        label: "Recargo por pago tardío",
+        amount: lateAmount,
+      });
+    }
+    // Si el admin ajustó el monto y no cuadra con base+multas, una sola línea.
+    if (receiptLines.length === 0) {
+      receiptLines.push({
+        label: applyLate
+          ? `${FEE_CONCEPT_LABEL.MANTENIMIENTO} (incluye recargo)`
+          : FEE_CONCEPT_LABEL.MANTENIMIENTO,
+        amount: maintTotal,
+      });
+    }
+
+    if (pendingFines.length) {
+      await prisma.fine.updateMany({
+        where: {
+          id: { in: pendingFines.map((f) => f.id) },
+        },
+        data: {
+          status: "PAGADO",
+          paidAt,
+        },
+      });
+    }
   }
 
   if (includePalapa) {
@@ -785,7 +837,7 @@ export async function deleteFinanceEntry(id: string) {
   return { ok: true };
 }
 
-/** Emite una multa: notifica in-app y por correo con extracto del reglamento. */
+/** Emite una multa y la suma a la cuota de mantenimiento del periodo aplicable. */
 export async function issueFine(formData: FormData) {
   const admin = await requireAdmin();
   const houseNumber = String(formData.get("houseNumber") ?? "").trim();
@@ -803,22 +855,76 @@ export async function issueFine(formData: FormData) {
   if (!cause) return { error: "La falta seleccionada no es válida." };
 
   const issuedAt = new Date();
-  const fine = await prisma.fine.create({
-    data: {
-      houseNumber,
-      category: cause.category,
-      cause: cause.label,
-      causeId: cause.id,
-      regulationArticle: cause.article,
-      regulationExcerpt: cause.excerpt,
-      amount,
-      notes,
-      status: "PENDIENTE",
-      issuedAt,
-      issuedById: admin.id,
-    },
+  let billing = resolveFineBillingPeriod(issuedAt);
+
+  // Si ese periodo ya está pagado, pasar al siguiente mes abierto.
+  for (let i = 0; i < 24; i++) {
+    const existing = await prisma.monthlyFee.findUnique({
+      where: {
+        houseNumber_year_month_concept: {
+          houseNumber,
+          year: billing.year,
+          month: billing.month,
+          concept: FEE_CONCEPT.MANTENIMIENTO,
+        },
+      },
+    });
+    if (!existing || existing.status !== "PAGADO") break;
+    billing = nextFeePeriod(billing.year, billing.month);
+  }
+
+  const fine = await prisma.$transaction(async (tx) => {
+    const created = await tx.fine.create({
+      data: {
+        houseNumber,
+        category: cause.category,
+        cause: cause.label,
+        causeId: cause.id,
+        regulationArticle: cause.article,
+        regulationExcerpt: cause.excerpt,
+        amount,
+        notes,
+        status: "PENDIENTE",
+        billingYear: billing.year,
+        billingMonth: billing.month,
+        issuedAt,
+        issuedById: admin.id,
+      },
+    });
+
+    const fee = await tx.monthlyFee.findUnique({
+      where: {
+        houseNumber_year_month_concept: {
+          houseNumber,
+          year: billing.year,
+          month: billing.month,
+          concept: FEE_CONCEPT.MANTENIMIENTO,
+        },
+      },
+    });
+
+    if (!fee) {
+      await tx.monthlyFee.create({
+        data: {
+          houseNumber,
+          year: billing.year,
+          month: billing.month,
+          concept: FEE_CONCEPT.MANTENIMIENTO,
+          amount: FEE_BASE_AMOUNT + amount,
+          status: "PENDIENTE",
+        },
+      });
+    } else if (fee.status !== "PAGADO") {
+      await tx.monthlyFee.update({
+        where: { id: fee.id },
+        data: { amount: fee.amount + amount },
+      });
+    }
+
+    return created;
   });
 
+  const periodLabel = feeLabel(billing.year, billing.month);
   const residents = await prisma.user.findMany({
     where: { houseNumber, role: "COLONO" },
     select: {
@@ -834,7 +940,7 @@ export async function issueFine(formData: FormData) {
       data: residents.map((r) => ({
         userId: r.id,
         title: "Multa aplicada",
-        body: `Casa ${houseNumber} · ${cause.label} · ${formatCurrency(amount)}.`,
+        body: `Casa ${houseNumber} · ${cause.label} · ${formatCurrency(amount)} · se suma a cuota ${periodLabel}.`,
         fineId: fine.id,
       })),
     });
@@ -853,6 +959,7 @@ export async function issueFine(formData: FormData) {
           amount,
           notes,
           issuedAt,
+          billingPeriodLabel: periodLabel,
           privadaName: privada.name,
           privadaAddress: privada.address,
           privadaEmail: privada.email,
@@ -866,59 +973,21 @@ export async function issueFine(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/comunidad");
   revalidatePath("/finanzas");
-  return { ok: true, fineId: fine.id };
+  return {
+    ok: true,
+    fineId: fine.id,
+    billingYear: billing.year,
+    billingMonth: billing.month,
+  };
 }
 
-export async function markFinePaid(fineId: string) {
+/** Las multas se cobran con la cuota; no hay cobro suelto. */
+export async function markFinePaid(_fineId: string) {
   await requireAdmin();
-  if (!fineId) return { error: "Multa inválida." };
-
-  const fine = await prisma.fine.findUnique({ where: { id: fineId } });
-  if (!fine) return { error: "No se encontró la multa." };
-  if (fine.status !== "PENDIENTE") {
-    return { error: "Solo se pueden cobrar multas pendientes." };
-  }
-
-  const paidAt = new Date();
-  const entry = await prisma.financeEntry.create({
-    data: {
-      type: "INGRESO",
-      category: "Multas",
-      description: `Casa ${fine.houseNumber} · Multa · ${fine.cause}`,
-      amount: fine.amount,
-      date: paidAt,
-    },
-  });
-
-  await prisma.fine.update({
-    where: { id: fine.id },
-    data: {
-      status: "PAGADO",
-      paidAt,
-      financeEntryId: entry.id,
-    },
-  });
-
-  const residents = await prisma.user.findMany({
-    where: { houseNumber: fine.houseNumber, role: "COLONO" },
-    select: { id: true },
-  });
-  if (residents.length) {
-    await prisma.notification.createMany({
-      data: residents.map((r) => ({
-        userId: r.id,
-        title: "Multa pagada",
-        body: `Casa ${fine.houseNumber} · ${fine.cause} · ${formatCurrency(fine.amount)}.`,
-        fineId: fine.id,
-      })),
-    });
-  }
-
-  revalidatePath("/cuotas");
-  revalidatePath("/admin");
-  revalidatePath("/finanzas");
-  revalidatePath("/comunidad");
-  return { ok: true };
+  return {
+    error:
+      "Las multas se cobran junto con la cuota de mantenimiento del periodo indicado. Regístrala en Cobranza de cuotas.",
+  };
 }
 
 export async function annulFine(fineId: string) {
@@ -931,9 +1000,30 @@ export async function annulFine(fineId: string) {
     return { error: "Solo se pueden anular multas pendientes." };
   }
 
-  await prisma.fine.update({
-    where: { id: fineId },
-    data: { status: "ANULADA" },
+  await prisma.$transaction(async (tx) => {
+    await tx.fine.update({
+      where: { id: fineId },
+      data: { status: "ANULADA" },
+    });
+
+    const fee = await tx.monthlyFee.findUnique({
+      where: {
+        houseNumber_year_month_concept: {
+          houseNumber: fine.houseNumber,
+          year: fine.billingYear,
+          month: fine.billingMonth,
+          concept: FEE_CONCEPT.MANTENIMIENTO,
+        },
+      },
+    });
+
+    if (fee && fee.status !== "PAGADO") {
+      const nextAmount = Math.max(FEE_BASE_AMOUNT, fee.amount - fine.amount);
+      await tx.monthlyFee.update({
+        where: { id: fee.id },
+        data: { amount: nextAmount },
+      });
+    }
   });
 
   revalidatePath("/cuotas");
