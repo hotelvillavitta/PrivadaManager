@@ -17,7 +17,7 @@ async function main() {
   await prisma.privadaSettings.create({
     data: {
       id: 1,
-      name: "Priv. Grenache",
+      name: "Grenache",
       address: "Priv. Grenache 4176, Fracc. Viñas del Mar",
       phone: "+52 (664) 356-4100",
       email: "comitegrenche@gmail.com",

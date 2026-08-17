@@ -30,16 +30,16 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "Grenaché | Portal residencial",
-    template: "%s | Grenaché",
+    default: "Grenache | App Residencial",
+    template: "%s | Grenache",
   },
   description:
-    "Portal de gestión residencial: noticias, reservaciones, cuotas y finanzas. Tu privada, siempre en orden.",
-  applicationName: "Grenaché",
+    "App residencial: noticias, reservaciones, cuotas y finanzas. Tu privada, siempre en orden.",
+  applicationName: "Grenache",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Grenaché",
+    title: "Grenache",
   },
   formatDetection: {
     telephone: false,
@@ -53,9 +53,8 @@ export const metadata: Metadata = {
     apple: [{ url: "/apple-icon", sizes: "180x180", type: "image/png" }],
   },
   openGraph: {
-    title: "Grenaché | Portal residencial",
-    description:
-      "Portal de gestión residencial. Tu privada, siempre en orden.",
+    title: "Grenache | App Residencial",
+    description: "App residencial. Tu privada, siempre en orden.",
     images: [{ url: "/brand/og-icon.png", width: 512, height: 512 }],
   },
   other: {

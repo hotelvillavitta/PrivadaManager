@@ -79,10 +79,10 @@ export function Navbar({
             priority
           />
           <div className="min-w-0 leading-tight">
-            <p className="truncate font-display text-base text-primary-dark sm:text-lg">
+            <p className="truncate font-display text-lg font-semibold tracking-tight text-primary-dark sm:text-xl">
               {privadaName}
             </p>
-            <p className="text-[11px] font-medium tracking-wide text-accent sm:text-xs">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-accent sm:text-[11px]">
               App Residencial
             </p>
           </div>

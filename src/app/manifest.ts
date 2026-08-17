@@ -2,10 +2,10 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Grenaché",
-    short_name: "Grenaché",
+    name: "Grenache",
+    short_name: "Grenache",
     description:
-      "Portal de gestión residencial: noticias, reservaciones, cuotas y finanzas.",
+      "App residencial: noticias, reservaciones, cuotas y finanzas.",
     start_url: "/",
     display: "standalone",
     background_color: "#f4efe8",
