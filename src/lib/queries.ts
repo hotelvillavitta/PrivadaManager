@@ -279,3 +279,33 @@ export async function getHouseNumbers() {
     .map((u) => u.houseNumber)
     .filter((h): h is string => Boolean(h));
 }
+
+/** Casas con nombres de residentes, para confirmar cobros sin errores. */
+export async function getHousesWithResidents() {
+  const users = await prisma.user.findMany({
+    where: { houseNumber: { not: null }, role: "COLONO" },
+    select: {
+      houseNumber: true,
+      firstName: true,
+      lastName: true,
+    },
+    orderBy: [{ houseNumber: "asc" }, { lastName: "asc" }],
+  });
+
+  const map = new Map<string, string[]>();
+  for (const u of users) {
+    if (!u.houseNumber) continue;
+    const list = map.get(u.houseNumber) ?? [];
+    list.push(`${u.firstName} ${u.lastName}`.trim());
+    map.set(u.houseNumber, list);
+  }
+
+  return [...map.entries()]
+    .map(([houseNumber, residents]) => ({ houseNumber, residents }))
+    .sort((a, b) => {
+      const na = Number(a.houseNumber);
+      const nb = Number(b.houseNumber);
+      if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+      return a.houseNumber.localeCompare(b.houseNumber, "es");
+    });
+}

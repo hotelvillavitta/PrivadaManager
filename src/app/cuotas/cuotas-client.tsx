@@ -60,6 +60,7 @@ type FineRow = {
 export function CuotasClient({
   houseNumber,
   houses = [],
+  houseDirectory = [],
   accessCode,
   fees,
   palapaPayments,
@@ -69,6 +70,7 @@ export function CuotasClient({
 }: {
   houseNumber: string;
   houses?: string[];
+  houseDirectory?: { houseNumber: string; residents: string[] }[];
   accessCode: string | null;
   fees: Fee[];
   palapaPayments: PalapaPayment[];
@@ -89,6 +91,38 @@ export function CuotasClient({
     const set = new Set([...fromFees, currentYear, currentYear - 1]);
     return [...set].sort((a, b) => b - a);
   }, [fees, currentYear]);
+
+  const houseOptions = useMemo(() => {
+    const byHouse = new Map(
+      houseDirectory.map((h) => [h.houseNumber, h] as const),
+    );
+    const numbers = houses.length
+      ? houses
+      : houseDirectory.map((h) => h.houseNumber);
+    return numbers
+      .map(
+        (h) =>
+          byHouse.get(h) ?? {
+            houseNumber: h,
+            residents: [] as string[],
+          },
+      )
+      .sort((a, b) => {
+        const na = Number(a.houseNumber);
+        const nb = Number(b.houseNumber);
+        if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+        return a.houseNumber.localeCompare(b.houseNumber, "es");
+      });
+  }, [houseDirectory, houses]);
+
+  const selectedHouse = useMemo(
+    () =>
+      houseOptions.find((h) => h.houseNumber === houseNumber) ?? {
+        houseNumber,
+        residents: [] as string[],
+      },
+    [houseOptions, houseNumber],
+  );
 
   const [historyYear, setHistoryYear] = useState(years[0] ?? currentYear);
   const [chargeYear, setChargeYear] = useState(currentYear);
@@ -208,41 +242,81 @@ export function CuotasClient({
       />
 
       <div className="mx-auto max-w-4xl space-y-5 px-4 sm:space-y-6 lg:px-6">
-        <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-soft text-primary">
-              <Home className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="font-semibold text-primary-dark">
-                Casa #{houseNumber}
+        {isAdmin ? (
+          <section className="overflow-hidden rounded-2xl border-2 border-primary/25 bg-surface shadow-sm">
+            <div className="border-b border-border bg-primary-soft/50 px-4 py-3 sm:px-5">
+              <p className="text-xs font-bold tracking-[0.12em] text-primary uppercase">
+                Confirmación de casa
               </p>
-              <p className="text-sm text-muted">
-                {isAdmin
-                  ? "Selecciona la casa a cobrar."
-                  : "Historial de cuotas de tu casa."}
+              <p className="mt-0.5 text-sm text-muted">
+                Verifica bien la casa antes de registrar un cobro.
               </p>
             </div>
-          </div>
-          <div className="flex flex-col items-stretch gap-2 sm:items-end">
-            {isAdmin && houses.length > 0 && (
-              <label className="flex flex-col gap-1 text-sm sm:items-end">
-                <span className="font-medium text-primary-dark">Casa</span>
+
+            <div className="grid gap-4 p-4 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-6 sm:p-6">
+              <div className="flex items-start gap-4">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-sm sm:h-20 sm:w-20">
+                  <Home className="h-7 w-7 sm:h-8 sm:w-8" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-muted">
+                    Casa seleccionada
+                  </p>
+                  <p className="font-display text-4xl font-bold leading-none text-primary-dark sm:text-5xl">
+                    {houseNumber}
+                  </p>
+                  {selectedHouse.residents.length > 0 ? (
+                    <p className="mt-2 text-sm leading-snug text-foreground">
+                      <span className="font-semibold text-primary-dark">
+                        Residentes:
+                      </span>{" "}
+                      {selectedHouse.residents.join(" · ")}
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-sm text-muted">
+                      Sin residentes COLONO registrados en esta casa.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <label className="flex w-full flex-col gap-2 sm:min-w-[220px]">
+                <span className="text-sm font-semibold text-primary-dark">
+                  Cambiar casa
+                </span>
                 <select
                   value={houseNumber}
                   onChange={(e) =>
                     router.push(`/cuotas?casa=${e.target.value}`)
                   }
-                  className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                  className="min-h-12 w-full rounded-xl border-2 border-primary/30 bg-background px-4 py-3 text-base font-semibold text-primary-dark outline-none focus:border-primary"
+                  aria-label="Seleccionar casa a cobrar"
                 >
-                  {houses.map((h) => (
-                    <option key={h} value={h}>
-                      Casa {h}
+                  {houseOptions.map((h) => (
+                    <option key={h.houseNumber} value={h.houseNumber}>
+                      Casa {h.houseNumber}
+                      {h.residents[0] ? ` — ${h.residents[0]}` : ""}
                     </option>
                   ))}
                 </select>
               </label>
-            )}
+            </div>
+          </section>
+        ) : (
+          <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-soft text-primary">
+                <Home className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-semibold text-primary-dark">
+                  Casa #{houseNumber}
+                </p>
+                <p className="text-sm text-muted">
+                  Historial de cuotas de tu casa.
+                </p>
+              </div>
+            </div>
             {accessCode && (
               <div className="inline-flex items-start gap-2 rounded-xl bg-warning-soft px-3 py-2 text-sm text-foreground">
                 <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
@@ -253,7 +327,7 @@ export function CuotasClient({
               </div>
             )}
           </div>
-        </div>
+        )}
 
         <div className="grid grid-cols-3 gap-2 sm:gap-4">
           <StatCard
@@ -320,12 +394,26 @@ export function CuotasClient({
               </div>
               <div>
                 <h3 className="font-display text-xl text-primary-dark">
-                  Registrar cobro · Casa {houseNumber}
+                  Registrar cobro
                 </h3>
                 <p className="text-sm text-muted">
                   Elige periodo y conceptos. Los montos se pueden ajustar.
                 </p>
               </div>
+            </div>
+
+            <div className="mb-4 rounded-xl border border-primary/25 bg-primary-soft/40 px-4 py-3">
+              <p className="text-xs font-bold tracking-wide text-primary uppercase">
+                Cobro dirigido a
+              </p>
+              <p className="mt-1 font-display text-2xl font-bold text-primary-dark">
+                Casa {houseNumber}
+              </p>
+              {selectedHouse.residents.length > 0 && (
+                <p className="mt-1 text-sm text-foreground">
+                  {selectedHouse.residents.join(" · ")}
+                </p>
+              )}
             </div>
 
             <input type="hidden" name="houseNumber" value={houseNumber} />
@@ -439,6 +527,10 @@ export function CuotasClient({
               <p className="font-medium text-primary-dark">
                 {conceptSummary || "Sin conceptos seleccionados"}
               </p>
+              <p className="mt-3 text-sm text-muted">Casa</p>
+              <p className="font-display text-2xl font-bold text-primary-dark">
+                {houseNumber}
+              </p>
               <p className="mt-3 text-sm text-muted">Total a cobrar</p>
               <p className="font-display text-3xl font-bold text-primary-dark">
                 {formatCurrency(total)}
@@ -448,7 +540,7 @@ export function CuotasClient({
             <button
               type="submit"
               disabled={!canCharge}
-              className="mt-4 w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              className="mt-4 w-full rounded-xl bg-primary px-4 py-3.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[280px]"
             >
               {blockedByPriorDebt
                 ? "Hay adeudos anteriores"
@@ -456,7 +548,7 @@ export function CuotasClient({
                   ? "Periodo ya pagado"
                   : pending
                     ? "Registrando…"
-                    : `Registrar cobro · ${formatCurrency(total)}`}
+                    : `Cobrar Casa ${houseNumber} · ${formatCurrency(total)}`}
             </button>
             {isAdmin && (
               <p className="mt-2 text-xs text-muted">
