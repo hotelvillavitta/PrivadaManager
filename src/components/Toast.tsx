@@ -35,7 +35,7 @@ export function ToastHost() {
   if (!items.length) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[100] flex flex-col gap-2 md:inset-x-auto md:right-4 md:bottom-4 md:w-[min(360px,calc(100vw-2rem))]">
+    <div className="pointer-events-none fixed inset-x-3 bottom-[calc(7rem+env(safe-area-inset-bottom))] z-[100] flex flex-col gap-2 md:inset-x-auto md:right-4 md:bottom-4 md:w-[min(360px,calc(100vw-2rem))]">
       {items.map((item) => (
         <div
           key={item.id}

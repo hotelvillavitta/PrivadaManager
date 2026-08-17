@@ -103,7 +103,7 @@ export function InstallPrompt() {
   }
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[60] p-3 md:bottom-0 md:p-4 md:pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(6.5rem+env(safe-area-inset-bottom))] z-[60] p-3 md:bottom-0 md:p-4 md:pb-[max(1rem,env(safe-area-inset-bottom))]">
       <div className="pointer-events-auto mx-auto flex max-w-lg gap-3 rounded-2xl border border-border bg-surface p-3.5 shadow-[0_20px_50px_-18px_rgba(47,29,45,0.55)] sm:p-4">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-white sm:h-11 sm:w-11">
           <Download className="h-5 w-5" strokeWidth={2.25} />

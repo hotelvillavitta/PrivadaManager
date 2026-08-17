@@ -226,7 +226,7 @@ export function Navbar({
             onClick={() => setOpen(false)}
           />
           <nav
-            className="absolute inset-x-0 bottom-0 max-h-[min(75dvh,32rem)] overflow-y-auto rounded-t-3xl border border-border bg-surface px-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-20px_50px_-20px_rgba(47,29,45,0.45)]"
+            className="absolute inset-x-0 bottom-0 max-h-[min(75dvh,32rem)] overflow-y-auto rounded-t-3xl border border-border bg-surface px-4 pb-[calc(7.25rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-20px_50px_-20px_rgba(47,29,45,0.45)]"
             aria-label="Más opciones"
           >
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
@@ -291,7 +291,7 @@ export function Navbar({
 
       {user && (
         <nav
-          className="fixed inset-x-0 bottom-0 z-[90] border-t border-border bg-surface/95 px-2 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-8px_30px_-20px_rgba(47,29,45,0.5)] backdrop-blur md:hidden"
+          className="fixed inset-x-0 bottom-0 z-[90] border-t border-border bg-surface/95 px-1.5 pb-[max(0.9rem,calc(env(safe-area-inset-bottom)+0.45rem))] pt-2 shadow-[0_-8px_30px_-20px_rgba(47,29,45,0.5)] backdrop-blur md:hidden"
           aria-label="Navegación principal"
         >
           <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
@@ -307,14 +307,14 @@ export function Navbar({
                     key={href}
                     href={href}
                     onClick={() => setOpen(false)}
-                    className={`flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[10px] font-semibold transition ${
+                    className={`flex min-h-[4.25rem] flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[11px] font-semibold transition ${
                       active
                         ? "bg-primary-soft text-primary"
                         : "text-muted active:bg-background"
                     }`}
                   >
                     <Icon
-                      className={`h-5 w-5 ${active ? "stroke-[2.5]" : ""}`}
+                      className={`h-6 w-6 ${active ? "stroke-[2.5]" : ""}`}
                     />
                     <span>{shortLabel}</span>
                   </Link>
@@ -323,12 +323,12 @@ export function Navbar({
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}
-              className={`flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[10px] font-semibold transition ${
+              className={`flex min-h-[4.25rem] flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[11px] font-semibold transition ${
                 open ? "bg-primary-soft text-primary" : "text-muted"
               }`}
               aria-expanded={open}
             >
-              {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               <span>Más</span>
             </button>
           </div>
