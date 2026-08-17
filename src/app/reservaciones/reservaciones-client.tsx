@@ -159,10 +159,40 @@ export function ReservacionesClient({
   }, [selected]);
 
   const pendingList = reservations.filter((r) => r.status === "PENDING");
+  const monthAgenda = useMemo(() => {
+    const prefix = `${year}-${String(month + 1).padStart(2, "0")}-`;
+    return reservations
+      .filter(
+        (r) =>
+          r.date.startsWith(prefix) &&
+          r.status !== "CANCELLED" &&
+          r.status !== "REJECTED",
+      )
+      .sort((a, b) => {
+        if (a.date !== b.date) return a.date.localeCompare(b.date);
+        return a.eventName.localeCompare(b.eventName, "es");
+      });
+  }, [reservations, year, month]);
   const focused = focusId
     ? reservations.find((r) => r.id === focusId) ?? null
     : null;
   const canSubmit = !hasPendingFees && !pending;
+
+  function statusAgendaLabel(status: Reservation["status"]) {
+    if (status === "APPROVED") return "Aprobada";
+    if (status === "PENDING") return "Pendiente";
+    if (status === "REJECTED") return "Rechazada";
+    return "Cancelada";
+  }
+
+  function formatAgendaDay(dateKey: string) {
+    const d = new Date(`${dateKey}T12:00:00`);
+    return d.toLocaleDateString("es-MX", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    });
+  }
 
   return (
     <div className="pb-16">
@@ -578,6 +608,80 @@ export function ReservacionesClient({
                   <Legend color="bg-[#f0d9a0]" label="Pendiente" />
                   <Legend color="bg-[#b7dfc8]" label="Disponible" />
                 </div>
+
+                {isAdmin && (
+                  <div className="mt-6 border-t border-border pt-4">
+                    <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+                      <div>
+                        <h4 className="font-display text-lg text-primary-dark">
+                          Agenda del mes
+                        </h4>
+                        <p className="text-sm capitalize text-muted">
+                          {monthLabel} · {monthAgenda.length} reservación
+                          {monthAgenda.length === 1 ? "" : "es"}
+                        </p>
+                      </div>
+                    </div>
+                    {monthAgenda.length === 0 ? (
+                      <p className="rounded-xl bg-background px-4 py-3 text-sm text-muted">
+                        No hay reservaciones en este mes.
+                      </p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {monthAgenda.map((r) => {
+                          const isFocus = focusId === r.id;
+                          return (
+                            <li key={r.id}>
+                              <button
+                                type="button"
+                                id={`agenda-${r.id}`}
+                                onClick={() => {
+                                  setSelected(r.date);
+                                  setFocusId(r.id);
+                                  const el = document.getElementById(
+                                    `solicitud-${r.id}`,
+                                  );
+                                  el?.scrollIntoView({
+                                    behavior: "smooth",
+                                    block: "center",
+                                  });
+                                }}
+                                className={`flex w-full flex-col gap-2 rounded-xl border px-3 py-3 text-left transition sm:flex-row sm:items-center sm:justify-between ${
+                                  isFocus
+                                    ? "border-primary bg-primary-soft/50"
+                                    : "border-border bg-background hover:border-primary/30"
+                                }`}
+                              >
+                                <div className="min-w-0">
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                                    {formatAgendaDay(r.date)}
+                                  </p>
+                                  <p className="truncate font-semibold text-primary-dark">
+                                    {r.eventName}
+                                  </p>
+                                  <p className="text-sm text-muted">
+                                    Casa {r.user.houseNumber ?? "—"} ·{" "}
+                                    {r.user.firstName} {r.user.lastName} ·{" "}
+                                    {r.guests} personas
+                                  </p>
+                                </div>
+                                <span
+                                  className={`self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase sm:self-auto ${
+                                    r.status === "APPROVED"
+                                      ? "bg-success-soft text-success"
+                                      : "bg-warning-soft text-warning"
+                                  }`}
+                                >
+                                  {statusAgendaLabel(r.status)}
+                                </span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                )}
 
                 <div className="mt-6 border-t border-border pt-4">
                   <h4 className="mb-3 font-display text-lg text-primary-dark">
