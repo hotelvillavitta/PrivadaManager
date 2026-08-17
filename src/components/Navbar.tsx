@@ -82,8 +82,8 @@ export function Navbar({
             <p className="truncate font-display text-base text-primary-dark sm:text-lg">
               {privadaName}
             </p>
-            <p className="hidden text-xs font-medium tracking-wide text-accent sm:block">
-              Portal residencial
+            <p className="text-[11px] font-medium tracking-wide text-accent sm:text-xs">
+              App Residencial
             </p>
           </div>
         </Link>

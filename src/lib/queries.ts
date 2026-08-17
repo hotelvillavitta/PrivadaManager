@@ -7,7 +7,7 @@ import {
 export async function getPrivada() {
   return (
     (await prisma.privadaSettings.findUnique({ where: { id: 1 } })) ?? {
-      name: "Grenaché",
+      name: "Priv. Grenache",
       address: "Priv. Grenache 4176, Fracc. Viñas del Mar",
       phone: "+52 (664) 356-4100",
       email: "comitegrenche@gmail.com",
