@@ -73,7 +73,13 @@ export function CuotasClient({
   fees: Fee[];
   palapaPayments: PalapaPayment[];
   fines: FineRow[];
-  summary: { paid: number; debt: number; pendingAmount: number };
+  summary: {
+    paid: number;
+    debt: number;
+    pendingAmount: number;
+    dueFeesAmount?: number;
+    pendingFinesAmount?: number;
+  };
   isAdmin: boolean;
 }) {
   const router = useRouter();
@@ -97,6 +103,20 @@ export function CuotasClient({
   const [message, setMessage] = useState("");
 
   const months = fees.filter((f) => f.year === historyYear);
+
+  const pendingFinesTotal = fines
+    .filter((f) => f.status === "PENDIENTE")
+    .reduce((sum, f) => sum + f.amount, 0);
+  // Si el servidor aún no suma multas futuras, el cliente las incluye.
+  const pendingAmountToShow =
+    summary.pendingAmount > 0
+      ? summary.pendingAmount
+      : pendingFinesTotal;
+  const dueFeesAmount = summary.dueFeesAmount ?? 0;
+  const onlyFinesPending =
+    pendingAmountToShow > 0 && dueFeesAmount === 0 && pendingFinesTotal > 0;
+  const hasFeeAndFinePending =
+    pendingAmountToShow > 0 && dueFeesAmount > 0 && pendingFinesTotal > 0;
 
   const maintenanceFee = fees.find(
     (f) =>
@@ -249,11 +269,26 @@ export function CuotasClient({
           <StatCard
             icon={<ArrowUpRight className="h-5 w-5" />}
             value={
-              summary.pendingAmount === 0
+              pendingAmountToShow === 0
                 ? "Al corriente"
-                : formatCurrency(summary.pendingAmount)
+                : formatCurrency(pendingAmountToShow)
             }
-            label="Total pendiente"
+            label={
+              pendingAmountToShow === 0
+                ? "Total pendiente"
+                : onlyFinesPending
+                  ? "Multa pendiente"
+                  : hasFeeAndFinePending
+                    ? "Cuota + multa pendiente"
+                    : "Total pendiente"
+            }
+            tone={
+              pendingAmountToShow === 0
+                ? "success"
+                : onlyFinesPending
+                  ? "warning"
+                  : "danger"
+            }
           />
         </div>
 
@@ -701,16 +736,33 @@ function StatCard({
   icon,
   value,
   label,
+  tone = "success",
 }: {
   icon: React.ReactNode;
   value: string;
   label: string;
+  tone?: "success" | "warning" | "danger";
 }) {
+  const toneClass =
+    tone === "warning"
+      ? "border-warning/20 bg-warning-soft text-warning"
+      : tone === "danger"
+        ? "border-danger/20 bg-danger-soft text-danger"
+        : "border-success/20 bg-success-soft text-success";
+
   return (
-    <div className="min-w-0 rounded-2xl border border-success/20 bg-success-soft px-2.5 py-3 text-success sm:px-5 sm:py-4">
-      <div className="mb-1.5 [&>svg]:h-4 [&>svg]:w-4 sm:mb-2 sm:[&>svg]:h-5 sm:[&>svg]:w-5">{icon}</div>
-      <p className="break-words font-display text-lg font-bold leading-tight sm:text-3xl">{value}</p>
-      <p className="mt-1 text-[11px] font-medium leading-tight opacity-80 sm:text-sm">{label}</p>
+    <div
+      className={`min-w-0 rounded-2xl border px-2.5 py-3 sm:px-5 sm:py-4 ${toneClass}`}
+    >
+      <div className="mb-1.5 [&>svg]:h-4 [&>svg]:w-4 sm:mb-2 sm:[&>svg]:h-5 sm:[&>svg]:w-5">
+        {icon}
+      </div>
+      <p className="break-words font-display text-lg font-bold leading-tight sm:text-3xl">
+        {value}
+      </p>
+      <p className="mt-1 text-[11px] font-medium leading-tight opacity-80 sm:text-sm">
+        {label}
+      </p>
     </div>
   );
 }

@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/db";
-import { overdueMaintenanceWhere } from "@/lib/utils";
+import {
+  calendarPartsInTijuana,
+  overdueMaintenanceWhere,
+} from "@/lib/utils";
 
 export async function getPrivada() {
   return (
@@ -77,15 +80,50 @@ export async function getPendingFines(take = 30) {
 }
 
 export async function getFeeSummary(houseNumber: string) {
-  const fees = await prisma.monthlyFee.findMany({
-    where: { houseNumber, concept: "MANTENIMIENTO" },
-  });
+  const { year: cy, month: cm } = calendarPartsInTijuana();
+  const currentKey = cy * 12 + cm;
+
+  const [fees, pendingFines] = await Promise.all([
+    prisma.monthlyFee.findMany({
+      where: { houseNumber, concept: "MANTENIMIENTO" },
+    }),
+    prisma.fine.findMany({
+      where: { houseNumber, status: "PENDIENTE" },
+      select: { amount: true, billingYear: true, billingMonth: true },
+    }),
+  ]);
+
   const paid = fees.filter((f) => f.status === "PAGADO").length;
-  const debt = fees.filter((f) => f.status === "ADEUDO").length;
-  const pendingAmount = fees
-    .filter((f) => f.status !== "PAGADO")
+  const debt = fees.filter(
+    (f) =>
+      f.status === "ADEUDO" ||
+      (f.status === "PENDIENTE" && f.year * 12 + f.month <= currentKey),
+  ).length;
+
+  // Cuotas ya exigibles (mes actual o anterior) no pagadas.
+  const dueFeesAmount = fees
+    .filter(
+      (f) => f.status !== "PAGADO" && f.year * 12 + f.month <= currentKey,
+    )
     .reduce((sum, f) => sum + f.amount, 0);
-  return { paid, debt, pendingAmount, total: fees.length };
+
+  // Multas pendientes: las de meses futuros aún no están en una cuota exigible.
+  const futureFinesAmount = pendingFines
+    .filter((f) => f.billingYear * 12 + f.billingMonth > currentKey)
+    .reduce((sum, f) => sum + f.amount, 0);
+  const pendingFinesAmount = pendingFines.reduce(
+    (sum, f) => sum + f.amount,
+    0,
+  );
+
+  return {
+    paid,
+    debt,
+    pendingAmount: dueFeesAmount + futureFinesAmount,
+    dueFeesAmount,
+    pendingFinesAmount,
+    total: fees.length,
+  };
 }
 
 /** True si la casa adeuda mantenimiento del mes actual o de meses anteriores. */
@@ -160,6 +198,7 @@ export async function getRecentNotifications(userId: string, take = 5) {
 }
 
 export async function getAdminDashboard() {
+  const { year: cy, month: cm } = calendarPartsInTijuana();
   const [
     residents,
     pendingReservations,
@@ -195,7 +234,10 @@ export async function getAdminDashboard() {
     prisma.newsPost.count(),
     prisma.provider.count(),
     prisma.monthlyFee.findMany({
-      where: { status: { in: ["ADEUDO", "PENDIENTE"] } },
+      where: {
+        status: { in: ["ADEUDO", "PENDIENTE"] },
+        OR: [{ year: { lt: cy } }, { year: cy, month: { lte: cm } }],
+      },
       orderBy: [{ year: "desc" }, { month: "desc" }],
       take: 20,
     }),

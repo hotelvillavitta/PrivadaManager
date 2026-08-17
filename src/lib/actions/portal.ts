@@ -945,33 +945,39 @@ export async function issueFine(formData: FormData) {
       },
     });
 
-    const fee = await tx.monthlyFee.findUnique({
-      where: {
-        houseNumber_year_month_concept: {
-          houseNumber,
-          year: billing.year,
-          month: billing.month,
-          concept: FEE_CONCEPT.MANTENIMIENTO,
+    // Solo sumar a la cuota si el periodo ya es exigible (mes actual o anterior).
+    // En meses futuros solo queda la multa; la cuota base se cobra cuando toque.
+    const billingKey = billing.year * 12 + billing.month;
+    const currentKey = cy * 12 + cm;
+    if (billingKey <= currentKey) {
+      const fee = await tx.monthlyFee.findUnique({
+        where: {
+          houseNumber_year_month_concept: {
+            houseNumber,
+            year: billing.year,
+            month: billing.month,
+            concept: FEE_CONCEPT.MANTENIMIENTO,
+          },
         },
-      },
-    });
+      });
 
-    if (!fee) {
-      await tx.monthlyFee.create({
-        data: {
-          houseNumber,
-          year: billing.year,
-          month: billing.month,
-          concept: FEE_CONCEPT.MANTENIMIENTO,
-          amount: FEE_BASE_AMOUNT + amount,
-          status: "PENDIENTE",
-        },
-      });
-    } else if (fee.status !== "PAGADO") {
-      await tx.monthlyFee.update({
-        where: { id: fee.id },
-        data: { amount: fee.amount + amount },
-      });
+      if (!fee) {
+        await tx.monthlyFee.create({
+          data: {
+            houseNumber,
+            year: billing.year,
+            month: billing.month,
+            concept: FEE_CONCEPT.MANTENIMIENTO,
+            amount: FEE_BASE_AMOUNT + amount,
+            status: "PENDIENTE",
+          },
+        });
+      } else if (fee.status !== "PAGADO") {
+        await tx.monthlyFee.update({
+          where: { id: fee.id },
+          data: { amount: fee.amount + amount },
+        });
+      }
     }
 
     return created;
@@ -1071,11 +1077,18 @@ export async function annulFine(fineId: string) {
     });
 
     if (fee && fee.status !== "PAGADO") {
-      const nextAmount = Math.max(FEE_BASE_AMOUNT, fee.amount - fine.amount);
-      await tx.monthlyFee.update({
-        where: { id: fee.id },
-        data: { amount: nextAmount },
-      });
+      const { year: cy, month: cm } = calendarPartsInTijuana();
+      const isFuture = fee.year * 12 + fee.month > cy * 12 + cm;
+      const nextAmount = fee.amount - fine.amount;
+      // Cuotas futuras creadas solo por multas: si ya no queda multa, borrar el renglón.
+      if (isFuture && nextAmount <= FEE_BASE_AMOUNT) {
+        await tx.monthlyFee.delete({ where: { id: fee.id } });
+      } else {
+        await tx.monthlyFee.update({
+          where: { id: fee.id },
+          data: { amount: Math.max(FEE_BASE_AMOUNT, nextAmount) },
+        });
+      }
     }
   });
 
