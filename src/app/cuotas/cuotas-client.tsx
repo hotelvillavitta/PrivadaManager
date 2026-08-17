@@ -287,7 +287,9 @@ export function CuotasClient({
                 <select
                   value={houseNumber}
                   onChange={(e) =>
-                    router.push(`/cuotas?casa=${e.target.value}`)
+                    router.push(`/cuotas?casa=${e.target.value}`, {
+                      scroll: false,
+                    })
                   }
                   className="min-h-12 w-full rounded-xl border-2 border-primary/30 bg-background px-4 py-3 text-base font-semibold text-primary-dark outline-none focus:border-primary"
                   aria-label="Seleccionar casa a cobrar"
