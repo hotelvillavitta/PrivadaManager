@@ -51,15 +51,51 @@
   --font-serif: var(--font-display);
 }
 
+html {
+  min-height: 100%;
+  background-color: var(--background);
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
-  background: var(--background);
+  position: relative;
+  isolation: isolate;
+  min-height: 100%;
+  background-color: transparent;
   color: var(--foreground);
   font-family: var(--font-body), system-ui, sans-serif;
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-html {
-  -webkit-tap-highlight-color: transparent;
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: var(--background);
+  background-image:
+    radial-gradient(
+      ellipse 90% 55% at 50% -18%,
+      color-mix(in srgb, var(--primary-soft) 92%, white),
+      transparent 62%
+    ),
+    radial-gradient(
+      ellipse 55% 42% at 108% 8%,
+      color-mix(in srgb, var(--accent) 14%, transparent),
+      transparent 58%
+    ),
+    radial-gradient(
+      ellipse 50% 38% at -8% 92%,
+      color-mix(in srgb, var(--primary) 8%, transparent),
+      transparent 56%
+    ),
+    linear-gradient(
+      165deg,
+      #f8f4ee 0%,
+      var(--background) 42%,
+      #efe6dc 100%
+    );
 }
 
 button,
