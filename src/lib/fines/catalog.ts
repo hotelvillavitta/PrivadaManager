@@ -7,8 +7,7 @@ export type FineCategory =
   | "Mascotas"
   | "Seguridad"
   | "Imagen del fraccionamiento"
-  | "Mantenimiento"
-  | "Administración";
+  | "Mantenimiento";
 
 export type FineCause = {
   id: string;
@@ -26,7 +25,6 @@ export const FINE_CATEGORIES: FineCategory[] = [
   "Seguridad",
   "Imagen del fraccionamiento",
   "Mantenimiento",
-  "Administración",
 ];
 
 export const FINE_CAUSES: FineCause[] = [
@@ -235,23 +233,6 @@ export const FINE_CAUSES: FineCause[] = [
     article: "Artículos 1 y 13",
     excerpt:
       "Artículo 1.- … en caso de que ocasionen daños a cualquier componente del portón y puerta peatonal deberán cubrir en su totalidad los gastos que se originen para reparar los daños ocasionados.\n\nArtículo 13.- … serán responsables de cualquier daño ocasionado… a las áreas verdes y/o comunes de la privada, así como a la propiedad de algún residente, por lo que deberá de cubrir los gastos que se originen para la reparación del daño ocasionado.",
-  },
-  {
-    id: "adm-cuotas",
-    category: "Administración",
-    label: "Incumplir con el pago de cuotas de mantenimiento.",
-    article: "Artículo 21",
-    excerpt:
-      "Artículo 21.- Los inquilinos (residentes dueños o renteros) se comprometen a cubrir la cuota mensual… El pago deberá de ser en los primeros 5 días del mes a la tesorera de la privada. En la eventualidad de que el condómino no cubriese oportunamente los gastos comunes… caerá en mora del 25% y por lo tanto deberá cubrir intereses sobre el saldo.",
-  },
-  {
-    id: "adm-asamblea",
-    category: "Administración",
-    label:
-      "Incumplir acuerdos aprobados por la Asamblea General dentro de las facultades que le otorga el reglamento.",
-    article: "Artículo 22",
-    excerpt:
-      "Artículo 22.- Es obligación de cada propietario o inquilino asistir a las asambleas que convoque por lo menos con dos semanas de anticipación el comité de vecinos; la finalidad de las asambleas es tratar asuntos de interés de la privada… De no asistir se dará como aceptado los acuerdos que se propongan y sean votados por la mayoría de los residentes que estén presentes en las asambleas.",
   },
 ];
 
