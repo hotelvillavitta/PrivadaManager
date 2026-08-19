@@ -48,7 +48,7 @@ export default function LoginPage() {
         <div className="mb-6 text-center sm:mb-8">
           <BrandLogo
             variant="full"
-            className="mx-auto mb-5 h-36 w-36 rounded-full bg-black object-cover shadow-[0_16px_40px_-18px_rgba(0,0,0,0.55)] ring-1 ring-black/30 sm:mb-6 sm:h-44 sm:w-44"
+            className="mx-auto mb-5 h-36 w-36 rounded-full bg-white object-cover shadow-[0_16px_40px_-18px_rgba(47,29,45,0.35)] ring-1 ring-border sm:mb-6 sm:h-44 sm:w-44"
             priority
           />
           <p className="text-xs font-semibold tracking-[0.2em] text-accent uppercase">

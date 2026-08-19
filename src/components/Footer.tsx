@@ -17,7 +17,7 @@ export function Footer({ privada }: { privada: Privada }) {
         <div>
           <BrandLogo
             variant="mark"
-            className="mb-4 h-14 w-14 rounded-full bg-black object-cover ring-1 ring-black/20"
+            className="mb-4 h-14 w-14 rounded-full bg-white object-cover ring-1 ring-border"
           />
           <p className="mb-1 text-sm font-semibold text-primary-dark">
             {privada.name}
