@@ -62,7 +62,7 @@ export async function markNewsAsRead(newsId: string) {
     where: { userId: user.id, newsId, read: false },
     data: { read: true },
   });
-  revalidatePath("/comunidad");
+  revalidatePath("/notificaciones");
   revalidatePath("/");
   revalidatePath("/noticias");
 }
@@ -124,7 +124,7 @@ export async function createNewsPost(formData: FormData) {
   }
 
   revalidatePath("/noticias");
-  revalidatePath("/comunidad");
+  revalidatePath("/notificaciones");
   return { ok: true };
 }
 
@@ -205,7 +205,7 @@ export async function createReservation(formData: FormData) {
   }
 
   revalidatePath("/reservaciones");
-  revalidatePath("/comunidad");
+  revalidatePath("/notificaciones");
   revalidatePath("/admin");
   return { ok: true, reservationId: reservation.id };
 }
@@ -256,7 +256,7 @@ export async function updateReservationStatus(
 
   revalidatePath("/reservaciones");
   revalidatePath("/admin");
-  revalidatePath("/comunidad");
+  revalidatePath("/notificaciones");
   revalidatePath("/");
   return { ok: true };
 }
@@ -368,7 +368,7 @@ export async function updateNewsPost(formData: FormData) {
 
   revalidatePath("/noticias");
   revalidatePath(`/noticias/${id}`);
-  revalidatePath("/comunidad");
+  revalidatePath("/notificaciones");
   return { ok: true };
 }
 
@@ -377,7 +377,7 @@ export async function deleteNewsPost(id: string) {
   if (!id) return { error: "Comunicado inválido." };
   await prisma.newsPost.delete({ where: { id } });
   revalidatePath("/noticias");
-  revalidatePath("/comunidad");
+  revalidatePath("/notificaciones");
   revalidatePath("/admin");
   return { ok: true };
 }
@@ -490,7 +490,7 @@ export async function markNotificationsRead(_formData?: FormData) {
     data: { read: true },
   });
   revalidatePath("/");
-  revalidatePath("/comunidad");
+  revalidatePath("/notificaciones");
 }
 
 export async function markNotificationRead(notificationId: string) {
@@ -500,7 +500,7 @@ export async function markNotificationRead(notificationId: string) {
     data: { read: true },
   });
   revalidatePath("/");
-  revalidatePath("/comunidad");
+  revalidatePath("/notificaciones");
   return { ok: true };
 }
 
@@ -805,7 +805,7 @@ export async function registerCobranza(formData: FormData) {
   revalidatePath("/cuotas");
   revalidatePath("/finanzas");
   revalidatePath("/admin");
-  revalidatePath("/comunidad");
+  revalidatePath("/notificaciones");
   return { ok: true, amount: total, concepts: parts };
 }
 
@@ -1042,7 +1042,7 @@ export async function issueFine(formData: FormData) {
 
   revalidatePath("/cuotas");
   revalidatePath("/admin");
-  revalidatePath("/comunidad");
+  revalidatePath("/notificaciones");
   revalidatePath("/finanzas");
   return {
     ok: true,
@@ -1106,6 +1106,6 @@ export async function annulFine(fineId: string) {
 
   revalidatePath("/cuotas");
   revalidatePath("/admin");
-  revalidatePath("/comunidad");
+  revalidatePath("/notificaciones");
   return { ok: true };
 }

@@ -43,8 +43,8 @@ export function Footer({ privada }: { privada: Privada }) {
               </Link>
             </li>
             <li>
-              <Link href="/comunidad" className="hover:text-primary">
-                Comunidad
+              <Link href="/notificaciones" className="hover:text-primary">
+                Notificaciones
               </Link>
             </li>
             <li>

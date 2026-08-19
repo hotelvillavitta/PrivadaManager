@@ -185,7 +185,7 @@ export async function getUnreadCount(userId: string) {
   });
 }
 
-export async function getNotifications(userId: string, take = 20) {
+export async function getNotifications(userId: string, take = 80) {
   return prisma.notification.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },

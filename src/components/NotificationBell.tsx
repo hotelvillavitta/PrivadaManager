@@ -144,7 +144,7 @@ export function NotificationBell({
 
           <div className="border-t border-border bg-background px-3 py-2.5">
             <Link
-              href="/comunidad"
+              href="/notificaciones"
               onClick={() => setOpen(false)}
               className="block rounded-xl px-3 py-2 text-center text-sm font-semibold text-primary transition hover:bg-primary-soft"
             >

@@ -10,8 +10,8 @@ import {
   LogOut,
   Menu,
   Newspaper,
+  Bell,
   Shield,
-  Users,
   Wallet,
   X,
 } from "lucide-react";
@@ -33,7 +33,7 @@ type NavUser = {
 const baseLinks = [
   { href: "/", label: "Inicio", icon: Home },
   { href: "/noticias", label: "Noticias", icon: Newspaper },
-  { href: "/comunidad", label: "Comunidad", icon: Users },
+  { href: "/notificaciones", label: "Notificaciones", icon: Bell },
   { href: "/reservaciones", label: "Reservaciones", icon: CalendarDays },
   { href: "/directorio", label: "Directorio", icon: Building2 },
   { href: "/cuotas", label: "Cuotas", icon: Wallet },

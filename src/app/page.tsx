@@ -21,7 +21,7 @@ const features = [
     title: "Notificaciones",
     description: "Recibe alertas de actividad importante.",
     icon: Bell,
-    href: "/comunidad",
+    href: "/notificaciones",
   },
 ];
 
