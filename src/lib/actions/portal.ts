@@ -512,9 +512,18 @@ async function upsertPaidConcept(opts: {
   amount: number;
   description: string;
   paidAt: Date;
+  withSurcharge?: boolean;
 }) {
-  const { houseNumber, year, month, concept, amount, description, paidAt } =
-    opts;
+  const {
+    houseNumber,
+    year,
+    month,
+    concept,
+    amount,
+    description,
+    paidAt,
+    withSurcharge = false,
+  } = opts;
 
   const existing = await prisma.monthlyFee.findUnique({
     where: {
@@ -574,12 +583,14 @@ async function upsertPaidConcept(opts: {
       concept,
       status: "PAGADO",
       amount,
+      withSurcharge,
       paidAt,
       financeEntryId,
     },
     update: {
       status: "PAGADO",
       amount,
+      withSurcharge,
       paidAt,
       financeEntryId,
     },
@@ -678,6 +689,7 @@ export async function registerCobranza(formData: FormData) {
       amount: maintTotal,
       description,
       paidAt,
+      withSurcharge: applyLate && lateAmount > 0,
     });
     if ("error" in res) return res;
     total += res.amount;

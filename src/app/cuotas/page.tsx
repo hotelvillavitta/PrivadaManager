@@ -64,6 +64,7 @@ export default async function CuotasPage({
         amount: f.amount,
         concept: f.concept,
         status: f.status,
+        withSurcharge: f.withSurcharge,
       }))}
       palapaPayments={palapaPayments.map((payment) => ({
         id: payment.id,

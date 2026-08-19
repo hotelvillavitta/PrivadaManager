@@ -20,7 +20,9 @@ import {
   FEE_GRACE_DAYS,
   FEE_LATE_SURCHARGE,
   FEE_PALAPA_AMOUNT,
+  FEE_STATUS_LABEL,
   MONTH_LABELS,
+  feeHasSurcharge,
   feeLabel,
   formatCurrency,
   isFeePaymentLate,
@@ -34,6 +36,7 @@ type Fee = {
   amount: number;
   concept: string;
   status: "PAGADO" | "ADEUDO" | "PENDIENTE";
+  withSurcharge?: boolean;
 };
 
 type PalapaPayment = {
@@ -577,6 +580,24 @@ export function CuotasClient({
             Incluye únicamente mantenimiento y sus recargos. Los usos de
             palapa se muestran por separado.
           </p>
+          <div className="mb-5 flex flex-wrap gap-3 text-xs">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-success" />
+              Pagado
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-accent" />
+              Pagado con recargo
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-danger" />
+              Adeudo (sin cobro)
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-warning" />
+              Pendiente
+            </span>
+          </div>
           <div className="mb-5 flex flex-wrap gap-2">
             {years.map((y) => (
               <button
@@ -595,20 +616,31 @@ export function CuotasClient({
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {months.map((m) => (
+            {months.map((m) => {
+              const surcharge = feeHasSurcharge(m);
+              const tone =
+                m.status === "PAGADO"
+                  ? surcharge
+                    ? "bg-accent/15 text-accent"
+                    : "bg-success-soft text-success"
+                  : m.status === "ADEUDO"
+                    ? "bg-danger-soft text-danger"
+                    : "bg-warning-soft text-warning";
+              const label = surcharge
+                ? "Pagado con recargo"
+                : (FEE_STATUS_LABEL[m.status] ?? m.status);
+              return (
               <div
                 key={m.id}
-                className={`flex items-center justify-between rounded-xl px-4 py-3 ${
-                  m.status === "PAGADO"
-                    ? "bg-success-soft text-success"
-                    : m.status === "ADEUDO"
-                      ? "bg-danger-soft text-danger"
-                      : "bg-warning-soft text-warning"
-                }`}
+                className={`flex items-center justify-between rounded-xl px-4 py-3 ${tone}`}
               >
                 <span className="inline-flex flex-col">
                   <span className="inline-flex items-center gap-2 font-semibold">
-                    <Check className="h-4 w-4" />
+                    {m.status === "PAGADO" ? (
+                      <Check className="h-4 w-4" />
+                    ) : (
+                      <X className="h-4 w-4" />
+                    )}
                     {feeLabel(m.year, m.month)}
                   </span>
                   <span className="pl-6 text-xs opacity-80">
@@ -616,11 +648,12 @@ export function CuotasClient({
                     {formatCurrency(m.amount)}
                   </span>
                 </span>
-                <span className="text-xs font-bold tracking-wide uppercase">
-                  {m.status}
+                <span className="max-w-[7.5rem] text-right text-[11px] font-bold tracking-wide uppercase">
+                  {label}
                 </span>
               </div>
-            ))}
+              );
+            })}
             {months.length === 0 && (
               <p className="col-span-full text-sm text-muted">
                 No hay registros para este año.

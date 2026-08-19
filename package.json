@@ -12,7 +12,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma db push --force-reset && tsx prisma/seed.ts",
     "db:import": "tsx prisma/import-grenache.ts",
-    "db:import:apply": "tsx prisma/import-grenache.ts --apply"
+    "db:import:apply": "tsx prisma/import-grenache.ts --apply",
+    "db:import:fees": "tsx prisma/import-grenache.ts --apply --fees-only"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

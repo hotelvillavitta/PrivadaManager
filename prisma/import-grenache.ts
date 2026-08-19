@@ -33,6 +33,7 @@ type FeeRow = {
   amount: number;
   status: FeeStatus;
   paidAt: Date | null;
+  withSurcharge: boolean;
 };
 
 function parsePeriod(header: string): { year: number; month: number } {
@@ -93,6 +94,7 @@ function cellToFee(
       amount: PAID_AMOUNT,
       status: FeeStatus.PAGADO,
       paidAt: new Date(year, month - 1, 10, 12, 0, 0),
+      withSurcharge: false,
     };
   }
 
@@ -104,6 +106,7 @@ function cellToFee(
       amount: EMPTY_DEBT_AMOUNT,
       status: FeeStatus.ADEUDO,
       paidAt: null,
+      withSurcharge: false,
     };
   }
 
@@ -112,13 +115,15 @@ function cellToFee(
     throw new Error(`Valor no reconocido en casa ${houseNumber} ${month}/${year}: ${cell}`);
   }
 
+  // En el Excel, un monto (casi siempre 250) significa cobrado con recargo.
   return {
     houseNumber,
     year,
     month,
     amount,
-    status: FeeStatus.ADEUDO,
-    paidAt: null,
+    status: FeeStatus.PAGADO,
+    paidAt: new Date(year, month - 1, 10, 12, 0, 0),
+    withSurcharge: true,
   };
 }
 
@@ -169,8 +174,13 @@ async function main() {
   const filePath = process.env.GRENACHE_XLSX ?? DEFAULT_XLSX;
   const { sheetName, periods, residents, fees } = loadWorkbook(filePath);
 
-  const paid = fees.filter((f) => f.status === FeeStatus.PAGADO).length;
-  const debt = fees.length - paid;
+  const paidOnTime = fees.filter(
+    (f) => f.status === FeeStatus.PAGADO && !f.withSurcharge,
+  ).length;
+  const paidSurcharge = fees.filter(
+    (f) => f.status === FeeStatus.PAGADO && f.withSurcharge,
+  ).length;
+  const debt = fees.filter((f) => f.status !== FeeStatus.PAGADO).length;
   const debtAmount = fees
     .filter((f) => f.status !== FeeStatus.PAGADO)
     .reduce((sum, f) => sum + f.amount, 0);
@@ -179,12 +189,28 @@ async function main() {
   console.log(`Hoja: ${sheetName}`);
   console.log(`Periodos: ${periods[0].month}/${periods[0].year} → ${periods.at(-1)!.month}/${periods.at(-1)!.year} (${periods.length})`);
   console.log(`Casas/residentes: ${residents.length}`);
-  console.log(`Cuotas: ${fees.length} (pagadas ${paid}, adeudo ${debt}, monto adeudo $${debtAmount.toFixed(2)})`);
-  console.log(`Correos: casaN@grenache.mx  |  Pagado=$${PAID_AMOUNT}  |  vacío=$${EMPTY_DEBT_AMOUNT} ADEUDO`);
+  console.log(
+    `Cuotas: ${fees.length} (pagadas ${paidOnTime}, con recargo ${paidSurcharge}, adeudo ${debt}, monto adeudo $${debtAmount.toFixed(2)})`,
+  );
+  console.log(`Pagado=$${PAID_AMOUNT}  |  monto numérico=PAGADO con recargo  |  vacío=$${EMPTY_DEBT_AMOUNT} ADEUDO`);
 
   if (!apply) {
     console.log("\nEnsayo solamente. Para escribir en la base:");
     console.log("  npm run db:import:apply");
+    console.log("  npm run db:import:fees   (solo cuotas, no toca usuarios ni contraseñas)");
+    return;
+  }
+
+  const feesOnly = process.argv.includes("--fees-only");
+
+  if (feesOnly) {
+    await prisma.monthlyFee.deleteMany();
+    const chunk = 800;
+    for (let i = 0; i < fees.length; i += chunk) {
+      await prisma.monthlyFee.createMany({ data: fees.slice(i, i + chunk) });
+      console.log(`  insertadas ${Math.min(i + chunk, fees.length)} / ${fees.length}`);
+    }
+    console.log("\nCuotas actualizadas. Residentes y contraseñas sin cambios.");
     return;
   }
 
@@ -195,28 +221,31 @@ async function main() {
     }),
   );
 
-  await prisma.$transaction(async (tx) => {
-    await tx.monthlyFee.deleteMany();
-    await tx.user.deleteMany({ where: { role: Role.COLONO } });
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.monthlyFee.deleteMany();
+      await tx.user.deleteMany({ where: { role: Role.COLONO } });
 
-    for (const r of logins) {
-      await tx.user.create({
-        data: {
-          email: r.email,
-          passwordHash: r.passwordHash,
-          firstName: r.firstName,
-          lastName: r.lastName,
-          role: Role.COLONO,
-          houseNumber: r.houseNumber,
-        },
-      });
-    }
+      for (const r of logins) {
+        await tx.user.create({
+          data: {
+            email: r.email,
+            passwordHash: r.passwordHash,
+            firstName: r.firstName,
+            lastName: r.lastName,
+            role: Role.COLONO,
+            houseNumber: r.houseNumber,
+          },
+        });
+      }
 
-    const chunk = 400;
-    for (let i = 0; i < fees.length; i += chunk) {
-      await tx.monthlyFee.createMany({ data: fees.slice(i, i + chunk) });
-    }
-  });
+      const chunk = 800;
+      for (let i = 0; i < fees.length; i += chunk) {
+        await tx.monthlyFee.createMany({ data: fees.slice(i, i + chunk) });
+      }
+    },
+    { timeout: 180_000, maxWait: 20_000 },
+  );
 
   await mkdir(path.join(process.cwd(), "data"), { recursive: true });
   const csvPath = path.join(process.cwd(), "data", "imported-logins.csv");

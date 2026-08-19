@@ -68,6 +68,24 @@ export const FEE_CONCEPT_LABEL: Record<string, string> = {
   PALAPA: "Uso de palapa",
 };
 
+export const FEE_STATUS_LABEL: Record<string, string> = {
+  PAGADO: "Pagado",
+  ADEUDO: "Adeudo",
+  PENDIENTE: "Pendiente",
+};
+
+/** Pago liquidado que incluyó recargo (no es adeudo). */
+export function feeHasSurcharge(fee: {
+  status: string;
+  amount: number;
+  withSurcharge?: boolean;
+}) {
+  if (fee.status !== "PAGADO") return false;
+  if (fee.withSurcharge === true) return true;
+  if (fee.withSurcharge === false) return false;
+  return fee.amount >= FEE_BASE_AMOUNT + FEE_LATE_SURCHARGE;
+}
+
 /** True si la fecha de pago es posterior al día 10 del mes de la cuota. */
 export function isFeePaymentLate(
   year: number,

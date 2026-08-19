@@ -138,6 +138,8 @@ model MonthlyFee {
   month          Int
   concept        String    @default("MANTENIMIENTO")
   amount         Float     @default(200)
+  /// True si el pago incluyó recargo (después del día 10). No es adeudo.
+  withSurcharge  Boolean   @default(false)
   status         FeeStatus @default(PENDIENTE)
   paidAt         DateTime?
   financeEntryId String?   @unique
