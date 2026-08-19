@@ -37,6 +37,7 @@ type Summary = {
     description: string;
     amount: number;
     date: string;
+    readonly?: boolean;
   }[];
 };
 
@@ -208,10 +209,14 @@ export function FinanzasClient({
         </div>
 
         <section className="rounded-2xl border border-border bg-surface p-4 sm:p-5">
-          <h3 className="mb-4 font-display text-xl text-primary-dark">
-            Movimientos recientes
+          <h3 className="mb-1 font-display text-xl text-primary-dark">
+            Ingresos por mes (cuotas)
           </h3>
-          <ul className="divide-y divide-border">
+          <p className="mb-4 text-sm text-muted">
+            Calculado con los pagos reales del Excel. Los gastos se registran
+            aparte.
+          </p>
+          <ul className="max-h-[32rem] divide-y divide-border overflow-y-auto">
             {f.entries.map((e) => (
               <li
                 key={e.id}
@@ -235,7 +240,7 @@ export function FinanzasClient({
                     {e.type === "INGRESO" ? "+" : "-"}
                     {formatCurrency(e.amount)}
                   </span>
-                  {isAdmin && (
+                  {isAdmin && !e.readonly && (
                     <>
                       <button
                         type="button"

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import {
   calendarPartsInTijuana,
+  feeLabel,
   overdueMaintenanceWhere,
 } from "@/lib/utils";
 
@@ -138,33 +139,109 @@ export async function houseHasPendingFees(houseNumber: string | null | undefined
 
 
 export async function getFinanceSummary() {
-  const entries = await prisma.financeEntry.findMany();
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const { year: cy, month: cm } = calendarPartsInTijuana();
 
-  let ingresosTotales = 0;
+  const [paidFees, palapaPayments, ledger] = await Promise.all([
+    prisma.monthlyFee.findMany({
+      where: { status: "PAGADO", concept: "MANTENIMIENTO" },
+      select: { year: true, month: true, amount: true },
+    }),
+    prisma.palapaPayment.findMany({
+      select: { amount: true, paidAt: true },
+    }),
+    prisma.financeEntry.findMany({
+      include: {
+        monthlyFee: { select: { id: true } },
+        palapaPayment: { select: { id: true } },
+        fine: { select: { id: true } },
+      },
+    }),
+  ]);
+
+  const cuotaIngresos = paidFees.reduce((sum, f) => sum + f.amount, 0);
+  const palapaIngresos = palapaPayments.reduce((sum, p) => sum + p.amount, 0);
+  const ingresosMesCuotas = paidFees
+    .filter((f) => f.year === cy && f.month === cm)
+    .reduce((sum, f) => sum + f.amount, 0);
+  const ingresosMesPalapa = palapaPayments
+    .filter((p) => {
+      const d = p.paidAt;
+      return d.getFullYear() === cy && d.getMonth() + 1 === cm;
+    })
+    .reduce((sum, p) => sum + p.amount, 0);
+
+  let ingresosManual = 0;
+  let ingresosMesManual = 0;
   let gastosTotales = 0;
-  let ingresosMes = 0;
   let gastosMes = 0;
-  let pagosRegistrados = 0;
   let gastosRegistrados = 0;
+  const monthStart = new Date(cy, cm - 1, 1);
 
-  for (const e of entries) {
+  const manualEntries: {
+    id: string;
+    type: string;
+    category: string;
+    description: string;
+    amount: number;
+    date: Date;
+    readonly: boolean;
+  }[] = [];
+
+  for (const e of ledger) {
+    const linked = Boolean(e.monthlyFee || e.palapaPayment || e.fine);
+    if (linked) continue;
     const inMonth = e.date >= monthStart;
     if (e.type === "INGRESO") {
-      ingresosTotales += e.amount;
-      pagosRegistrados += 1;
-      if (inMonth) ingresosMes += e.amount;
+      ingresosManual += e.amount;
+      if (inMonth) ingresosMesManual += e.amount;
     } else {
       gastosTotales += e.amount;
       gastosRegistrados += 1;
       if (inMonth) gastosMes += e.amount;
     }
+    manualEntries.push({
+      id: e.id,
+      type: e.type,
+      category: e.category,
+      description: e.description,
+      amount: e.amount,
+      date: e.date,
+      readonly: false,
+    });
   }
 
-  const feePayments = await prisma.monthlyFee.count({
-    where: { status: "PAGADO" },
-  });
+  const byPeriod = new Map<string, { year: number; month: number; amount: number; count: number }>();
+  for (const f of paidFees) {
+    const key = `${f.year}-${f.month}`;
+    const row = byPeriod.get(key) ?? {
+      year: f.year,
+      month: f.month,
+      amount: 0,
+      count: 0,
+    };
+    row.amount += f.amount;
+    row.count += 1;
+    byPeriod.set(key, row);
+  }
+
+  const cuotaEntries = [...byPeriod.values()]
+    .sort((a, b) => b.year * 12 + b.month - (a.year * 12 + a.month))
+    .map((row) => ({
+      id: `cuotas-${row.year}-${row.month}`,
+      type: "INGRESO",
+      category: "Cuotas",
+      description: `Cuotas de mantenimiento ${feeLabel(row.year, row.month)} · ${row.count} casas`,
+      amount: row.amount,
+      date: new Date(row.year, row.month - 1, 10, 12, 0, 0),
+      readonly: true,
+    }));
+
+  const ingresosTotales = cuotaIngresos + palapaIngresos + ingresosManual;
+  const ingresosMes = ingresosMesCuotas + ingresosMesPalapa + ingresosMesManual;
+
+  const entries = [...cuotaEntries, ...manualEntries].sort(
+    (a, b) => b.date.getTime() - a.date.getTime(),
+  );
 
   return {
     liquidez: ingresosTotales - gastosTotales,
@@ -172,10 +249,10 @@ export async function getFinanceSummary() {
     ingresosTotales,
     gastosMes,
     gastosTotales,
-    pagosRegistrados: Math.max(pagosRegistrados, feePayments),
+    pagosRegistrados: paidFees.length + palapaPayments.length,
     gastosRegistrados,
     balanceNetoMes: ingresosMes - gastosMes,
-    entries: entries.sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 12),
+    entries,
   };
 }
 

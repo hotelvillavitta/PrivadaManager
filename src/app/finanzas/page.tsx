@@ -25,6 +25,7 @@ export default async function FinanzasPage() {
           description: e.description,
           amount: e.amount,
           date: e.date.toISOString(),
+          readonly: e.readonly,
         })),
       }}
     />
