@@ -1,5 +1,19 @@
 import type { MetadataRoute } from "next";
 
+const iconV =
+  process.env.NEXT_PUBLIC_APP_VERSION ||
+  process.env.VERCEL_GIT_COMMIT_SHA ||
+  "1";
+
+function icon(src: string, sizes: string, purpose?: "any" | "maskable") {
+  return {
+    src: `${src}?v=${iconV}`,
+    sizes,
+    type: "image/png" as const,
+    ...(purpose ? { purpose } : {}),
+  };
+}
+
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Grenache",
@@ -13,29 +27,10 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: "portrait-primary",
     lang: "es",
     icons: [
-      {
-        src: "/icons/icon-48.png",
-        sizes: "48x48",
-        type: "image/png",
-      },
-      {
-        src: "/icons/icon-192.png",
-        sizes: "192x192",
-        type: "image/png",
-        purpose: "any",
-      },
-      {
-        src: "/icons/icon-512.png",
-        sizes: "512x512",
-        type: "image/png",
-        purpose: "any",
-      },
-      {
-        src: "/icons/icon-maskable-512.png",
-        sizes: "512x512",
-        type: "image/png",
-        purpose: "maskable",
-      },
+      icon("/icons/icon-192.png", "192x192", "any"),
+      icon("/icons/icon-512.png", "512x512", "any"),
+      icon("/icons/icon-maskable-512.png", "512x512", "maskable"),
     ],
   };
 }
+
