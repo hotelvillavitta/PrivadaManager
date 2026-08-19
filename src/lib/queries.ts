@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/db";
 import {
   calendarPartsInTijuana,
-  feeLabel,
   overdueMaintenanceWhere,
 } from "@/lib/utils";
 
@@ -177,16 +176,6 @@ export async function getFinanceSummary() {
   let gastosRegistrados = 0;
   const monthStart = new Date(cy, cm - 1, 1);
 
-  const manualEntries: {
-    id: string;
-    type: string;
-    category: string;
-    description: string;
-    amount: number;
-    date: Date;
-    readonly: boolean;
-  }[] = [];
-
   for (const e of ledger) {
     const linked = Boolean(e.monthlyFee || e.palapaPayment || e.fine);
     if (linked) continue;
@@ -199,49 +188,10 @@ export async function getFinanceSummary() {
       gastosRegistrados += 1;
       if (inMonth) gastosMes += e.amount;
     }
-    manualEntries.push({
-      id: e.id,
-      type: e.type,
-      category: e.category,
-      description: e.description,
-      amount: e.amount,
-      date: e.date,
-      readonly: false,
-    });
   }
-
-  const byPeriod = new Map<string, { year: number; month: number; amount: number; count: number }>();
-  for (const f of paidFees) {
-    const key = `${f.year}-${f.month}`;
-    const row = byPeriod.get(key) ?? {
-      year: f.year,
-      month: f.month,
-      amount: 0,
-      count: 0,
-    };
-    row.amount += f.amount;
-    row.count += 1;
-    byPeriod.set(key, row);
-  }
-
-  const cuotaEntries = [...byPeriod.values()]
-    .sort((a, b) => b.year * 12 + b.month - (a.year * 12 + a.month))
-    .map((row) => ({
-      id: `cuotas-${row.year}-${row.month}`,
-      type: "INGRESO",
-      category: "Cuotas",
-      description: `Cuotas de mantenimiento ${feeLabel(row.year, row.month)} · ${row.count} casas`,
-      amount: row.amount,
-      date: new Date(row.year, row.month - 1, 10, 12, 0, 0),
-      readonly: true,
-    }));
 
   const ingresosTotales = cuotaIngresos + palapaIngresos + ingresosManual;
   const ingresosMes = ingresosMesCuotas + ingresosMesPalapa + ingresosMesManual;
-
-  const entries = [...cuotaEntries, ...manualEntries].sort(
-    (a, b) => b.date.getTime() - a.date.getTime(),
-  );
 
   return {
     liquidez: ingresosTotales - gastosTotales,
@@ -252,7 +202,6 @@ export async function getFinanceSummary() {
     pagosRegistrados: paidFees.length + palapaPayments.length,
     gastosRegistrados,
     balanceNetoMes: ingresosMes - gastosMes,
-    entries,
   };
 }
 

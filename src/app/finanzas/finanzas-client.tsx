@@ -7,18 +7,11 @@ import {
   ArrowUpRight,
   Building2,
   FileText,
-  Pencil,
   Receipt,
-  Trash2,
   Wallet,
-  X,
 } from "lucide-react";
 import { PageHero } from "@/components/PageHero";
-import {
-  createFinanceEntry,
-  deleteFinanceEntry,
-  updateFinanceEntry,
-} from "@/lib/actions/portal";
+import { createFinanceEntry } from "@/lib/actions/portal";
 import { formatCurrency } from "@/lib/utils";
 
 type Summary = {
@@ -30,15 +23,6 @@ type Summary = {
   pagosRegistrados: number;
   gastosRegistrados: number;
   balanceNetoMes: number;
-  entries: {
-    id: string;
-    type: string;
-    category: string;
-    description: string;
-    amount: number;
-    date: string;
-    readonly?: boolean;
-  }[];
 };
 
 export function FinanzasClient({
@@ -54,8 +38,6 @@ export function FinanzasClient({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const editing = f.entries.find((e) => e.id === editingId) ?? null;
 
   return (
     <div className="pb-16">
@@ -69,44 +51,26 @@ export function FinanzasClient({
         {isAdmin && (
           <form
             className="rounded-2xl border border-border bg-surface p-4 sm:p-5"
-            key={editing?.id ?? "new"}
             action={(fd) => {
               setMessage("");
               startTransition(async () => {
-                const res = editing
-                  ? await updateFinanceEntry(fd)
-                  : await createFinanceEntry(fd);
+                const res = await createFinanceEntry(fd);
                 if (res.error) setMessage(res.error);
                 else {
-                  setMessage(
-                    editing ? "Movimiento actualizado." : "Movimiento registrado.",
-                  );
-                  setEditingId(null);
+                  setMessage("Movimiento registrado.");
                   router.refresh();
                 }
               });
             }}
           >
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h3 className="font-display text-lg text-primary-dark">
-                {editing ? "Editar movimiento" : "Registrar movimiento"}
-              </h3>
-              {editing && (
-                <button
-                  type="button"
-                  onClick={() => setEditingId(null)}
-                  className="inline-flex items-center gap-1 text-sm text-muted"
-                >
-                  <X className="h-4 w-4" /> Cancelar
-                </button>
-              )}
-            </div>
-            {editing && <input type="hidden" name="id" value={editing.id} />}
+            <h3 className="mb-3 font-display text-lg text-primary-dark">
+              Registrar movimiento
+            </h3>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <select
                 name="type"
                 className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
-                defaultValue={editing?.type ?? "INGRESO"}
+                defaultValue="INGRESO"
               >
                 <option value="INGRESO">Ingreso</option>
                 <option value="GASTO">Gasto</option>
@@ -115,14 +79,12 @@ export function FinanzasClient({
                 name="category"
                 required
                 placeholder="Categoría"
-                defaultValue={editing?.category ?? ""}
                 className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
               />
               <input
                 name="description"
                 required
                 placeholder="Descripción"
-                defaultValue={editing?.description ?? ""}
                 className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
               />
               <input
@@ -131,7 +93,6 @@ export function FinanzasClient({
                 step="0.01"
                 required
                 placeholder="Monto"
-                defaultValue={editing?.amount ?? ""}
                 className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
               />
             </div>
@@ -140,7 +101,7 @@ export function FinanzasClient({
               disabled={pending}
               className="mt-3 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
             >
-              {editing ? "Guardar cambios" : "Guardar"}
+              Guardar
             </button>
             {message && <p className="mt-2 text-sm text-muted">{message}</p>}
           </form>
@@ -207,78 +168,6 @@ export function FinanzasClient({
             title="Balance Neto del Mes"
           />
         </div>
-
-        <section className="rounded-2xl border border-border bg-surface p-4 sm:p-5">
-          <h3 className="mb-1 font-display text-xl text-primary-dark">
-            Ingresos por mes (cuotas)
-          </h3>
-          <p className="mb-4 text-sm text-muted">
-            Calculado con los pagos reales del Excel. Los gastos se registran
-            aparte.
-          </p>
-          <ul className="max-h-[32rem] divide-y divide-border overflow-y-auto">
-            {f.entries.map((e) => (
-              <li
-                key={e.id}
-                className="flex flex-col gap-2 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium text-primary-dark">
-                    {e.description}
-                  </p>
-                  <p className="text-muted">
-                    {e.category} ·{" "}
-                    {new Date(e.date).toLocaleDateString("es-MX")}
-                  </p>
-                </div>
-                <div className="flex w-full shrink-0 items-center justify-between gap-1 sm:w-auto sm:justify-start">
-                  <span
-                    className={`font-semibold ${
-                      e.type === "INGRESO" ? "text-success" : "text-danger"
-                    }`}
-                  >
-                    {e.type === "INGRESO" ? "+" : "-"}
-                    {formatCurrency(e.amount)}
-                  </span>
-                  {isAdmin && !e.readonly && (
-                    <>
-                      <button
-                        type="button"
-                        title="Editar"
-                        onClick={() => {
-                          setEditingId(e.id);
-                          window.scrollTo({ top: 0, behavior: "smooth" });
-                        }}
-                        className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        title="Eliminar"
-                        disabled={pending}
-                        onClick={() => {
-                          if (!confirm("¿Eliminar este movimiento?")) return;
-                          startTransition(async () => {
-                            const res = await deleteFinanceEntry(e.id);
-                            if (res.error) setMessage(res.error);
-                            else {
-                              if (editingId === e.id) setEditingId(null);
-                              router.refresh();
-                            }
-                          });
-                        }}
-                        className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:bg-danger-soft hover:text-danger"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
       </div>
     </div>
   );

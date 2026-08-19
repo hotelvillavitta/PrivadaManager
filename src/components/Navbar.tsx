@@ -91,7 +91,7 @@ export function Navbar({
           <Link href="/" className="flex min-w-0 items-center gap-3">
             <BrandLogo
               variant="mark"
-              className="h-10 w-10 rounded-xl shadow-sm ring-1 ring-border sm:h-11 sm:w-11"
+              className="h-11 w-11 rounded-full bg-black object-cover shadow-sm ring-1 ring-black/25 sm:h-12 sm:w-12"
               priority
             />
             <div className="min-w-0 leading-tight">

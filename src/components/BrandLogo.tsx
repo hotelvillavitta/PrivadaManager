@@ -6,7 +6,9 @@ type BrandLogoProps = {
   priority?: boolean;
 };
 
-/** Logotipo Privada Manager: marca (casa/escudo) o logo completo. */
+const SRC = "/brand/grenache-logo.png";
+
+/** Logotipo oficial Grenache — Fraccionamiento Viñas del Mar. */
 export function BrandLogo({
   variant = "mark",
   className = "",
@@ -15,10 +17,10 @@ export function BrandLogo({
   if (variant === "full") {
     return (
       <Image
-        src="/brand/logo-full.png"
-        alt="Privada Manager — Tu privada, siempre en orden"
-        width={1024}
-        height={682}
+        src={SRC}
+        alt="Grenache — Fraccionamiento Viñas del Mar"
+        width={500}
+        height={500}
         className={className}
         priority={priority}
       />
@@ -27,8 +29,8 @@ export function BrandLogo({
 
   return (
     <Image
-      src="/brand/icon-light.png"
-      alt="Grenaché"
+      src={SRC}
+      alt="Grenache"
       width={192}
       height={192}
       className={className}

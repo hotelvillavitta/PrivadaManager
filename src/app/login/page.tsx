@@ -48,14 +48,14 @@ export default function LoginPage() {
         <div className="mb-6 text-center sm:mb-8">
           <BrandLogo
             variant="full"
-            className="mx-auto mb-4 w-full max-w-[220px] rounded-2xl sm:mb-5 sm:max-w-[280px]"
+            className="mx-auto mb-5 h-36 w-36 rounded-full bg-black object-cover shadow-[0_16px_40px_-18px_rgba(0,0,0,0.55)] ring-1 ring-black/30 sm:mb-6 sm:h-44 sm:w-44"
             priority
           />
           <p className="text-xs font-semibold tracking-[0.2em] text-accent uppercase">
-            Bienvenido
+            Fraccionamiento Viñas del Mar
           </p>
           <h1 className="mt-2 font-display text-3xl text-primary-dark">
-            Grenaché
+            Bienvenido
           </h1>
           <p className="mt-2 text-sm text-muted">
             {mode === "login"

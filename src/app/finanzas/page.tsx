@@ -16,18 +16,7 @@ export default async function FinanzasPage() {
     <FinanzasClient
       isAdmin={session.user.role === "ADMIN"}
       privadaName={privada.name}
-      summary={{
-        ...summary,
-        entries: summary.entries.map((e) => ({
-          id: e.id,
-          type: e.type,
-          category: e.category,
-          description: e.description,
-          amount: e.amount,
-          date: e.date.toISOString(),
-          readonly: e.readonly,
-        })),
-      }}
+      summary={summary}
     />
   );
 }
