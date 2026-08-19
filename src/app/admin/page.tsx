@@ -58,7 +58,8 @@ export default async function AdminPage() {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <QuickLink href="/admin/analiticos" label="Analíticos y KPIs" />
           <QuickLink href="/noticias" label="Publicar noticia" />
           <QuickLink href="/reservaciones" label="Ver reservaciones" />
           <QuickLink href="/cuotas" label="Gestionar cuotas" />
@@ -161,9 +162,17 @@ export default async function AdminPage() {
           </section>
 
           <section className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-            <h2 className="mb-4 flex items-center gap-2 font-display text-2xl text-primary-dark">
-              <CircleDollarSign className="h-5 w-5 text-primary" />
-              Adeudos / pendientes
+            <h2 className="mb-4 flex items-center justify-between gap-2 font-display text-2xl text-primary-dark">
+              <span className="inline-flex items-center gap-2">
+                <CircleDollarSign className="h-5 w-5 text-primary" />
+                Adeudos / pendientes
+              </span>
+              <Link
+                href="/admin/analiticos"
+                className="text-sm font-sans font-medium text-primary hover:underline"
+              >
+                Ver KPIs
+              </Link>
             </h2>
             {data.debtFees.length === 0 ? (
               <p className="text-sm text-muted">

@@ -38,6 +38,9 @@ yarn-error.log*
 /prisma/*.db
 /prisma/*.db-journal
 
+# import credentials (temporary passwords)
+/data/imported-logins.csv
+
 # uploads
 /public/uploads/**
 !/public/uploads/.gitkeep
