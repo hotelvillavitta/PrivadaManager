@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { KeyRound, Pencil, Trash2, UserPlus, X } from "lucide-react";
+import { AdminFormSheet } from "@/components/AdminFormSheet";
 import { toast } from "@/components/Toast";
 import {
   createResident,
@@ -11,7 +12,6 @@ import {
   generateResidentPassword,
   updateResident,
 } from "@/lib/actions/portal";
-import { useScrollToForm } from "@/lib/use-scroll-to-form";
 
 type Resident = {
   id: string;
@@ -87,10 +87,7 @@ export function ResidentsAdmin({
     });
   }
 
-  const showForm = creating || editing;
-  const formRef = useScrollToForm(
-    editing?.id ?? (creating ? "create" : null),
-  );
+  const showForm = Boolean(creating || editing);
 
   return (
     <div>
@@ -127,10 +124,9 @@ export function ResidentsAdmin({
           </button>
         </div>
       )}
-      {showForm && (
+
+      <AdminFormSheet open={showForm} onClose={closeForm}>
         <form
-          ref={formRef}
-          className="mb-4 scroll-mt-28 rounded-xl border border-border bg-background p-3 sm:p-4"
           action={(fd) => {
             startTransition(async () => {
               const res = editing
@@ -170,7 +166,7 @@ export function ResidentsAdmin({
               onChange={(e) =>
                 setForm((f) => ({ ...f, firstName: e.target.value }))
               }
-              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
             />
             <input
               name="lastName"
@@ -180,7 +176,7 @@ export function ResidentsAdmin({
               onChange={(e) =>
                 setForm((f) => ({ ...f, lastName: e.target.value }))
               }
-              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
             />
             <input
               name="email"
@@ -191,7 +187,7 @@ export function ResidentsAdmin({
               onChange={(e) =>
                 setForm((f) => ({ ...f, email: e.target.value }))
               }
-              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm sm:col-span-2"
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm sm:col-span-2"
             />
             <input
               name="houseNumber"
@@ -200,7 +196,7 @@ export function ResidentsAdmin({
               onChange={(e) =>
                 setForm((f) => ({ ...f, houseNumber: e.target.value }))
               }
-              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
             />
             <input
               name="accessCode"
@@ -209,7 +205,7 @@ export function ResidentsAdmin({
               onChange={(e) =>
                 setForm((f) => ({ ...f, accessCode: e.target.value }))
               }
-              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
             />
             <select
               name="role"
@@ -220,7 +216,7 @@ export function ResidentsAdmin({
                   role: e.target.value as "COLONO" | "ADMIN",
                 }))
               }
-              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
             >
               <option value="COLONO">Colono</option>
               <option value="ADMIN">Admin</option>
@@ -239,7 +235,7 @@ export function ResidentsAdmin({
             {editing ? "Guardar cambios" : "Crear y generar contraseña"}
           </button>
         </form>
-      )}
+      </AdminFormSheet>
 
       <ul className="divide-y divide-border">
         {residents.map((u) => (

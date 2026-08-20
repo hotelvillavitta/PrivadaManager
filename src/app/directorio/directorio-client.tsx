@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, Pencil, Phone, Search, Trash2, X } from "lucide-react";
+import { AdminFormSheet } from "@/components/AdminFormSheet";
 import { PageHero } from "@/components/PageHero";
 import { toast } from "@/components/Toast";
 import {
@@ -10,7 +11,6 @@ import {
   deleteProvider,
   updateProvider,
 } from "@/lib/actions/portal";
-import { useScrollToForm } from "@/lib/use-scroll-to-form";
 
 type Provider = {
   id: string;
@@ -89,7 +89,100 @@ export function DirectorioClient({
     setForm(emptyForm);
   }
 
-  const formRef = useScrollToForm(editing?.id);
+  const providerForm = (
+    <form
+      className={
+        editing
+          ? undefined
+          : "mb-6 rounded-2xl border border-border bg-surface p-4 shadow-sm sm:mb-8 sm:p-5"
+      }
+      action={(fd) => {
+        setMessage("");
+        startTransition(async () => {
+          const res = editing
+            ? await updateProvider(fd)
+            : await createProvider(fd);
+          if (res.error) {
+            setMessage(res.error);
+            toast(res.error, "error");
+          } else {
+            setMessage(
+              editing ? "Contacto actualizado." : "Proveedor agregado.",
+            );
+            toast(editing ? "Contacto actualizado." : "Proveedor agregado.");
+            cancelEdit();
+            router.refresh();
+          }
+        });
+      }}
+    >
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="font-display text-xl text-primary-dark">
+          {editing ? "Editar contacto" : "Agregar contacto"}
+        </h3>
+        {editing && (
+          <button
+            type="button"
+            onClick={cancelEdit}
+            className="inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"
+          >
+            <X className="h-4 w-4" /> Cancelar
+          </button>
+        )}
+      </div>
+      {editing && <input type="hidden" name="id" value={editing.id} />}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <input
+          name="name"
+          required
+          value={form.name}
+          onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+          placeholder="Nombre"
+          className="rounded-xl border border-border bg-background px-4 py-3 text-sm"
+        />
+        <input
+          name="role"
+          required
+          value={form.role}
+          onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
+          placeholder="Rol / descripción"
+          className="rounded-xl border border-border bg-background px-4 py-3 text-sm"
+        />
+        <input
+          name="phone"
+          required
+          value={form.phone}
+          onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+          placeholder="Teléfono"
+          className="rounded-xl border border-border bg-background px-4 py-3 text-sm"
+        />
+        <input
+          name="email"
+          value={form.email}
+          onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+          placeholder="Email (opcional)"
+          className="rounded-xl border border-border bg-background px-4 py-3 text-sm"
+        />
+        <input
+          name="category"
+          value={form.category}
+          onChange={(e) =>
+            setForm((f) => ({ ...f, category: e.target.value }))
+          }
+          placeholder="Categoría"
+          className="rounded-xl border border-border bg-background px-4 py-3 text-sm sm:col-span-2"
+        />
+      </div>
+      <button
+        type="submit"
+        disabled={pending}
+        className="mt-3 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+      >
+        {editing ? "Guardar cambios" : "Guardar"}
+      </button>
+      {message && <p className="mt-2 text-sm text-muted">{message}</p>}
+    </form>
+  );
 
   return (
     <div className="pb-16">
@@ -100,97 +193,14 @@ export function DirectorioClient({
       />
 
       <div className="mx-auto max-w-5xl px-4 lg:px-6">
-        {isAdmin && (
-          <form
-            ref={formRef}
-            className="mb-6 scroll-mt-28 rounded-2xl border border-border bg-surface p-4 shadow-sm sm:mb-8 sm:p-5"
-            action={(fd) => {
-              setMessage("");
-              startTransition(async () => {
-                const res = editing
-                  ? await updateProvider(fd)
-                  : await createProvider(fd);
-                if (res.error) {
-                  setMessage(res.error);
-                  toast(res.error, "error");
-                } else {
-                  setMessage(
-                    editing ? "Contacto actualizado." : "Proveedor agregado.",
-                  );
-                  toast(editing ? "Contacto actualizado." : "Proveedor agregado.");
-                  cancelEdit();
-                  router.refresh();
-                }
-              });
-            }}
-          >
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h3 className="font-display text-xl text-primary-dark">
-                {editing ? "Editar contacto" : "Agregar contacto"}
-              </h3>
-              {editing && (
-                <button
-                  type="button"
-                  onClick={cancelEdit}
-                  className="inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"
-                >
-                  <X className="h-4 w-4" /> Cancelar
-                </button>
-              )}
-            </div>
-            {editing && <input type="hidden" name="id" value={editing.id} />}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <input
-                name="name"
-                required
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="Nombre"
-                className="rounded-xl border border-border bg-background px-4 py-3 text-sm"
-              />
-              <input
-                name="role"
-                required
-                value={form.role}
-                onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
-                placeholder="Rol / descripción"
-                className="rounded-xl border border-border bg-background px-4 py-3 text-sm"
-              />
-              <input
-                name="phone"
-                required
-                value={form.phone}
-                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                placeholder="Teléfono"
-                className="rounded-xl border border-border bg-background px-4 py-3 text-sm"
-              />
-              <input
-                name="email"
-                value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                placeholder="Email (opcional)"
-                className="rounded-xl border border-border bg-background px-4 py-3 text-sm"
-              />
-              <input
-                name="category"
-                value={form.category}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, category: e.target.value }))
-                }
-                placeholder="Categoría"
-                className="rounded-xl border border-border bg-background px-4 py-3 text-sm sm:col-span-2"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={pending}
-              className="mt-3 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-            >
-              {editing ? "Guardar cambios" : "Guardar"}
-            </button>
-            {message && <p className="mt-2 text-sm text-muted">{message}</p>}
-          </form>
-        )}
+        {isAdmin &&
+          (editing ? (
+            <AdminFormSheet open onClose={cancelEdit}>
+              {providerForm}
+            </AdminFormSheet>
+          ) : (
+            providerForm
+          ))}
 
         <div className="mb-8 flex flex-col gap-3 sm:flex-row">
           <label className="relative flex-1">

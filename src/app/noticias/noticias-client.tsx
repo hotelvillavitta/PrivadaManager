@@ -19,8 +19,8 @@ import {
   toggleNewsReaction,
   updateNewsPost,
 } from "@/lib/actions/portal";
-import { useScrollToForm } from "@/lib/use-scroll-to-form";
 import { NEWS_CATEGORY_LABEL } from "@/lib/utils";
+import { AdminFormSheet } from "@/components/AdminFormSheet";
 
 type Post = {
   id: string;
@@ -129,7 +129,115 @@ export function NoticiasClient({
     setRemoveDocument(false);
   }
 
-  const formRef = useScrollToForm(editing?.id);
+  const newsForm = (
+    <form
+      className={
+        editing
+          ? undefined
+          : "mb-6 rounded-2xl border border-border bg-surface p-4 shadow-sm sm:mb-8 sm:p-5"
+      }
+      action={(fd) => {
+        setMessage("");
+        startTransition(async () => {
+          const res = editing
+            ? await updateNewsPost(fd)
+            : await createNewsPost(fd);
+          if (res.error) {
+            setMessage(res.error);
+            toast(res.error, "error");
+          } else {
+            const msg = editing
+              ? "Comunicado actualizado."
+              : "Comunicado publicado.";
+            setMessage(msg);
+            toast(msg);
+            cancelEdit();
+            router.refresh();
+          }
+        });
+      }}
+    >
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="font-display text-xl text-primary-dark">
+          {editing ? "Editar comunicado" : "Publicar comunicado"}
+        </h3>
+        {editing && (
+          <button
+            type="button"
+            onClick={cancelEdit}
+            className="inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"
+          >
+            <X className="h-4 w-4" /> Cancelar
+          </button>
+        )}
+      </div>
+      {editing && <input type="hidden" name="id" value={editing.id} />}
+      <div className="grid gap-3 md:grid-cols-2">
+        <input
+          name="title"
+          required
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Título"
+          className="rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary"
+        />
+        <select
+          name="category"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          className="rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary"
+        >
+          {Object.entries(categoryToEnum).map(([label, value]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <textarea
+        name="body"
+        required
+        rows={3}
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        placeholder="Contenido del aviso"
+        className="mt-3 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary"
+      />
+      <label className="mt-3 block text-sm text-muted">
+        <span className="mb-1.5 block font-medium text-foreground">
+          Documento {editing ? "(opcional, reemplaza el actual)" : "(opcional)"}
+        </span>
+        <input
+          type="file"
+          name="document"
+          accept=".pdf,.doc,.docx,image/png,image/jpeg,image/webp"
+          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-primary-soft file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary"
+        />
+        <span className="mt-1 block text-xs">
+          PDF, Word o imagen · máx. 8 MB
+        </span>
+      </label>
+      {editing?.documentUrl && (
+        <label className="mt-2 flex items-center gap-2 text-sm text-muted">
+          <input
+            type="checkbox"
+            name="removeDocument"
+            checked={removeDocument}
+            onChange={(e) => setRemoveDocument(e.target.checked)}
+          />
+          Quitar documento actual ({editing.documentName ?? "archivo"})
+        </label>
+      )}
+      <button
+        type="submit"
+        disabled={pending}
+        className="mt-3 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-60"
+      >
+        {editing ? "Guardar cambios" : "Publicar"}
+      </button>
+      {message && <p className="mt-2 text-sm text-muted">{message}</p>}
+    </form>
+  );
 
   return (
     <div className="pb-16">
@@ -140,112 +248,14 @@ export function NoticiasClient({
       />
 
       <div className="mx-auto max-w-6xl px-4 lg:px-6">
-        {isAdmin && (
-          <form
-            ref={formRef}
-            className="mb-6 scroll-mt-28 rounded-2xl border border-border bg-surface p-4 shadow-sm sm:mb-8 sm:p-5"
-            action={(fd) => {
-              setMessage("");
-              startTransition(async () => {
-                const res = editing
-                  ? await updateNewsPost(fd)
-                  : await createNewsPost(fd);
-                if (res.error) {
-                  setMessage(res.error);
-                  toast(res.error, "error");
-                } else {
-                  const msg = editing
-                    ? "Comunicado actualizado."
-                    : "Comunicado publicado.";
-                  setMessage(msg);
-                  toast(msg);
-                  cancelEdit();
-                  router.refresh();
-                }
-              });
-            }}
-          >
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h3 className="font-display text-xl text-primary-dark">
-                {editing ? "Editar comunicado" : "Publicar comunicado"}
-              </h3>
-              {editing && (
-                <button
-                  type="button"
-                  onClick={cancelEdit}
-                  className="inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"
-                >
-                  <X className="h-4 w-4" /> Cancelar
-                </button>
-              )}
-            </div>
-            {editing && <input type="hidden" name="id" value={editing.id} />}
-            <div className="grid gap-3 md:grid-cols-2">
-              <input
-                name="title"
-                required
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Título"
-                className="rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary"
-              />
-              <select
-                name="category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary"
-              >
-                {Object.entries(categoryToEnum).map(([label, value]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <textarea
-              name="body"
-              required
-              rows={3}
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder="Contenido del aviso"
-              className="mt-3 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary"
-            />
-            <label className="mt-3 block text-sm text-muted">
-              <span className="mb-1.5 block font-medium text-foreground">
-                Documento {editing ? "(opcional, reemplaza el actual)" : "(opcional)"}
-              </span>
-              <input
-                type="file"
-                name="document"
-                accept=".pdf,.doc,.docx,image/png,image/jpeg,image/webp"
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-primary-soft file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary"
-              />
-              <span className="mt-1 block text-xs">
-                PDF, Word o imagen · máx. 8 MB
-              </span>
-            </label>
-            {editing?.documentUrl && (
-              <label className="mt-2 flex items-center gap-2 text-sm text-muted">
-                <input
-                  type="checkbox"
-                  name="removeDocument"
-                  checked={removeDocument}
-                  onChange={(e) => setRemoveDocument(e.target.checked)}
-                />
-                Quitar documento actual ({editing.documentName ?? "archivo"})
-              </label>
-            )}
-            <button
-              type="submit"
-              disabled={pending}
-              className="mt-3 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-60"
-            >
-              {editing ? "Guardar cambios" : "Publicar"}
-            </button>
-            {message && <p className="mt-2 text-sm text-muted">{message}</p>}
-          </form>
-        )}
+        {isAdmin &&
+          (editing ? (
+            <AdminFormSheet open onClose={cancelEdit}>
+              {newsForm}
+            </AdminFormSheet>
+          ) : (
+            newsForm
+          ))}
 
         <div className="-mx-4 mb-6 flex items-center gap-2 overflow-x-auto px-4 pb-2 sm:mx-0 sm:mb-8 sm:flex-wrap sm:px-0 sm:pb-0">
           <Filter className="mr-1 h-4 w-4 shrink-0 text-muted" />
