@@ -235,7 +235,6 @@ export function ResidentsAdmin({
           </button>
         </form>
       )}
-      )}
 
       <ul className="divide-y divide-border">
         {residents.map((u) => (
