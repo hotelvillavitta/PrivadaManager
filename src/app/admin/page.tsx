@@ -4,6 +4,7 @@ import {
   BarChart3,
   Building2,
   CalendarDays,
+  ChevronRight,
   CircleDollarSign,
   Newspaper,
   ShieldAlert,
@@ -18,56 +19,56 @@ const modules = [
   {
     href: "/admin/residentes",
     title: "Residentes y casas",
-    description: "Alta, edición, claves de acceso y contraseñas iniciales.",
+    description: "Usuarios, casas y contraseñas",
     icon: Users,
     badgeKey: "residents" as const,
   },
   {
     href: "/admin/cobranza",
-    title: "Cobranza de cuotas",
-    description: "Registrar pagos de mantenimiento, recargos y palapa.",
+    title: "Cobranza",
+    description: "Cobrar cuotas, recargos y palapa",
     icon: Wallet,
     badgeKey: null,
   },
   {
     href: "/admin/multas",
-    title: "Multas y sanciones",
-    description: "Emitir, consultar y anular faltas al reglamento.",
+    title: "Multas",
+    description: "Emitir y anular sanciones",
     icon: ShieldAlert,
     badgeKey: "fines" as const,
   },
   {
     href: "/admin/reservaciones",
-    title: "Reservaciones de palapa",
-    description: "Aprobar o rechazar solicitudes pendientes.",
+    title: "Reservaciones",
+    description: "Aprobar solicitudes de palapa",
     icon: CalendarDays,
     badgeKey: "reservations" as const,
   },
   {
     href: "/admin/noticias",
-    title: "Noticias y avisos",
-    description: "Publicar, editar o eliminar comunicados de la privada.",
+    title: "Noticias",
+    description: "Publicar y editar avisos",
     icon: Newspaper,
-    badgeKey: "news" as const,
+    badgeKey: null,
   },
   {
     href: "/admin/directorio",
     title: "Directorio",
-    description: "Administrar contactos, comité y proveedores.",
+    description: "Contactos y proveedores",
     icon: Building2,
     badgeKey: null,
   },
   {
     href: "/admin/finanzas",
     title: "Finanzas",
-    description: "Registrar ingresos o gastos del concentrado.",
+    description: "Registrar ingresos y gastos",
     icon: CircleDollarSign,
     badgeKey: null,
   },
   {
     href: "/admin/analiticos",
-    title: "Analíticos y KPIs",
-    description: "Tasa de cobro, adeudos y morosidad por casa.",
+    title: "Analíticos",
+    description: "KPIs de cobranza y morosidad",
     icon: BarChart3,
     badgeKey: null,
   },
@@ -82,77 +83,49 @@ export default async function AdminPage() {
   const badges = {
     residents: data.residentCount,
     reservations: data.pendingReservations.length,
-    news: data.newsCount,
     fines: data.pendingFines.length,
   };
 
   return (
     <div className="pb-16">
       <PageHero
-        eyebrow="Panel del comité"
+        eyebrow="Comité"
         title="Administración"
-        description="Todas las herramientas del comité en un solo lugar. El resto del portal funciona como para cualquier residente."
+        description="Elige una sección. Cada módulo se abre por separado."
       />
 
-      <div className="mx-auto max-w-5xl space-y-6 px-4 lg:px-6">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <MiniStat label="Residentes" value={String(data.residentCount)} />
-          <MiniStat
-            label="Reservas pendientes"
-            value={String(data.pendingReservations.length)}
-          />
-          <MiniStat
-            label="Multas pendientes"
-            value={String(data.pendingFines.length)}
-          />
-          <MiniStat
-            label="Pagos este mes"
-            value={String(data.paidThisMonth)}
-          />
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {modules.map(({ href, title, description, icon: Icon, badgeKey }) => {
-            const badge = badgeKey ? badges[badgeKey] : null;
-            return (
-              <Link
-                key={href}
-                href={href}
-                className="group flex flex-col rounded-2xl border border-border bg-surface p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-md"
-              >
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-soft text-primary transition group-hover:bg-primary group-hover:text-white">
-                    <Icon className="h-5 w-5" strokeWidth={2.25} />
+      <div className="mx-auto max-w-2xl space-y-3 px-4 lg:px-6">
+        {modules.map(({ href, title, description, icon: Icon, badgeKey }) => {
+          const badge = badgeKey ? badges[badgeKey] : null;
+          return (
+            <Link
+              key={href}
+              href={href}
+              className="flex min-h-[4.5rem] items-center gap-4 rounded-2xl border border-border bg-surface px-4 py-3.5 shadow-sm transition hover:border-primary/40 hover:bg-primary-soft/40 active:scale-[0.99]"
+            >
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-white">
+                <Icon className="h-5 w-5" strokeWidth={2.25} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2">
+                  <span className="font-display text-xl text-primary-dark">
+                    {title}
                   </span>
                   {badge != null && badge > 0 ? (
-                    <span className="rounded-full bg-primary px-2.5 py-1 text-xs font-bold text-white">
+                    <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-bold text-white">
                       {badge}
                     </span>
                   ) : null}
-                </div>
-                <h2 className="font-display text-xl text-primary-dark">
-                  {title}
-                </h2>
-                <p className="mt-2 flex-1 text-sm leading-relaxed text-muted">
+                </span>
+                <span className="mt-0.5 block text-sm text-muted">
                   {description}
-                </p>
-                <p className="mt-4 text-xs font-semibold tracking-wide text-accent uppercase">
-                  Abrir
-                </p>
-              </Link>
-            );
-          })}
-        </div>
+                </span>
+              </span>
+              <ChevronRight className="h-5 w-5 shrink-0 text-border" />
+            </Link>
+          );
+        })}
       </div>
-    </div>
-  );
-}
-
-function MiniStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-border bg-surface px-4 py-3 text-center shadow-sm">
-      <p className="font-display text-2xl text-primary-dark">{value}</p>
-      <p className="mt-0.5 text-xs text-muted">{label}</p>
     </div>
   );
 }
