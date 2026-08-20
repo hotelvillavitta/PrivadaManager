@@ -21,6 +21,7 @@ import {
   pickFineBillingPeriod,
 } from "@/lib/utils";
 import { getPrivada } from "@/lib/queries";
+import { issueTemporaryPassword } from "@/lib/issue-password";
 import {
   sendPaymentReceiptEmail,
   type PaymentReceiptLine,
@@ -384,20 +385,15 @@ export async function deleteNewsPost(id: string) {
 
 export async function createResident(formData: FormData) {
   await requireAdmin();
-  const { hash } = await import("bcryptjs");
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const password = String(formData.get("password") ?? "");
   const firstName = String(formData.get("firstName") ?? "").trim();
   const lastName = String(formData.get("lastName") ?? "").trim();
   const houseNumber = String(formData.get("houseNumber") ?? "").trim() || null;
   const accessCode = String(formData.get("accessCode") ?? "").trim() || null;
   const role = String(formData.get("role") ?? "COLONO") as "COLONO" | "ADMIN";
 
-  if (!email || !password || !firstName || !lastName) {
-    return { error: "Nombre, correo y contraseña son obligatorios." };
-  }
-  if (password.length < 6) {
-    return { error: "La contraseña debe tener al menos 6 caracteres." };
+  if (!email || !firstName || !lastName) {
+    return { error: "Nombre y correo son obligatorios." };
   }
   if (role !== "COLONO" && role !== "ADMIN") {
     return { error: "Rol inválido." };
@@ -406,29 +402,39 @@ export async function createResident(formData: FormData) {
   const exists = await prisma.user.findUnique({ where: { email } });
   if (exists) return { error: "Ese correo ya está registrado." };
 
-  await prisma.user.create({
+  const user = await prisma.user.create({
     data: {
       email,
-      passwordHash: await hash(password, 10),
+      passwordHash: "pending",
       firstName,
       lastName,
       houseNumber,
       accessCode,
       role,
+      mustChangePassword: true,
     },
   });
 
+  const issued = await issueTemporaryPassword(user.id);
+  if ("error" in issued) return issued;
+
   revalidatePath("/admin");
   revalidatePath("/cuotas");
-  return { ok: true };
+  return issued;
+}
+
+export async function generateResidentPassword(userId: string) {
+  await requireAdmin();
+  if (!userId) return { error: "Residente inválido." };
+  const issued = await issueTemporaryPassword(userId);
+  revalidatePath("/admin");
+  return issued;
 }
 
 export async function updateResident(formData: FormData) {
   await requireAdmin();
-  const { hash } = await import("bcryptjs");
   const id = String(formData.get("id") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const password = String(formData.get("password") ?? "");
   const firstName = String(formData.get("firstName") ?? "").trim();
   const lastName = String(formData.get("lastName") ?? "").trim();
   const houseNumber = String(formData.get("houseNumber") ?? "").trim() || null;
@@ -447,24 +453,10 @@ export async function updateResident(formData: FormData) {
   });
   if (other) return { error: "Ese correo ya está en uso." };
 
-  const data: {
-    email: string;
-    firstName: string;
-    lastName: string;
-    houseNumber: string | null;
-    accessCode: string | null;
-    role: "COLONO" | "ADMIN";
-    passwordHash?: string;
-  } = { email, firstName, lastName, houseNumber, accessCode, role };
-
-  if (password) {
-    if (password.length < 6) {
-      return { error: "La contraseña debe tener al menos 6 caracteres." };
-    }
-    data.passwordHash = await hash(password, 10);
-  }
-
-  await prisma.user.update({ where: { id }, data });
+  await prisma.user.update({
+    where: { id },
+    data: { email, firstName, lastName, houseNumber, accessCode, role },
+  });
   revalidatePath("/admin");
   revalidatePath("/cuotas");
   return { ok: true };

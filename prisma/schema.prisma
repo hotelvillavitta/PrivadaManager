@@ -48,6 +48,10 @@ model User {
   role         Role     @default(COLONO)
   houseNumber  String?
   accessCode   String?
+  /// True si el comité acaba de generar una contraseña temporal.
+  mustChangePassword Boolean @default(false)
+  passwordResetToken    String?   @unique
+  passwordResetExpires  DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

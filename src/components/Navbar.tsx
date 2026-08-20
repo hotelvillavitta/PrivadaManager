@@ -82,7 +82,7 @@ export function Navbar({
     };
   }, [open]);
 
-  if (pathname === "/login") return null;
+  if (pathname === "/login" || pathname.startsWith("/cambiar-contrasena")) return null;
 
   return (
     <>

@@ -7,6 +7,8 @@ const { auth } = NextAuth(authConfig);
 export default auth((req) => {
   const isLoggedIn = !!req.auth;
   const isLogin = req.nextUrl.pathname.startsWith("/login");
+  const isPasswordReset = req.nextUrl.pathname.startsWith("/cambiar-contrasena");
+  const isPublic = isLogin || isPasswordReset;
   const isAuthApi = req.nextUrl.pathname.startsWith("/api/auth");
 
   const applyNoStore = (res: NextResponse) => {
@@ -21,7 +23,7 @@ export default auth((req) => {
 
   if (isAuthApi) return applyNoStore(NextResponse.next());
 
-  if (!isLoggedIn && !isLogin) {
+  if (!isLoggedIn && !isPublic) {
     const url = new URL("/login", req.nextUrl.origin);
     return applyNoStore(NextResponse.redirect(url));
   }

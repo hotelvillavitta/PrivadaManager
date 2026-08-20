@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Pencil, Trash2, UserPlus, X } from "lucide-react";
+import { KeyRound, Pencil, Trash2, UserPlus, X } from "lucide-react";
 import { toast } from "@/components/Toast";
 import {
   createResident,
   deleteResident,
+  generateResidentPassword,
   updateResident,
 } from "@/lib/actions/portal";
 
@@ -39,8 +40,12 @@ export function ResidentsAdmin({
     houseNumber: "",
     accessCode: "",
     role: "COLONO" as "COLONO" | "ADMIN",
-    password: "",
   });
+  const [issued, setIssued] = useState<{
+    name: string;
+    password: string;
+    emailed: boolean;
+  } | null>(null);
 
   function openCreate() {
     setCreating(true);
@@ -52,7 +57,6 @@ export function ResidentsAdmin({
       houseNumber: "",
       accessCode: "",
       role: "COLONO",
-      password: "",
     });
   }
 
@@ -66,7 +70,6 @@ export function ResidentsAdmin({
       houseNumber: u.houseNumber ?? "",
       accessCode: u.accessCode ?? "",
       role: u.role ?? "COLONO",
-      password: "",
     });
   }
 
@@ -80,7 +83,6 @@ export function ResidentsAdmin({
       houseNumber: "",
       accessCode: "",
       role: "COLONO",
-      password: "",
     });
   }
 
@@ -99,6 +101,28 @@ export function ResidentsAdmin({
         </button>
       </div>
 
+      {issued && (
+        <div className="mb-4 rounded-xl border border-primary/25 bg-primary-soft/60 px-4 py-3 text-sm">
+          <p className="font-semibold text-primary-dark">
+            Contraseña inicial · {issued.name}
+          </p>
+          <p className="mt-1 font-mono text-lg tracking-wide text-primary">
+            {issued.password}
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            {issued.emailed
+              ? "También se envió al correo del residente, con un enlace para cambiarla."
+              : "No se pudo enviar el correo. Cópiala y entrégala en persona."}
+          </p>
+          <button
+            type="button"
+            className="mt-2 text-xs font-semibold text-primary hover:underline"
+            onClick={() => setIssued(null)}
+          >
+            Ocultar
+          </button>
+        </div>
+      )}
       {showForm && (
         <form
           className="mb-4 rounded-xl border border-border bg-background p-3 sm:p-4"
@@ -109,6 +133,13 @@ export function ResidentsAdmin({
                 : await createResident(fd);
               if (res.error) toast(res.error, "error");
               else {
+                if (!editing && "temporaryPassword" in res && res.temporaryPassword) {
+                  setIssued({
+                    name: `${form.firstName} ${form.lastName}`.trim(),
+                    password: res.temporaryPassword,
+                    emailed: Boolean(res.emailed),
+                  });
+                }
                 toast(editing ? "Residente actualizado." : "Residente creado.");
                 closeForm();
                 router.refresh();
@@ -189,30 +220,21 @@ export function ResidentsAdmin({
               <option value="COLONO">Colono</option>
               <option value="ADMIN">Admin</option>
             </select>
-            <input
-              name="password"
-              type="password"
-              required={creating}
-              placeholder={
-                editing
-                  ? "Nueva contraseña (opcional)"
-                  : "Contraseña (mín. 6)"
-              }
-              value={form.password}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, password: e.target.value }))
-              }
-              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm"
-            />
           </div>
+          <p className="mt-2 text-xs text-muted">
+            {creating
+              ? "Al crear se genera una contraseña inicial y se envía al correo."
+              : "La contraseña se genera con el botón de llave, no se escribe aquí."}
+          </p>
           <button
             type="submit"
             disabled={pending}
             className="mt-3 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
           >
-            {editing ? "Guardar cambios" : "Crear residente"}
+            {editing ? "Guardar cambios" : "Crear y generar contraseña"}
           </button>
         </form>
+      )}
       )}
 
       <ul className="divide-y divide-border">
@@ -239,6 +261,38 @@ export function ResidentsAdmin({
               >
                 Casa {u.houseNumber ?? "—"}
               </Link>
+              <button
+                type="button"
+                title="Generar contraseña inicial"
+                disabled={pending}
+                onClick={() => {
+                  if (
+                    !confirm(
+                      `¿Generar una contraseña inicial para ${u.firstName} y enviarla a ${u.email}? La anterior dejará de funcionar.`,
+                    )
+                  )
+                    return;
+                  startTransition(async () => {
+                    const res = await generateResidentPassword(u.id);
+                    if (res.error) toast(res.error, "error");
+                    else if ("temporaryPassword" in res && res.temporaryPassword) {
+                      setIssued({
+                        name: `${u.firstName} ${u.lastName}`,
+                        password: res.temporaryPassword,
+                        emailed: Boolean(res.emailed),
+                      });
+                      toast(
+                        res.emailed
+                          ? "Contraseña enviada por correo."
+                          : "Contraseña generada (revisa el recuadro).",
+                      );
+                    }
+                  });
+                }}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary"
+              >
+                <KeyRound className="h-3.5 w-3.5" />
+              </button>
               <button
                 type="button"
                 title="Editar"
