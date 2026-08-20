@@ -10,6 +10,7 @@ import {
   deleteProvider,
   updateProvider,
 } from "@/lib/actions/portal";
+import { useScrollToForm } from "@/lib/use-scroll-to-form";
 
 type Provider = {
   id: string;
@@ -88,6 +89,8 @@ export function DirectorioClient({
     setForm(emptyForm);
   }
 
+  const formRef = useScrollToForm(editing?.id);
+
   return (
     <div className="pb-16">
       <PageHero
@@ -99,7 +102,8 @@ export function DirectorioClient({
       <div className="mx-auto max-w-5xl px-4 lg:px-6">
         {isAdmin && (
           <form
-            className="mb-6 rounded-2xl border border-border bg-surface p-4 shadow-sm sm:mb-8 sm:p-5"
+            ref={formRef}
+            className="mb-6 scroll-mt-28 rounded-2xl border border-border bg-surface p-4 shadow-sm sm:mb-8 sm:p-5"
             action={(fd) => {
               setMessage("");
               startTransition(async () => {

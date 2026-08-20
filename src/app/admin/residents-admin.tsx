@@ -11,6 +11,7 @@ import {
   generateResidentPassword,
   updateResident,
 } from "@/lib/actions/portal";
+import { useScrollToForm } from "@/lib/use-scroll-to-form";
 
 type Resident = {
   id: string;
@@ -87,6 +88,9 @@ export function ResidentsAdmin({
   }
 
   const showForm = creating || editing;
+  const formRef = useScrollToForm(
+    editing?.id ?? (creating ? "create" : null),
+  );
 
   return (
     <div>
@@ -125,7 +129,8 @@ export function ResidentsAdmin({
       )}
       {showForm && (
         <form
-          className="mb-4 rounded-xl border border-border bg-background p-3 sm:p-4"
+          ref={formRef}
+          className="mb-4 scroll-mt-28 rounded-xl border border-border bg-background p-3 sm:p-4"
           action={(fd) => {
             startTransition(async () => {
               const res = editing
