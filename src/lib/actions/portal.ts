@@ -208,6 +208,7 @@ export async function createReservation(formData: FormData) {
   revalidatePath("/reservaciones");
   revalidatePath("/notificaciones");
   revalidatePath("/admin");
+  revalidatePath("/admin/reservaciones");
   return { ok: true, reservationId: reservation.id };
 }
 
@@ -257,6 +258,7 @@ export async function updateReservationStatus(
 
   revalidatePath("/reservaciones");
   revalidatePath("/admin");
+  revalidatePath("/admin/reservaciones");
   revalidatePath("/notificaciones");
   revalidatePath("/");
   return { ok: true };

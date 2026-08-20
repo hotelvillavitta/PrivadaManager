@@ -4,58 +4,28 @@ import {
   getFeeSummary,
   getFeesForHouse,
   getFinesForHouse,
-  getHouseNumbers,
-  getHousesWithResidents,
   getPalapaPaymentsForHouse,
 } from "@/lib/queries";
 import { CuotasClient } from "./cuotas-client";
 
-export default async function CuotasPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ casa?: string }>;
-}) {
+export default async function CuotasPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const params = await searchParams;
-  const isAdmin = session.user.role === "ADMIN";
-  const requested = params.casa?.trim();
-  const houseNumber =
-    isAdmin && requested
-      ? requested
-      : (session.user.houseNumber ?? "0");
+  const houseNumber = session.user.houseNumber ?? "0";
 
-  const [fees, palapaPayments, fines, summary, houses, houseDirectory] =
-    await Promise.all([
-      getFeesForHouse(houseNumber),
-      getPalapaPaymentsForHouse(houseNumber),
-      getFinesForHouse(houseNumber),
-      getFeeSummary(houseNumber),
-      isAdmin ? getHouseNumbers() : Promise.resolve([] as string[]),
-      isAdmin
-        ? getHousesWithResidents()
-        : Promise.resolve(
-            [] as { houseNumber: string; residents: string[] }[],
-          ),
-    ]);
-
-  const resident =
-    isAdmin && requested && requested !== session.user.houseNumber
-      ? null
-      : session.user;
+  const [fees, palapaPayments, fines, summary] = await Promise.all([
+    getFeesForHouse(houseNumber),
+    getPalapaPaymentsForHouse(houseNumber),
+    getFinesForHouse(houseNumber),
+    getFeeSummary(houseNumber),
+  ]);
 
   return (
     <CuotasClient
-      isAdmin={isAdmin}
+      isAdmin={false}
       houseNumber={houseNumber}
-      houses={houses}
-      houseDirectory={houseDirectory}
-      accessCode={
-        resident?.houseNumber === houseNumber
-          ? session.user.accessCode
-          : null
-      }
+      accessCode={session.user.accessCode}
       summary={summary}
       fees={fees.map((f) => ({
         id: f.id,

@@ -19,12 +19,10 @@ export default async function ReservacionesPage({
 
   return (
     <ReservacionesClient
-      isAdmin={session.user.role === "ADMIN"}
+      isAdmin={false}
       currentUserId={session.user.id}
       houseNumber={session.user.houseNumber}
-      hasPendingFees={
-        session.user.role === "ADMIN" ? false : hasPendingFees
-      }
+      hasPendingFees={hasPendingFees}
       focusReservationId={params.solicitud ?? null}
       reservations={reservations.map((r) => ({
         id: r.id,

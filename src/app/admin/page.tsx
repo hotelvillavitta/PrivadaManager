@@ -1,238 +1,158 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
+  BarChart3,
+  Building2,
   CalendarDays,
-  Check,
   CircleDollarSign,
   Newspaper,
+  ShieldAlert,
   Users,
   Wallet,
 } from "lucide-react";
 import { PageHero } from "@/components/PageHero";
 import { auth } from "@/lib/auth";
-import { updateReservationStatus } from "@/lib/actions/portal";
-import { getAdminDashboard, getHouseNumbers } from "@/lib/queries";
-import { feeLabel, formatCurrency } from "@/lib/utils";
-import { ResidentsAdmin } from "./residents-admin";
-import { FinesAdmin } from "./fines-admin";
+import { getAdminDashboard } from "@/lib/queries";
+
+const modules = [
+  {
+    href: "/admin/residentes",
+    title: "Residentes y casas",
+    description: "Alta, edición, claves de acceso y contraseñas iniciales.",
+    icon: Users,
+    badgeKey: "residents" as const,
+  },
+  {
+    href: "/admin/cobranza",
+    title: "Cobranza de cuotas",
+    description: "Registrar pagos de mantenimiento, recargos y palapa.",
+    icon: Wallet,
+    badgeKey: null,
+  },
+  {
+    href: "/admin/multas",
+    title: "Multas y sanciones",
+    description: "Emitir, consultar y anular faltas al reglamento.",
+    icon: ShieldAlert,
+    badgeKey: "fines" as const,
+  },
+  {
+    href: "/admin/reservaciones",
+    title: "Reservaciones de palapa",
+    description: "Aprobar o rechazar solicitudes pendientes.",
+    icon: CalendarDays,
+    badgeKey: "reservations" as const,
+  },
+  {
+    href: "/admin/noticias",
+    title: "Noticias y avisos",
+    description: "Publicar, editar o eliminar comunicados de la privada.",
+    icon: Newspaper,
+    badgeKey: "news" as const,
+  },
+  {
+    href: "/admin/directorio",
+    title: "Directorio",
+    description: "Administrar contactos, comité y proveedores.",
+    icon: Building2,
+    badgeKey: null,
+  },
+  {
+    href: "/admin/finanzas",
+    title: "Finanzas",
+    description: "Registrar ingresos o gastos del concentrado.",
+    icon: CircleDollarSign,
+    badgeKey: null,
+  },
+  {
+    href: "/admin/analiticos",
+    title: "Analíticos y KPIs",
+    description: "Tasa de cobro, adeudos y morosidad por casa.",
+    icon: BarChart3,
+    badgeKey: null,
+  },
+];
 
 export default async function AdminPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (session.user.role !== "ADMIN") redirect("/");
 
-  const [data, houses] = await Promise.all([
-    getAdminDashboard(),
-    getHouseNumbers(),
-  ]);
+  const data = await getAdminDashboard();
+  const badges = {
+    residents: data.residentCount,
+    reservations: data.pendingReservations.length,
+    news: data.newsCount,
+    fines: data.pendingFines.length,
+  };
 
   return (
     <div className="pb-16">
       <PageHero
-        eyebrow="Panel administrativo"
+        eyebrow="Panel del comité"
         title="Administración"
-        description="Resumen operativo de residentes, reservaciones, cuotas, multas y comunicación."
+        description="Todas las herramientas del comité en un solo lugar. El resto del portal funciona como para cualquier residente."
       />
 
-      <div className="mx-auto max-w-6xl space-y-6 px-4 lg:px-6">
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-          <Stat
-            icon={<Users className="h-5 w-5" />}
-            value={String(data.residentCount)}
-            label="Residentes"
-          />
-          <Stat
-            icon={<CalendarDays className="h-5 w-5" />}
-            value={String(data.pendingReservations.length)}
+      <div className="mx-auto max-w-5xl space-y-6 px-4 lg:px-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <MiniStat label="Residentes" value={String(data.residentCount)} />
+          <MiniStat
             label="Reservas pendientes"
+            value={String(data.pendingReservations.length)}
           />
-          <Stat
-            icon={<Newspaper className="h-5 w-5" />}
-            value={String(data.newsCount)}
-            label="Comunicados"
+          <MiniStat
+            label="Multas pendientes"
+            value={String(data.pendingFines.length)}
           />
-          <Stat
-            icon={<Wallet className="h-5 w-5" />}
-            value={String(data.paidThisMonth)}
+          <MiniStat
             label="Pagos este mes"
+            value={String(data.paidThisMonth)}
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-          <QuickLink href="/admin/analiticos" label="Analíticos y KPIs" />
-          <QuickLink href="/noticias" label="Publicar noticia" />
-          <QuickLink href="/reservaciones" label="Ver reservaciones" />
-          <QuickLink href="/cuotas" label="Gestionar cuotas" />
-          <QuickLink href="/finanzas" label="Registrar finanzas" />
-        </div>
-
-        <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-5">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-display text-2xl text-primary-dark">
-              Reservaciones pendientes
-            </h2>
-            <Link
-              href="/reservaciones"
-              className="text-sm text-primary hover:underline"
-            >
-              Ver calendario
-            </Link>
-          </div>
-          {data.pendingReservations.length === 0 ? (
-            <p className="text-sm text-muted">No hay solicitudes pendientes.</p>
-          ) : (
-            <ul className="space-y-3">
-              {data.pendingReservations.map((r) => (
-                <li
-                  key={r.id}
-                  className="flex flex-col gap-3 rounded-xl bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div>
-                    <p className="font-medium text-primary-dark">
-                      {r.eventName}
-                    </p>
-                    <p className="text-sm text-muted">
-                      {r.date} · {r.user.firstName} {r.user.lastName}
-                      {r.user.houseNumber
-                        ? ` · Casa ${r.user.houseNumber}`
-                        : ""}{" "}
-                      · {r.guests} personas
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Link
-                      href={`/reservaciones?solicitud=${r.id}`}
-                      className="inline-flex items-center rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-primary hover:bg-surface"
-                    >
-                      Ver / decidir
-                    </Link>
-                    <form
-                      action={async () => {
-                        "use server";
-                        await updateReservationStatus(r.id, "APPROVED");
-                      }}
-                    >
-                      <button
-                        type="submit"
-                        className="inline-flex items-center gap-1 rounded-lg bg-success px-3 py-1.5 text-xs font-medium text-white"
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                        Aprobar
-                      </button>
-                    </form>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-5">
-          <FinesAdmin
-            houses={houses}
-            pendingFines={data.pendingFines.map((f) => ({
-              id: f.id,
-              houseNumber: f.houseNumber,
-              category: f.category,
-              cause: f.cause,
-              regulationArticle: f.regulationArticle,
-              amount: f.amount,
-              notes: f.notes,
-              issuedAt: f.issuedAt.toISOString(),
-              billingYear: f.billingYear,
-              billingMonth: f.billingMonth,
-            }))}
-          />
-        </section>
-
-        <div className="grid gap-6 lg:grid-cols-2">
-          <section className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-            <ResidentsAdmin
-              currentUserId={session.user.id}
-              residents={data.residents.map((u) => ({
-                id: u.id,
-                firstName: u.firstName,
-                lastName: u.lastName,
-                email: u.email,
-                houseNumber: u.houseNumber,
-                accessCode: u.accessCode,
-                role: u.role,
-              }))}
-            />
-          </section>
-
-          <section className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-            <h2 className="mb-4 flex items-center justify-between gap-2 font-display text-2xl text-primary-dark">
-              <span className="inline-flex items-center gap-2">
-                <CircleDollarSign className="h-5 w-5 text-primary" />
-                Adeudos / pendientes
-              </span>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {modules.map(({ href, title, description, icon: Icon, badgeKey }) => {
+            const badge = badgeKey ? badges[badgeKey] : null;
+            return (
               <Link
-                href="/admin/analiticos"
-                className="text-sm font-sans font-medium text-primary hover:underline"
+                key={href}
+                href={href}
+                className="group flex flex-col rounded-2xl border border-border bg-surface p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-md"
               >
-                Ver KPIs
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-soft text-primary transition group-hover:bg-primary group-hover:text-white">
+                    <Icon className="h-5 w-5" strokeWidth={2.25} />
+                  </span>
+                  {badge != null && badge > 0 ? (
+                    <span className="rounded-full bg-primary px-2.5 py-1 text-xs font-bold text-white">
+                      {badge}
+                    </span>
+                  ) : null}
+                </div>
+                <h2 className="font-display text-xl text-primary-dark">
+                  {title}
+                </h2>
+                <p className="mt-2 flex-1 text-sm leading-relaxed text-muted">
+                  {description}
+                </p>
+                <p className="mt-4 text-xs font-semibold tracking-wide text-accent uppercase">
+                  Abrir
+                </p>
               </Link>
-            </h2>
-            {data.debtFees.length === 0 ? (
-              <p className="text-sm text-muted">
-                No hay cuotas con adeudo o pendientes.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {data.debtFees.map((f) => (
-                  <li
-                    key={f.id}
-                    className="flex flex-col gap-1 rounded-xl bg-background px-3 py-2.5 text-sm sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <span className="min-w-0 break-words">
-                      Casa {f.houseNumber} · {feeLabel(f.year, f.month)}
-                    </span>
-                    <span
-                      className={`self-start text-xs font-bold uppercase sm:self-auto sm:text-right ${
-                        f.status === "ADEUDO" ? "text-danger" : "text-warning"
-                      }`}
-                    >
-                      {f.status} ·{" "}
-                      {f.concept === "PALAPA" ? "Palapa" : "Mantenimiento"} ·{" "}
-                      {formatCurrency(f.amount)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+            );
+          })}
         </div>
       </div>
     </div>
   );
 }
 
-function Stat({
-  icon,
-  value,
-  label,
-}: {
-  icon: React.ReactNode;
-  value: string;
-  label: string;
-}) {
+function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-border bg-surface px-5 py-4 shadow-sm">
-      <div className="mb-2 text-primary">{icon}</div>
-      <p className="font-display text-3xl text-primary-dark">{value}</p>
-      <p className="mt-1 text-sm text-muted">{label}</p>
+    <div className="rounded-2xl border border-border bg-surface px-4 py-3 text-center shadow-sm">
+      <p className="font-display text-2xl text-primary-dark">{value}</p>
+      <p className="mt-0.5 text-xs text-muted">{label}</p>
     </div>
-  );
-}
-
-function QuickLink({ href, label }: { href: string; label: string }) {
-  return (
-    <Link
-      href={href}
-      className="rounded-xl border border-border bg-surface px-4 py-3 text-center text-sm font-medium text-primary-dark transition hover:border-primary/40 hover:bg-primary-soft"
-    >
-      {label}
-    </Link>
   );
 }

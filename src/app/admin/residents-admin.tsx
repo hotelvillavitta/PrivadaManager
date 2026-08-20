@@ -256,7 +256,7 @@ export function ResidentsAdmin({
             </div>
             <div className="flex w-full shrink-0 items-center justify-between gap-1 sm:w-auto sm:justify-start">
               <Link
-                href={`/cuotas?casa=${u.houseNumber ?? ""}`}
+                href={`/admin/cobranza?casa=${u.houseNumber ?? ""}`}
                 className="rounded-full bg-primary-soft px-3 py-1 text-xs font-medium text-primary hover:bg-primary hover:text-white"
               >
                 Casa {u.houseNumber ?? "—"}

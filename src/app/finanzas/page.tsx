@@ -14,7 +14,7 @@ export default async function FinanzasPage() {
 
   return (
     <FinanzasClient
-      isAdmin={session.user.role === "ADMIN"}
+      isAdmin={false}
       privadaName={privada.name}
       summary={summary}
     />

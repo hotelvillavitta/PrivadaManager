@@ -70,6 +70,7 @@ export function CuotasClient({
   fines,
   summary,
   isAdmin,
+  houseBasePath = "/cuotas",
 }: {
   houseNumber: string;
   houses?: string[];
@@ -86,6 +87,7 @@ export function CuotasClient({
     pendingFinesAmount?: number;
   };
   isAdmin: boolean;
+  houseBasePath?: string;
 }) {
   const router = useRouter();
   const currentYear = new Date().getFullYear();
@@ -290,7 +292,7 @@ export function CuotasClient({
                 <select
                   value={houseNumber}
                   onChange={(e) =>
-                    router.push(`/cuotas?casa=${e.target.value}`, {
+                    router.push(`${houseBasePath}?casa=${e.target.value}`, {
                       scroll: false,
                     })
                   }

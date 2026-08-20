@@ -61,6 +61,16 @@ export default async function HomePage() {
               </span>
               {user.houseNumber ? ` · Casa #${user.houseNumber}` : null}
             </p>
+            {user.role === "ADMIN" ? (
+              <p className="mt-1 text-sm">
+                <Link
+                  href="/admin"
+                  className="font-semibold text-primary hover:underline"
+                >
+                  Abrir panel de administración →
+                </Link>
+              </p>
+            ) : null}
           </div>
         </div>
       </section>

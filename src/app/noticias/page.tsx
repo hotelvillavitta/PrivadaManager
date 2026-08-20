@@ -1,6 +1,6 @@
+import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getNewsFeed } from "@/lib/queries";
-import { redirect } from "next/navigation";
 import { NoticiasClient } from "./noticias-client";
 
 export default async function NoticiasPage() {
@@ -11,7 +11,7 @@ export default async function NoticiasPage() {
 
   return (
     <NoticiasClient
-      isAdmin={session.user.role === "ADMIN"}
+      isAdmin={false}
       posts={posts.map((p) => ({
         id: p.id,
         title: p.title,

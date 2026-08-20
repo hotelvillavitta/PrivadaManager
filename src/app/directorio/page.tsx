@@ -9,10 +9,5 @@ export default async function DirectorioPage() {
 
   const providers = await getProviders();
 
-  return (
-    <DirectorioClient
-      isAdmin={session.user.role === "ADMIN"}
-      providers={providers}
-    />
-  );
+  return <DirectorioClient isAdmin={false} providers={providers} />;
 }
