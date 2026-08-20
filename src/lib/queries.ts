@@ -244,6 +244,7 @@ export async function getAdminDashboard() {
         email: true,
         houseNumber: true,
         accessCode: true,
+        gateCode: true,
         role: true,
         createdAt: true,
       },

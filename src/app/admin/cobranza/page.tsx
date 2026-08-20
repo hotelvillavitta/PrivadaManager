@@ -50,6 +50,7 @@ export default async function AdminCobranzaPage({
         houses={houses}
         houseDirectory={houseDirectory}
         accessCode={null}
+        gateCode={null}
         summary={summary}
         fees={fees.map((f) => ({
           id: f.id,

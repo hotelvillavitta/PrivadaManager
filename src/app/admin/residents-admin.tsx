@@ -20,6 +20,7 @@ type Resident = {
   email: string;
   houseNumber: string | null;
   accessCode?: string | null;
+  gateCode?: string | null;
   role?: "COLONO" | "ADMIN";
 };
 
@@ -40,6 +41,7 @@ export function ResidentsAdmin({
     email: "",
     houseNumber: "",
     accessCode: "",
+    gateCode: "",
     role: "COLONO" as "COLONO" | "ADMIN",
   });
   const [issued, setIssued] = useState<{
@@ -57,6 +59,7 @@ export function ResidentsAdmin({
       email: "",
       houseNumber: "",
       accessCode: "",
+      gateCode: "",
       role: "COLONO",
     });
   }
@@ -70,6 +73,7 @@ export function ResidentsAdmin({
       email: u.email,
       houseNumber: u.houseNumber ?? "",
       accessCode: u.accessCode ?? "",
+      gateCode: u.gateCode ?? "",
       role: u.role ?? "COLONO",
     });
   }
@@ -83,6 +87,7 @@ export function ResidentsAdmin({
       email: "",
       houseNumber: "",
       accessCode: "",
+      gateCode: "",
       role: "COLONO",
     });
   }
@@ -198,15 +203,6 @@ export function ResidentsAdmin({
               }
               className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
             />
-            <input
-              name="accessCode"
-              placeholder="Clave de acceso"
-              value={form.accessCode}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, accessCode: e.target.value }))
-              }
-              className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
-            />
             <select
               name="role"
               value={form.role}
@@ -221,11 +217,36 @@ export function ResidentsAdmin({
               <option value="COLONO">Colono</option>
               <option value="ADMIN">Admin</option>
             </select>
+            <div className="grid gap-2 sm:col-span-2 sm:grid-cols-2">
+              <p className="text-xs font-medium text-primary-dark sm:col-span-2">
+                Claves de acceso físico (opcionales)
+              </p>
+              <input
+                name="accessCode"
+                placeholder="Clave de acceso peatonal"
+                value={form.accessCode}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, accessCode: e.target.value }))
+                }
+                className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                aria-label="Clave de acceso peatonal"
+              />
+              <input
+                name="gateCode"
+                placeholder="Clave de acceso de portón"
+                value={form.gateCode}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, gateCode: e.target.value }))
+                }
+                className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                aria-label="Clave de acceso de portón"
+              />
+            </div>
           </div>
           <p className="mt-2 text-xs text-muted">
             {creating
-              ? "Al crear se genera una contraseña inicial y se envía al correo."
-              : "La contraseña se genera con el botón de llave, no se escribe aquí."}
+              ? "Al crear se genera una contraseña de acceso a la app y se envía al correo del residente."
+              : "La contraseña de la app no se edita aquí: usa el botón de llave en la lista para generar una nueva y enviarla por correo."}
           </p>
           <button
             type="submit"

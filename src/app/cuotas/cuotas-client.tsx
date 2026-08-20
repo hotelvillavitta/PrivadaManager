@@ -65,6 +65,7 @@ export function CuotasClient({
   houses = [],
   houseDirectory = [],
   accessCode,
+  gateCode,
   fees,
   palapaPayments,
   fines,
@@ -76,6 +77,7 @@ export function CuotasClient({
   houses?: string[];
   houseDirectory?: { houseNumber: string; residents: string[] }[];
   accessCode: string | null;
+  gateCode: string | null;
   fees: Fee[];
   palapaPayments: PalapaPayment[];
   fines: FineRow[];
@@ -324,13 +326,25 @@ export function CuotasClient({
                 </p>
               </div>
             </div>
-            {accessCode && (
-              <div className="inline-flex items-start gap-2 rounded-xl bg-warning-soft px-3 py-2 text-sm text-foreground">
-                <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-                <span>
-                  <span className="font-medium">Clave de acceso:</span>{" "}
-                  {accessCode}
-                </span>
+            {(accessCode || gateCode) && (
+              <div className="flex flex-col gap-2 sm:items-end">
+                {accessCode && (
+                  <div className="inline-flex items-start gap-2 rounded-xl bg-warning-soft px-3 py-2 text-sm text-foreground">
+                    <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                    <span>
+                      <span className="font-medium">Peatonal:</span>{" "}
+                      {accessCode}
+                    </span>
+                  </div>
+                )}
+                {gateCode && (
+                  <div className="inline-flex items-start gap-2 rounded-xl bg-warning-soft px-3 py-2 text-sm text-foreground">
+                    <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                    <span>
+                      <span className="font-medium">Portón:</span> {gateCode}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>

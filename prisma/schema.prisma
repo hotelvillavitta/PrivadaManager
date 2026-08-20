@@ -47,7 +47,10 @@ model User {
   lastName     String
   role         Role     @default(COLONO)
   houseNumber  String?
+  /// Clave de acceso peatonal (mostrar al colono).
   accessCode   String?
+  /// Clave de acceso de portón.
+  gateCode     String?
   /// True si el comité acaba de generar una contraseña temporal.
   mustChangePassword Boolean @default(false)
   passwordResetToken    String?   @unique

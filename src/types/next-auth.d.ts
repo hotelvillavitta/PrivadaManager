@@ -8,6 +8,7 @@ declare module "next-auth" {
     lastName: string;
     houseNumber: string | null;
     accessCode: string | null;
+    gateCode: string | null;
   }
 
   interface Session {
@@ -19,6 +20,7 @@ declare module "next-auth" {
       lastName: string;
       houseNumber: string | null;
       accessCode: string | null;
+      gateCode: string | null;
     } & DefaultSession["user"];
   }
 }
@@ -31,5 +33,6 @@ declare module "@auth/core/jwt" {
     lastName?: string;
     houseNumber?: string | null;
     accessCode?: string | null;
+    gateCode?: string | null;
   }
 }

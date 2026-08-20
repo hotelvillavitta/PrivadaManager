@@ -36,7 +36,8 @@ async function main() {
       lastName: "Narvaez",
       role: Role.COLONO,
       houseNumber: "48",
-      accessCode: "PEATONAL 4875# PORTON 4800#",
+      accessCode: "4875#",
+      gateCode: "4800#",
     },
   });
 
@@ -48,7 +49,8 @@ async function main() {
       lastName: "Grenaché",
       role: Role.ADMIN,
       houseNumber: "21",
-      accessCode: "PEATONAL 2100# PORTON 2101#",
+      accessCode: "2100#",
+      gateCode: "2101#",
     },
   });
 

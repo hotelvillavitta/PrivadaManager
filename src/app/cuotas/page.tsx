@@ -26,6 +26,7 @@ export default async function CuotasPage() {
       isAdmin={false}
       houseNumber={houseNumber}
       accessCode={session.user.accessCode}
+      gateCode={session.user.gateCode}
       summary={summary}
       fees={fees.map((f) => ({
         id: f.id,

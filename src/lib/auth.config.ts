@@ -23,6 +23,7 @@ export const authConfig = {
         token.lastName = user.lastName;
         token.houseNumber = user.houseNumber;
         token.accessCode = user.accessCode;
+        token.gateCode = user.gateCode;
       }
       return token;
     },
@@ -34,6 +35,7 @@ export const authConfig = {
       session.user.lastName = String(token.lastName ?? "");
       session.user.houseNumber = (token.houseNumber as string | null) ?? null;
       session.user.accessCode = (token.accessCode as string | null) ?? null;
+      session.user.gateCode = (token.gateCode as string | null) ?? null;
       return session;
     },
   },

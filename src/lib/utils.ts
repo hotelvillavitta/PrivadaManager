@@ -205,4 +205,5 @@ export type SessionUser = {
   lastName: string;
   houseNumber: string | null;
   accessCode: string | null;
+  gateCode: string | null;
 };

@@ -392,6 +392,7 @@ export async function createResident(formData: FormData) {
   const lastName = String(formData.get("lastName") ?? "").trim();
   const houseNumber = String(formData.get("houseNumber") ?? "").trim() || null;
   const accessCode = String(formData.get("accessCode") ?? "").trim() || null;
+  const gateCode = String(formData.get("gateCode") ?? "").trim() || null;
   const role = String(formData.get("role") ?? "COLONO") as "COLONO" | "ADMIN";
 
   if (!email || !firstName || !lastName) {
@@ -412,6 +413,7 @@ export async function createResident(formData: FormData) {
       lastName,
       houseNumber,
       accessCode,
+      gateCode,
       role,
       mustChangePassword: true,
     },
@@ -421,6 +423,7 @@ export async function createResident(formData: FormData) {
   if ("error" in issued) return issued;
 
   revalidatePath("/admin");
+  revalidatePath("/admin/residentes");
   revalidatePath("/cuotas");
   return issued;
 }
@@ -441,6 +444,7 @@ export async function updateResident(formData: FormData) {
   const lastName = String(formData.get("lastName") ?? "").trim();
   const houseNumber = String(formData.get("houseNumber") ?? "").trim() || null;
   const accessCode = String(formData.get("accessCode") ?? "").trim() || null;
+  const gateCode = String(formData.get("gateCode") ?? "").trim() || null;
   const role = String(formData.get("role") ?? "COLONO") as "COLONO" | "ADMIN";
 
   if (!id || !email || !firstName || !lastName) {
@@ -457,9 +461,18 @@ export async function updateResident(formData: FormData) {
 
   await prisma.user.update({
     where: { id },
-    data: { email, firstName, lastName, houseNumber, accessCode, role },
+    data: {
+      email,
+      firstName,
+      lastName,
+      houseNumber,
+      accessCode,
+      gateCode,
+      role,
+    },
   });
   revalidatePath("/admin");
+  revalidatePath("/admin/residentes");
   revalidatePath("/cuotas");
   return { ok: true };
 }

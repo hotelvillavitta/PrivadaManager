@@ -37,6 +37,7 @@ export default async function AdminResidentesPage() {
               email: u.email,
               houseNumber: u.houseNumber,
               accessCode: u.accessCode,
+              gateCode: u.gateCode,
               role: u.role,
             }))}
           />

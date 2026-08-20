@@ -32,6 +32,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           lastName: user.lastName,
           houseNumber: user.houseNumber,
           accessCode: user.accessCode,
+          gateCode: user.gateCode,
         };
       },
     }),
