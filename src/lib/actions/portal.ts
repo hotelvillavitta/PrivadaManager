@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { NewsCategory, ReservationStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireAdmin, requireUser } from "@/lib/session";
-import { saveUploadedDocument } from "@/lib/uploads";
+import { saveUploadedDocument, fileFromFormData } from "@/lib/uploads";
 import { overdueMaintenanceWhere } from "@/lib/utils";
 import {
   FEE_BASE_AMOUNT,
@@ -82,9 +82,7 @@ export async function createNewsPost(formData: FormData) {
   let documentUrl: string | null = null;
   let documentName: string | null = null;
   try {
-    const saved = await saveUploadedDocument(
-      file instanceof File ? file : null,
-    );
+    const saved = await saveUploadedDocument(fileFromFormData(file));
     documentUrl = saved.documentUrl;
     documentName = saved.documentName;
   } catch (error) {
@@ -340,9 +338,7 @@ export async function updateNewsPost(formData: FormData) {
   }
 
   try {
-    const saved = await saveUploadedDocument(
-      file instanceof File ? file : null,
-    );
+    const saved = await saveUploadedDocument(fileFromFormData(file));
     if (saved.documentUrl) {
       documentUrl = saved.documentUrl;
       documentName = saved.documentName;

@@ -33,7 +33,7 @@ npm run db:seed
 | `AUTH_SECRET` | `openssl rand -base64 32` |
 | `AUTH_TRUST_HOST` | `true` |
 | `AUTH_URL` | `https://tu-proyecto.vercel.app` (o tu dominio) |
-| `BLOB_READ_WRITE_TOKEN` | Token de Vercel Blob (Storage → Blob) |
+| `BLOB_READ_WRITE_TOKEN` | Token de Vercel Blob (Storage → Blob). **Obligatorio** para adjuntos de noticias |
 | `GMAIL_USER` | Correo Gmail del comité (comprobantes) |
 | `GMAIL_APP_PASSWORD` | Contraseña de aplicación de Google (16 caracteres) |
 | `EMAIL_FROM` | Opcional: `Privada Manager <tu@gmail.com>` |
@@ -115,6 +115,20 @@ Plan **Free**: 3 000 correos/mes. Útil si Gmail te marca spam o mandas mucho 
    `EMAIL_FROM="Privada Manager <noreply@tudominio.com>"`.
 
 Si existen **ambas** configs, la app usa **Gmail primero**.
+
+## 2d. Vercel Blob (adjuntos de noticias y futuros reportes)
+
+En producción **no se puede guardar en disco**. Los PDF/fotos van a **Vercel Blob**.
+
+1. En el proyecto de Vercel → **Storage** → **Create** → **Blob**.
+2. Conecta el store al proyecto `privada-manager` (Production + Preview).
+3. Vercel suele inyectar `BLOB_READ_WRITE_TOKEN` solo. Si no aparece:
+   - Storage → tu Blob → **.env.local** / token → cópialo
+   - Settings → Environment Variables → pega `BLOB_READ_WRITE_TOKEN`
+4. **Redeploy** (un deploy viejo no toma variables nuevas).
+5. Prueba en Admin → Noticias: publica un aviso con un PDF o foto chica.
+
+Sin esta variable, la app muestra un aviso amarillo en Noticias y rechaza la subida con un mensaje claro (en lugar de un error genérico).
 
 WhatsApp para recibos, reservaciones y noticias se habilitará después (`WHATSAPP_ENABLED`).
 

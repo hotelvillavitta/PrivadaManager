@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getNewsFeed } from "@/lib/queries";
+import { isDocumentUploadConfigured } from "@/lib/uploads";
 import { AdminBackLink } from "../admin-back-link";
 import { NoticiasClient } from "@/app/noticias/noticias-client";
 
@@ -18,6 +19,7 @@ export default async function AdminNoticiasPage() {
       </div>
       <NoticiasClient
         isAdmin
+        uploadsReady={isDocumentUploadConfigured()}
         posts={posts.map((p) => ({
           id: p.id,
           title: p.title,

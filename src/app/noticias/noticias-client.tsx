@@ -65,9 +65,12 @@ const categoryToEnum: Record<string, string> = {
 export function NoticiasClient({
   posts,
   isAdmin,
+  uploadsReady = true,
 }: {
   posts: Post[];
   isAdmin: boolean;
+  /** False en Vercel si falta BLOB_READ_WRITE_TOKEN. */
+  uploadsReady?: boolean;
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<(typeof filters)[number]>("Todos");
@@ -248,6 +251,19 @@ export function NoticiasClient({
       />
 
       <div className="mx-auto max-w-6xl px-4 lg:px-6">
+        {isAdmin && !uploadsReady && (
+          <div className="mb-4 rounded-2xl border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-foreground">
+            <p className="font-semibold text-primary-dark">
+              Adjuntos no configurados en producción
+            </p>
+            <p className="mt-1 text-muted">
+              En Vercel → Storage → Blob crea un store, copia{" "}
+              <code className="rounded bg-background px-1">BLOB_READ_WRITE_TOKEN</code>{" "}
+              a Environment Variables (Production + Preview) y haz Redeploy. Sin
+              eso, publicar texto funciona; subir PDF/fotos falla.
+            </p>
+          </div>
+        )}
         {isAdmin &&
           (editing ? (
             <AdminFormSheet open onClose={cancelEdit}>
