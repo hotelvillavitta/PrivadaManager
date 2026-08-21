@@ -19,7 +19,7 @@ export default async function AnaliticosPage() {
         title="Analíticos y KPIs"
         description="Lectura de cuotas reales de la privada: tasa de cobro, adeudos y morosidad por casa."
       />
-      <div className="mx-auto max-w-6xl space-y-4 px-4 lg:px-6">
+      <div className="mx-auto max-w-6xl min-w-0 space-y-4 overflow-x-hidden px-3 sm:px-4 lg:px-6">
         <AdminBackLink />
         <KpisDashboard data={data} />
       </div>
