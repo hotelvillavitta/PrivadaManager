@@ -93,6 +93,13 @@ textarea {
   }
 }
 
+/* Al girar el teléfono: aprovecha el ancho y reduce alturas. */
+@media (orientation: landscape) and (max-height: 500px) {
+  body {
+    overscroll-behavior-y: auto;
+  }
+}
+
 h1,
 h2,
 h3,

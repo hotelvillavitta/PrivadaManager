@@ -49,7 +49,7 @@ export function KpisDashboard({ data }: { data: CollectionKpis }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 landscape:max-md:grid-cols-4 sm:gap-3 xl:grid-cols-4">
         <KpiCard
           tone="success"
           icon={<Percent className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
@@ -82,7 +82,7 @@ export function KpisDashboard({ data }: { data: CollectionKpis }) {
         />
       </div>
 
-      <div className="grid min-w-0 gap-3 sm:gap-4 xl:grid-cols-[1.4fr_0.9fr]">
+      <div className="grid min-w-0 gap-3 landscape:max-md:grid-cols-2 sm:gap-4 xl:grid-cols-[1.4fr_0.9fr]">
         <ChartCard title="Cobro por mes">
           <div className="mb-3 flex flex-wrap gap-3 text-[11px] text-muted sm:text-xs">
             <span className="inline-flex items-center gap-1.5">
@@ -99,7 +99,7 @@ export function KpisDashboard({ data }: { data: CollectionKpis }) {
         </ChartCard>
       </div>
 
-      <div className="grid min-w-0 gap-3 sm:gap-4 xl:grid-cols-2">
+      <div className="grid min-w-0 gap-3 landscape:max-md:grid-cols-2 sm:gap-4 xl:grid-cols-2">
         <ChartCard title="Tendencia de cobro">
           <RateTrend months={data.byMonth} />
         </ChartCard>

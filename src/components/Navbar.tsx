@@ -353,10 +353,10 @@ export function Navbar({
 
       {user && (
         <nav
-          className="fixed inset-x-0 bottom-0 z-[90] border-t border-border bg-surface/95 px-1.5 pb-[max(0.9rem,calc(env(safe-area-inset-bottom)+0.45rem))] pt-2 shadow-[0_-8px_30px_-20px_rgba(47,29,45,0.5)] backdrop-blur md:hidden"
+          className="fixed inset-x-0 bottom-0 z-[90] border-t border-border bg-surface/95 px-1.5 pb-[max(0.9rem,calc(env(safe-area-inset-bottom)+0.45rem))] pt-2 shadow-[0_-8px_30px_-20px_rgba(47,29,45,0.5)] backdrop-blur landscape:max-md:pb-[max(0.35rem,env(safe-area-inset-bottom))] landscape:max-md:pt-1 md:hidden"
           aria-label="Navegación principal"
         >
-          <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
+          <div className="mx-auto grid max-w-md grid-cols-5 gap-1 landscape:max-md:max-w-2xl">
             {links
               .filter(({ href }) => mobilePrimaryHrefs.has(href))
               .map(({ href, label, icon: Icon }) => {
@@ -369,29 +369,33 @@ export function Navbar({
                     key={href}
                     href={href}
                     onClick={() => setOpen(false)}
-                    className={`flex min-h-[4.25rem] flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[11px] font-semibold transition ${
+                    className={`flex min-h-[4.25rem] flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[11px] font-semibold transition landscape:max-md:min-h-0 landscape:max-md:flex-row landscape:max-md:gap-1.5 landscape:max-md:px-2 landscape:max-md:py-2 ${
                       active
                         ? "bg-primary-soft text-primary"
                         : "text-muted active:bg-background"
                     }`}
                   >
                     <Icon
-                      className={`h-6 w-6 ${active ? "stroke-[2.5]" : ""}`}
+                      className={`h-6 w-6 landscape:max-md:h-5 landscape:max-md:w-5 ${active ? "stroke-[2.5]" : ""}`}
                     />
-                    <span>{shortLabel}</span>
+                    <span className="landscape:max-md:text-[10px]">{shortLabel}</span>
                   </Link>
                 );
               })}
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}
-              className={`flex min-h-[4.25rem] flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[11px] font-semibold transition ${
+              className={`flex min-h-[4.25rem] flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[11px] font-semibold transition landscape:max-md:min-h-0 landscape:max-md:flex-row landscape:max-md:gap-1.5 landscape:max-md:px-2 landscape:max-md:py-2 ${
                 open ? "bg-primary-soft text-primary" : "text-muted"
               }`}
               aria-expanded={open}
             >
-              {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-              <span>Más</span>
+              {open ? (
+                <X className="h-6 w-6 landscape:max-md:h-5 landscape:max-md:w-5" />
+              ) : (
+                <Menu className="h-6 w-6 landscape:max-md:h-5 landscape:max-md:w-5" />
+              )}
+              <span className="landscape:max-md:text-[10px]">Más</span>
             </button>
           </div>
         </nav>

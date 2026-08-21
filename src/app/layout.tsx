@@ -24,6 +24,9 @@ const body = Source_Sans_3({
 });
 
 export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
   themeColor: "#4f334a",
   colorScheme: "light",
 };
@@ -103,7 +106,9 @@ export default async function RootLayout({
               createdAt: n.createdAt.toISOString(),
             }))}
           />
-          <main className="flex-1 pb-28 md:pb-0">{children}</main>
+          <main className="flex-1 pb-28 landscape:max-md:pb-20 md:pb-0">
+            {children}
+          </main>
           {session?.user && <Footer privada={privada} />}
         </Providers>
       </body>
