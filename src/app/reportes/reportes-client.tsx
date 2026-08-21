@@ -12,6 +12,7 @@ import {
 import { PageHero } from "@/components/PageHero";
 import { toast } from "@/components/Toast";
 import { createIssueReport } from "@/lib/actions/portal";
+import { uploadFilesFromClient } from "@/lib/client-upload";
 import {
   ISSUE_CATEGORIES,
   ISSUE_STATUS_LABEL,
@@ -52,6 +53,8 @@ export function ReportesClient({
   const [filter, setFilter] = useState<"todos" | "abiertos" | "cerrados">(
     "todos",
   );
+  const [photos, setPhotos] = useState<FileList | null>(null);
+  const [uploadHint, setUploadHint] = useState("");
 
   const filtered = useMemo(() => {
     if (filter === "abiertos") {
@@ -72,6 +75,8 @@ export function ReportesClient({
     setDescription("");
     setCategory(ISSUE_CATEGORIES[0]);
     setLocation("");
+    setPhotos(null);
+    setUploadHint("");
     setShowForm(false);
   }
 
@@ -127,16 +132,43 @@ export function ReportesClient({
         {showForm && (
           <form
             className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-5"
-            action={(fd) => {
+            onSubmit={(e) => {
+              e.preventDefault();
+              const form = e.currentTarget;
+              const fd = new FormData(form);
               startTransition(async () => {
-                const res = await createIssueReport(fd);
-                if (res.error) {
-                  toast(res.error, "error");
-                  return;
+                try {
+                  const list = photos ? Array.from(photos).slice(0, 4) : [];
+                  if (list.length === 0) {
+                    toast("Agrega al menos una foto.", "error");
+                    return;
+                  }
+                  setUploadHint("Subiendo fotos…");
+                  const uploaded = await uploadFilesFromClient(list, {
+                    folder: "reports",
+                    kind: "image",
+                  });
+                  fd.delete("photos");
+                  fd.set("photoUrls", JSON.stringify(uploaded));
+                  setUploadHint("Guardando reporte…");
+                  const res = await createIssueReport(fd);
+                  if (res.error) {
+                    toast(res.error, "error");
+                    setUploadHint("");
+                    return;
+                  }
+                  toast("Reporte enviado al comité.");
+                  resetForm();
+                  router.refresh();
+                } catch (err) {
+                  toast(
+                    err instanceof Error
+                      ? err.message
+                      : "No se pudieron subir las fotos. Intenta con JPG más liviano.",
+                    "error",
+                  );
+                  setUploadHint("");
                 }
-                toast("Reporte enviado al comité.");
-                resetForm();
-                router.refresh();
               });
             }}
           >
@@ -198,16 +230,19 @@ export function ReportesClient({
               </span>
               <input
                 type="file"
-                name="photos"
-                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp"
+                accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif"
                 multiple
                 required
+                onChange={(e) => setPhotos(e.target.files)}
                 className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-primary-soft file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary"
               />
               <span className="mt-1 block text-xs">
-                JPG, PNG o WEBP · máx. 8 MB c/u
+                En el teléfono se comprimen automáticamente. Preferible JPG/PNG.
               </span>
             </label>
+            {uploadHint ? (
+              <p className="mt-2 text-xs font-medium text-primary">{uploadHint}</p>
+            ) : null}
             <button
               type="submit"
               disabled={pending}

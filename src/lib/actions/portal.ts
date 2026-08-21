@@ -75,6 +75,8 @@ export async function createNewsPost(formData: FormData) {
   const body = String(formData.get("body") ?? "").trim();
   const category = String(formData.get("category") ?? "AVISO") as NewsCategory;
   const file = formData.get("document");
+  const clientUrl = String(formData.get("documentUrl") ?? "").trim();
+  const clientName = String(formData.get("documentName") ?? "").trim() || null;
 
   if (!title || !body) {
     return { error: "Título y contenido son obligatorios." };
@@ -83,9 +85,14 @@ export async function createNewsPost(formData: FormData) {
   let documentUrl: string | null = null;
   let documentName: string | null = null;
   try {
-    const saved = await saveUploadedDocument(fileFromFormData(file));
-    documentUrl = saved.documentUrl;
-    documentName = saved.documentName;
+    if (clientUrl.startsWith("https://") || clientUrl.startsWith("/")) {
+      documentUrl = clientUrl;
+      documentName = clientName;
+    } else {
+      const saved = await saveUploadedDocument(fileFromFormData(file));
+      documentUrl = saved.documentUrl;
+      documentName = saved.documentName;
+    }
   } catch (error) {
     return {
       error:
@@ -320,6 +327,8 @@ export async function updateNewsPost(formData: FormData) {
   const category = String(formData.get("category") ?? "AVISO") as NewsCategory;
   const file = formData.get("document");
   const removeDocument = formData.get("removeDocument") === "on";
+  const clientUrl = String(formData.get("documentUrl") ?? "").trim();
+  const clientName = String(formData.get("documentName") ?? "").trim() || null;
 
   if (!id || !title || !body) {
     return { error: "Título y contenido son obligatorios." };
@@ -339,11 +348,17 @@ export async function updateNewsPost(formData: FormData) {
   }
 
   try {
-    const saved = await saveUploadedDocument(fileFromFormData(file));
-    if (saved.documentUrl) {
-      documentUrl = saved.documentUrl;
-      documentName = saved.documentName;
+    if (clientUrl.startsWith("https://") || clientUrl.startsWith("/")) {
+      documentUrl = clientUrl;
+      documentName = clientName;
       hasDocument = true;
+    } else {
+      const saved = await saveUploadedDocument(fileFromFormData(file));
+      if (saved.documentUrl) {
+        documentUrl = saved.documentUrl;
+        documentName = saved.documentName;
+        hasDocument = true;
+      }
     }
   } catch (error) {
     return {
@@ -1116,12 +1131,35 @@ export async function annulFine(fineId: string) {
 
 const MAX_ISSUE_PHOTOS = 4;
 
+function parseClientUploads(raw: string): { url: string; name: string | null }[] {
+  if (!raw.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const url = String((item as { url?: unknown }).url ?? "").trim();
+        if (!url.startsWith("https://") && !url.startsWith("/")) return null;
+        const name = String((item as { name?: unknown }).name ?? "").trim() || null;
+        return { url, name };
+      })
+      .filter((x): x is { url: string; name: string | null } => Boolean(x))
+      .slice(0, MAX_ISSUE_PHOTOS);
+  } catch {
+    return [];
+  }
+}
+
 export async function createIssueReport(formData: FormData) {
   const user = await requireUser();
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const category = String(formData.get("category") ?? "").trim();
   const location = String(formData.get("location") ?? "").trim() || null;
+  const clientPhotos = parseClientUploads(
+    String(formData.get("photoUrls") ?? ""),
+  );
   const files = formData.getAll("photos");
 
   if (!title || !description || !category) {
@@ -1131,26 +1169,30 @@ export async function createIssueReport(formData: FormData) {
     return { error: "Categoría inválida." };
   }
 
-  const uploads: { url: string; name: string | null }[] = [];
-  try {
-    for (const entry of files.slice(0, MAX_ISSUE_PHOTOS)) {
-      const file = fileFromFormData(entry);
-      if (!file) continue;
-      const saved = await saveUploadedDocument(file, { folder: "reports" });
-      if (saved.documentUrl) {
-        uploads.push({
-          url: saved.documentUrl,
-          name: saved.documentName,
-        });
+  const uploads: { url: string; name: string | null }[] = [...clientPhotos];
+
+  // Fallback: subida por servidor (archivos pequeños / escritorio).
+  if (uploads.length === 0) {
+    try {
+      for (const entry of files.slice(0, MAX_ISSUE_PHOTOS)) {
+        const file = fileFromFormData(entry);
+        if (!file) continue;
+        const saved = await saveUploadedDocument(file, { folder: "reports" });
+        if (saved.documentUrl) {
+          uploads.push({
+            url: saved.documentUrl,
+            name: saved.documentName,
+          });
+        }
       }
+    } catch (error) {
+      return {
+        error:
+          error instanceof Error
+            ? error.message
+            : "No se pudieron subir las fotos.",
+      };
     }
-  } catch (error) {
-    return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "No se pudieron subir las fotos.",
-    };
   }
 
   if (uploads.length === 0) {

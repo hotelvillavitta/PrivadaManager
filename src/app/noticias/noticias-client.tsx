@@ -19,6 +19,7 @@ import {
   toggleNewsReaction,
   updateNewsPost,
 } from "@/lib/actions/portal";
+import { uploadFileFromClient } from "@/lib/client-upload";
 import { NEWS_CATEGORY_LABEL } from "@/lib/utils";
 import { AdminFormSheet } from "@/components/AdminFormSheet";
 
@@ -82,6 +83,7 @@ export function NoticiasClient({
   const [body, setBody] = useState("");
   const [category, setCategory] = useState("AVISO");
   const [removeDocument, setRemoveDocument] = useState(false);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
 
   useEffect(() => {
     setLocal(posts);
@@ -130,6 +132,7 @@ export function NoticiasClient({
     setBody("");
     setCategory("AVISO");
     setRemoveDocument(false);
+    setDocumentFile(null);
   }
 
   const newsForm = (
@@ -139,23 +142,44 @@ export function NoticiasClient({
           ? undefined
           : "mb-6 rounded-2xl border border-border bg-surface p-4 shadow-sm sm:mb-8 sm:p-5"
       }
-      action={(fd) => {
+      onSubmit={(e) => {
+        e.preventDefault();
+        const form = e.currentTarget;
+        const fd = new FormData(form);
         setMessage("");
         startTransition(async () => {
-          const res = editing
-            ? await updateNewsPost(fd)
-            : await createNewsPost(fd);
-          if (res.error) {
-            setMessage(res.error);
-            toast(res.error, "error");
-          } else {
-            const msg = editing
-              ? "Comunicado actualizado."
-              : "Comunicado publicado.";
+          try {
+            if (documentFile && documentFile.size > 0) {
+              const uploaded = await uploadFileFromClient(documentFile, {
+                folder: "uploads",
+                kind: "document",
+              });
+              fd.delete("document");
+              fd.set("documentUrl", uploaded.url);
+              fd.set("documentName", uploaded.name);
+            }
+            const res = editing
+              ? await updateNewsPost(fd)
+              : await createNewsPost(fd);
+            if (res.error) {
+              setMessage(res.error);
+              toast(res.error, "error");
+            } else {
+              const msg = editing
+                ? "Comunicado actualizado."
+                : "Comunicado publicado.";
+              setMessage(msg);
+              toast(msg);
+              cancelEdit();
+              router.refresh();
+            }
+          } catch (err) {
+            const msg =
+              err instanceof Error
+                ? err.message
+                : "No se pudo subir el archivo. Prueba un PDF o imagen más liviana.";
             setMessage(msg);
-            toast(msg);
-            cancelEdit();
-            router.refresh();
+            toast(msg, "error");
           }
         });
       }}
@@ -212,12 +236,12 @@ export function NoticiasClient({
         </span>
         <input
           type="file"
-          name="document"
-          accept=".pdf,.doc,.docx,image/png,image/jpeg,image/webp"
+          accept=".pdf,.doc,.docx,image/png,image/jpeg,image/webp,image/*"
+          onChange={(e) => setDocumentFile(e.target.files?.[0] ?? null)}
           className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-primary-soft file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary"
         />
         <span className="mt-1 block text-xs">
-          PDF, Word o imagen · máx. 8 MB
+          PDF, Word o imagen · se sube directo (mejor en celular)
         </span>
       </label>
       {editing?.documentUrl && (
