@@ -72,6 +72,7 @@ export default async function NotificacionesPage() {
             newsId: n.newsId,
             reservationId: n.reservationId,
             fineId: n.fineId,
+            issueReportId: n.issueReportId,
             createdAt: n.createdAt.toISOString(),
           }))}
         />

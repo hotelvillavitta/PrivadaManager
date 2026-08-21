@@ -6,6 +6,7 @@ export type NotificationLinkItem = {
   newsId?: string | null;
   reservationId?: string | null;
   fineId?: string | null;
+  issueReportId?: string | null;
 };
 
 export type NotificationKind =
@@ -13,13 +14,16 @@ export type NotificationKind =
   | "noticia"
   | "multa"
   | "pago"
+  | "reporte"
   | "general";
 
 export function notificationKind(n: NotificationLinkItem): NotificationKind {
+  if (n.issueReportId) return "reporte";
   if (n.reservationId) return "reserva";
   if (n.newsId) return "noticia";
   if (n.fineId) return "multa";
   const t = `${n.title} ${n.body ?? ""}`.toLowerCase();
+  if (t.includes("reporte") || t.includes("desperfecto")) return "reporte";
   if (t.includes("multa") || t.includes("sanción") || t.includes("sancion")) {
     return "multa";
   }
@@ -38,16 +42,26 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   noticia: "Aviso",
   multa: "Multa",
   pago: "Cuotas",
+  reporte: "Reporte",
   general: "Aviso",
 };
 
 export function hrefForNotification(n: NotificationLinkItem): string | null {
+  if (n.issueReportId) {
+    if (n.title.toLowerCase().includes("nuevo reporte")) {
+      return "/admin/reportes";
+    }
+    return "/reportes";
+  }
   if (n.reservationId) {
     return `/reservaciones?solicitud=${n.reservationId}`;
   }
   if (n.newsId) return `/noticias/${n.newsId}`;
   if (n.fineId) return "/cuotas#multas";
   const t = n.title.toLowerCase();
+  if (t.includes("reporte") || t.includes("desperfecto")) {
+    return "/admin/reportes";
+  }
   if (t.includes("multa") || t.includes("sanción") || t.includes("sancion")) {
     return "/cuotas#multas";
   }

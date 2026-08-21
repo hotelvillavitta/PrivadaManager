@@ -96,6 +96,7 @@ export function isDocumentUploadConfigured() {
 
 export async function saveUploadedDocument(
   file: File | UploadLike | null,
+  opts?: { folder?: string },
 ): Promise<UploadedDocument> {
   if (!file || !isUploadLike(file) || file.size === 0) {
     return { documentUrl: null, documentName: null };
@@ -103,6 +104,7 @@ export async function saveUploadedDocument(
 
   assertAllowed(file);
 
+  const folder = (opts?.folder ?? "uploads").replace(/^\/+|\/+$/g, "");
   const safeExt = extensionFor(file) || ".bin";
   const filename = `${Date.now()}-${randomUUID()}${safeExt}`;
   const contentType = file.type || undefined;
@@ -115,7 +117,7 @@ export async function saveUploadedDocument(
     const { put } = await import("@vercel/blob");
     const buffer = Buffer.from(await file.arrayBuffer());
     try {
-      const blob = await put(`grenache/uploads/${filename}`, buffer, {
+      const blob = await put(`grenache/${folder}/${filename}`, buffer, {
         access: "public",
         contentType,
         ...(hasBlobToken
@@ -144,13 +146,13 @@ export async function saveUploadedDocument(
     );
   }
 
-  const uploadsDir = path.join(process.cwd(), "public", "uploads");
+  const uploadsDir = path.join(process.cwd(), "public", folder);
   await mkdir(uploadsDir, { recursive: true });
   const buffer = Buffer.from(await file.arrayBuffer());
   await writeFile(path.join(uploadsDir, filename), buffer);
 
   return {
-    documentUrl: `/uploads/${filename}`,
+    documentUrl: `/${folder}/${filename}`,
     documentName: file.name,
   };
 }

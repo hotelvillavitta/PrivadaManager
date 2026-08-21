@@ -283,6 +283,10 @@ export async function getAdminDashboard() {
     }),
   ]);
 
+  const openIssues = await prisma.issueReport.count({
+    where: { status: { in: ["ABIERTO", "EN_REVISION"] } },
+  });
+
   return {
     residents,
     pendingReservations,
@@ -291,8 +295,37 @@ export async function getAdminDashboard() {
     debtFees,
     paidThisMonth,
     pendingFines,
+    openIssues,
     residentCount: residents.filter((r) => r.role === "COLONO").length,
   };
+}
+
+export async function getIssueReportsForUser(userId: string) {
+  return prisma.issueReport.findMany({
+    where: { reporterId: userId },
+    orderBy: { createdAt: "desc" },
+    include: {
+      photos: { orderBy: { createdAt: "asc" } },
+    },
+  });
+}
+
+export async function getAllIssueReports() {
+  return prisma.issueReport.findMany({
+    orderBy: [{ createdAt: "desc" }],
+    include: {
+      photos: { orderBy: { createdAt: "asc" } },
+      reporter: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          houseNumber: true,
+          email: true,
+        },
+      },
+    },
+  });
 }
 
 export async function getHouseNumbers() {

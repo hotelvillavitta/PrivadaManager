@@ -6,6 +6,7 @@ import {
   CalendarDays,
   ChevronRight,
   CircleDollarSign,
+  ClipboardList,
   Newspaper,
   ShieldAlert,
   Users,
@@ -36,6 +37,13 @@ const modules = [
     description: "Emitir y anular sanciones",
     icon: ShieldAlert,
     badgeKey: "fines" as const,
+  },
+  {
+    href: "/admin/reportes",
+    title: "Reportes",
+    description: "Desperfectos reportados por vecinos",
+    icon: ClipboardList,
+    badgeKey: "issues" as const,
   },
   {
     href: "/admin/reservaciones",
@@ -84,6 +92,7 @@ export default async function AdminPage() {
     residents: data.residentCount,
     reservations: data.pendingReservations.length,
     fines: data.pendingFines.length,
+    issues: data.openIssues,
   };
 
   return (

@@ -39,6 +39,13 @@ enum FineStatus {
   ANULADA
 }
 
+enum IssueStatus {
+  ABIERTO
+  EN_REVISION
+  RESUELTO
+  CERRADO
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -64,6 +71,7 @@ model User {
   reservations  Reservation[]
   notifications Notification[]
   issuedFines   Fine[]          @relation("FineIssuedBy")
+  issueReports  IssueReport[]
 }
 
 model NewsPost {
@@ -230,7 +238,43 @@ model Notification {
   reservation    Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
   fineId         String?
   fine           Fine?    @relation(fields: [fineId], references: [id], onDelete: SetNull)
+  issueReportId  String?
+  issueReport    IssueReport? @relation(fields: [issueReportId], references: [id], onDelete: SetNull)
   createdAt      DateTime @default(now())
+}
+
+/// Reporte de desperfecto / incidencia por un residente.
+model IssueReport {
+  id          String      @id @default(cuid())
+  title       String
+  description String
+  category    String
+  location    String?
+  status      IssueStatus @default(ABIERTO)
+  houseNumber String?
+  adminNotes  String?
+  reporterId  String
+  reporter    User        @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  resolvedAt  DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  photos      IssuePhoto[]
+  notifications Notification[]
+
+  @@index([status, createdAt])
+  @@index([reporterId, createdAt])
+  @@index([houseNumber])
+}
+
+model IssuePhoto {
+  id        String   @id @default(cuid())
+  reportId  String
+  report    IssueReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  url       String
+  name      String?
+  createdAt DateTime @default(now())
+
+  @@index([reportId])
 }
 
 model PrivadaSettings {

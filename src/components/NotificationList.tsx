@@ -6,6 +6,7 @@ import {
   Bell,
   CalendarDays,
   ChevronRight,
+  ClipboardList,
   Newspaper,
   ShieldAlert,
   Wallet,
@@ -28,6 +29,7 @@ type Item = {
   newsId: string | null;
   reservationId: string | null;
   fineId?: string | null;
+  issueReportId?: string | null;
   createdAt: string;
 };
 
@@ -39,6 +41,7 @@ const KIND_STYLE: Record<
   noticia: { wrap: "bg-primary-soft text-primary", icon: Newspaper },
   multa: { wrap: "bg-danger-soft text-danger", icon: ShieldAlert },
   pago: { wrap: "bg-success-soft text-success", icon: Wallet },
+  reporte: { wrap: "bg-accent/15 text-accent", icon: ClipboardList },
   general: { wrap: "bg-warning-soft text-warning", icon: Bell },
 };
 

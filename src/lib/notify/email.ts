@@ -1,6 +1,10 @@
 import "server-only";
 import nodemailer from "nodemailer";
 import { Resend } from "resend";
+import {
+  EMAIL_LOGO_CID,
+  getEmailLogoBuffer,
+} from "@/lib/notify/email-layout";
 
 function gmailUser() {
   return process.env.GMAIL_USER?.trim() || "";
@@ -43,6 +47,13 @@ export async function sendEmail(opts: {
   const replyTo =
     opts.replyTo?.trim() || process.env.EMAIL_REPLY_TO?.trim() || undefined;
 
+  let logo: Buffer | null = null;
+  try {
+    logo = await getEmailLogoBuffer();
+  } catch (err) {
+    console.warn("[email] No se pudo cargar el logo embebido:", err);
+  }
+
   // Preferir Gmail del comité si está configurado (sin dominio extra).
   if (gmailUser() && gmailAppPassword()) {
     return sendViaGmail({
@@ -51,6 +62,7 @@ export async function sendEmail(opts: {
       html: opts.html,
       text: opts.text,
       replyTo,
+      logo,
     });
   }
 
@@ -63,6 +75,7 @@ export async function sendEmail(opts: {
       html: opts.html,
       text: opts.text,
       replyTo,
+      logo,
     });
   }
 
@@ -78,6 +91,7 @@ async function sendViaGmail(opts: {
   html: string;
   text?: string;
   replyTo?: string;
+  logo: Buffer | null;
 }): Promise<
   { ok: true; id?: string } | { ok: false; error: string; skipped?: boolean }
 > {
@@ -107,6 +121,19 @@ async function sendViaGmail(opts: {
       text: opts.text,
       headers,
       ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
+      ...(opts.logo
+        ? {
+            attachments: [
+              {
+                filename: "grenache-logo.png",
+                content: opts.logo,
+                cid: EMAIL_LOGO_CID,
+                contentType: "image/png",
+                contentDisposition: "inline" as const,
+              },
+            ],
+          }
+        : {}),
     });
 
     return { ok: true, id: info.messageId };
@@ -125,6 +152,7 @@ async function sendViaResend(opts: {
   html: string;
   text?: string;
   replyTo?: string;
+  logo: Buffer | null;
 }): Promise<
   { ok: true; id?: string } | { ok: false; error: string; skipped?: boolean }
 > {
@@ -137,6 +165,17 @@ async function sendViaResend(opts: {
       html: opts.html,
       text: opts.text,
       ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
+      ...(opts.logo
+        ? {
+            attachments: [
+              {
+                filename: "grenache-logo.png",
+                content: opts.logo,
+                contentId: EMAIL_LOGO_CID,
+              },
+            ],
+          }
+        : {}),
     });
 
     if (error) {

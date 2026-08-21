@@ -5,6 +5,7 @@ import type { NewsCategory, ReservationStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireAdmin, requireUser } from "@/lib/session";
 import { saveUploadedDocument, fileFromFormData } from "@/lib/uploads";
+import { ISSUE_CATEGORIES } from "@/lib/issues/catalog";
 import { overdueMaintenanceWhere } from "@/lib/utils";
 import {
   FEE_BASE_AMOUNT,
@@ -1108,6 +1109,148 @@ export async function annulFine(fineId: string) {
   });
 
   revalidatePath("/cuotas");
+  revalidatePath("/admin");
+  revalidatePath("/notificaciones");
+  return { ok: true };
+}
+
+const MAX_ISSUE_PHOTOS = 4;
+
+export async function createIssueReport(formData: FormData) {
+  const user = await requireUser();
+  const title = String(formData.get("title") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const category = String(formData.get("category") ?? "").trim();
+  const location = String(formData.get("location") ?? "").trim() || null;
+  const files = formData.getAll("photos");
+
+  if (!title || !description || !category) {
+    return { error: "Título, categoría y descripción son obligatorios." };
+  }
+  if (!ISSUE_CATEGORIES.includes(category as (typeof ISSUE_CATEGORIES)[number])) {
+    return { error: "Categoría inválida." };
+  }
+
+  const uploads: { url: string; name: string | null }[] = [];
+  try {
+    for (const entry of files.slice(0, MAX_ISSUE_PHOTOS)) {
+      const file = fileFromFormData(entry);
+      if (!file) continue;
+      const saved = await saveUploadedDocument(file, { folder: "reports" });
+      if (saved.documentUrl) {
+        uploads.push({
+          url: saved.documentUrl,
+          name: saved.documentName,
+        });
+      }
+    }
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "No se pudieron subir las fotos.",
+    };
+  }
+
+  if (uploads.length === 0) {
+    return {
+      error: "Agrega al menos una foto del desperfecto (JPG, PNG o WEBP).",
+    };
+  }
+
+  const report = await prisma.issueReport.create({
+    data: {
+      title,
+      description,
+      category,
+      location,
+      houseNumber: user.houseNumber,
+      reporterId: user.id,
+      photos: {
+        create: uploads.map((p) => ({
+          url: p.url,
+          name: p.name,
+        })),
+      },
+    },
+  });
+
+  const admins = await prisma.user.findMany({
+    where: { role: "ADMIN" },
+    select: { id: true },
+  });
+  if (admins.length) {
+    const casa = user.houseNumber ? `Casa ${user.houseNumber}` : "Sin casa";
+    await prisma.notification.createMany({
+      data: admins.map((a) => ({
+        userId: a.id,
+        title: "Nuevo reporte de desperfecto",
+        body: `${casa}: ${title}`,
+        issueReportId: report.id,
+      })),
+    });
+  }
+
+  revalidatePath("/reportes");
+  revalidatePath("/admin/reportes");
+  revalidatePath("/admin");
+  revalidatePath("/notificaciones");
+  return { ok: true, id: report.id };
+}
+
+export async function updateIssueReport(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "").trim();
+  const status = String(formData.get("status") ?? "").trim() as
+    | "ABIERTO"
+    | "EN_REVISION"
+    | "RESUELTO"
+    | "CERRADO";
+  const adminNotes = String(formData.get("adminNotes") ?? "").trim() || null;
+
+  if (!id) return { error: "Reporte inválido." };
+  if (!["ABIERTO", "EN_REVISION", "RESUELTO", "CERRADO"].includes(status)) {
+    return { error: "Estado inválido." };
+  }
+
+  const existing = await prisma.issueReport.findUnique({ where: { id } });
+  if (!existing) return { error: "Reporte no encontrado." };
+
+  const becameResolved =
+    (status === "RESUELTO" || status === "CERRADO") &&
+    existing.status !== "RESUELTO" &&
+    existing.status !== "CERRADO";
+
+  await prisma.issueReport.update({
+    where: { id },
+    data: {
+      status,
+      adminNotes,
+      resolvedAt: becameResolved
+        ? new Date()
+        : status === "ABIERTO" || status === "EN_REVISION"
+          ? null
+          : existing.resolvedAt,
+    },
+  });
+
+  if (becameResolved) {
+    await prisma.notification.create({
+      data: {
+        userId: existing.reporterId,
+        title:
+          status === "RESUELTO"
+            ? "Tu reporte fue marcado como resuelto"
+            : "Tu reporte fue cerrado",
+        body: existing.title,
+        issueReportId: existing.id,
+      },
+    });
+  }
+
+  revalidatePath("/reportes");
+  revalidatePath("/admin/reportes");
   revalidatePath("/admin");
   revalidatePath("/notificaciones");
   return { ok: true };

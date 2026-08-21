@@ -52,6 +52,11 @@ export function Footer({ privada }: { privada: Privada }) {
                 Reservaciones
               </Link>
             </li>
+            <li>
+              <Link href="/reportes" className="hover:text-primary">
+                Reportes
+              </Link>
+            </li>
           </ul>
         </div>
 

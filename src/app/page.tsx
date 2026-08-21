@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bell, MessageSquare, Users } from "lucide-react";
+import { Bell, ClipboardList, MessageSquare, Users } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { fullName } from "@/lib/utils";
 import { redirect } from "next/navigation";
@@ -12,10 +12,10 @@ const features = [
     href: "/noticias",
   },
   {
-    title: "Directorio",
-    description: "Conoce a los miembros de tu comunidad.",
-    icon: Users,
-    href: "/directorio",
+    title: "Reportes",
+    description: "Avisa desperfectos con fotos al comité.",
+    icon: ClipboardList,
+    href: "/reportes",
   },
   {
     title: "Notificaciones",

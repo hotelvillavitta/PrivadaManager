@@ -99,6 +99,7 @@ export default async function RootLayout({
               newsId: n.newsId,
               reservationId: n.reservationId,
               fineId: n.fineId,
+              issueReportId: n.issueReportId,
               createdAt: n.createdAt.toISOString(),
             }))}
           />

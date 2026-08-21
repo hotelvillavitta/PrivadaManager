@@ -18,6 +18,7 @@ export type NavNotification = {
   newsId: string | null;
   reservationId: string | null;
   fineId?: string | null;
+  issueReportId?: string | null;
   createdAt: string;
 };
 
