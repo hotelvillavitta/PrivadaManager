@@ -34,7 +34,6 @@ type NavUser = {
 const baseLinks = [
   { href: "/", label: "Inicio", icon: Home },
   { href: "/noticias", label: "Noticias", icon: Newspaper },
-  { href: "/notificaciones", label: "Notificaciones", icon: Bell },
   { href: "/reservaciones", label: "Reservaciones", icon: CalendarDays },
   { href: "/reportes", label: "Reportes", icon: ClipboardList },
   { href: "/directorio", label: "Directorio", icon: Building2 },
@@ -90,13 +89,18 @@ export function Navbar({
     <>
       <header className="sticky top-0 z-50 border-b border-border bg-surface/95 pt-[env(safe-area-inset-top)] shadow-sm backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3 lg:px-6">
-          <Link href="/" className="flex min-w-0 items-center gap-3">
-            <BrandLogo
-              variant="mark"
-              className="h-11 w-11 rounded-full bg-white object-cover shadow-sm ring-1 ring-border sm:h-12 sm:w-12"
-              priority
-            />
-            <div className="min-w-0 leading-tight">
+          <Link
+            href="/"
+            className="flex shrink-0 items-center gap-2.5 sm:gap-3"
+          >
+            <span className="relative block h-11 w-11 shrink-0 overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-border sm:h-12 sm:w-12">
+              <BrandLogo
+                variant="mark"
+                className="h-full w-full object-cover"
+                priority
+              />
+            </span>
+            <div className="hidden min-w-0 leading-tight sm:block lg:max-w-[9.5rem] xl:max-w-[11rem] 2xl:max-w-none">
               <p className="truncate font-display text-lg font-semibold tracking-tight text-primary-dark sm:text-xl">
                 {privadaName}
               </p>
@@ -106,34 +110,70 @@ export function Navbar({
             </div>
           </Link>
 
-          <nav className="hidden items-center gap-1 rounded-2xl border border-border bg-background/80 p-1 xl:flex">
-            {links.map(({ href, label, icon: Icon }) => {
+          <nav className="hidden min-w-0 flex-1 items-center justify-center px-2 2xl:flex">
+            <div className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-2xl border border-border bg-background/80 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {links.map(({ href, label, icon: Icon }) => {
+                const active =
+                  href === "/" ? pathname === "/" : pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    title={label}
+                    className={`flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-2 text-sm transition 2xl:px-3 ${
+                      active
+                        ? "bg-primary font-semibold text-white shadow-sm"
+                        : "font-medium text-muted hover:bg-surface hover:text-primary-dark"
+                    }`}
+                  >
+                    <span
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ${
+                        active ? "bg-white/15" : "bg-primary-soft text-primary"
+                      }`}
+                    >
+                      <Icon className="h-3.5 w-3.5" strokeWidth={2.25} />
+                    </span>
+                    <span className="whitespace-nowrap">{label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
+
+          {/* Escritorio intermedio: iconos + menú “Más” para no aplastar el logo */}
+          <nav className="hidden min-w-0 flex-1 items-center justify-center gap-1 px-1 xl:flex 2xl:hidden">
+            {links.slice(0, 5).map(({ href, label, icon: Icon }) => {
               const active =
                 href === "/" ? pathname === "/" : pathname.startsWith(href);
               return (
                 <Link
                   key={href}
                   href={href}
-                  className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm transition ${
+                  title={label}
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${
                     active
-                      ? "bg-primary font-semibold text-white shadow-sm"
-                      : "font-medium text-muted hover:bg-surface hover:text-primary-dark"
+                      ? "bg-primary text-white shadow-sm"
+                      : "bg-background text-primary ring-1 ring-border hover:bg-primary-soft"
                   }`}
                 >
-                  <span
-                    className={`flex h-6 w-6 items-center justify-center rounded-lg ${
-                      active ? "bg-white/15" : "bg-primary-soft text-primary"
-                    }`}
-                  >
-                    <Icon className="h-3.5 w-3.5" strokeWidth={2.25} />
-                  </span>
-                  {label}
+                  <Icon className="h-4 w-4" strokeWidth={2.25} />
+                  <span className="sr-only">{label}</span>
                 </Link>
               );
             })}
+            <button
+              type="button"
+              className="flex h-10 shrink-0 items-center gap-1 rounded-xl bg-background px-2.5 text-xs font-semibold text-primary ring-1 ring-border hover:bg-primary-soft"
+              onClick={() => setOpen((v) => !v)}
+              aria-label="Más secciones"
+              aria-expanded={open}
+            >
+              <Menu className="h-4 w-4" />
+              Más
+            </button>
           </nav>
 
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {user ? (
               <>
                 <NotificationBell unread={unread} items={notifications} />
@@ -172,7 +212,7 @@ export function Navbar({
 
             <button
               type="button"
-              className="hidden rounded-full border border-border bg-surface p-2.5 text-primary-dark hover:bg-primary-soft md:inline-flex xl:hidden"
+              className="inline-flex rounded-full border border-border bg-surface p-2.5 text-primary-dark hover:bg-primary-soft xl:hidden"
               onClick={() => setOpen((v) => !v)}
               aria-label="Menú"
               aria-expanded={open}
@@ -182,9 +222,9 @@ export function Navbar({
           </div>
         </div>
 
-        {/* Menú tablet (md–xl): debajo del header */}
+        {/* Menú expandido: tablet y escritorio intermedio */}
         {open && (
-          <nav className="hidden border-t border-border bg-surface px-4 py-3 shadow-inner md:block xl:hidden">
+          <nav className="border-t border-border bg-surface px-4 py-3 shadow-inner 2xl:hidden">
             <div className="mx-auto flex max-w-7xl flex-col gap-1.5">
               {links.map(({ href, label, icon: Icon }) => {
                 const active =
@@ -213,6 +253,26 @@ export function Navbar({
                   </Link>
                 );
               })}
+              <Link
+                href="/notificaciones"
+                onClick={() => setOpen(false)}
+                className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm ${
+                  pathname.startsWith("/notificaciones")
+                    ? "bg-primary font-semibold text-white"
+                    : "font-medium text-foreground hover:bg-primary-soft"
+                }`}
+              >
+                <span
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                    pathname.startsWith("/notificaciones")
+                      ? "bg-white/15"
+                      : "bg-primary-soft text-primary"
+                  }`}
+                >
+                  <Bell className="h-4 w-4" strokeWidth={2.25} />
+                </span>
+                Notificaciones
+              </Link>
             </div>
           </nav>
         )}
