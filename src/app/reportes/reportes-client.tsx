@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Camera,
@@ -12,7 +12,10 @@ import {
 import { PageHero } from "@/components/PageHero";
 import { toast } from "@/components/Toast";
 import { createIssueReport } from "@/lib/actions/portal";
-import { uploadFilesFromClient } from "@/lib/client-upload";
+import {
+  prepareImageForClient,
+  uploadFilesFromClient,
+} from "@/lib/client-upload";
 import {
   ISSUE_CATEGORIES,
   ISSUE_STATUS_LABEL,
@@ -53,8 +56,18 @@ export function ReportesClient({
   const [filter, setFilter] = useState<"todos" | "abiertos" | "cerrados">(
     "todos",
   );
-  const [photos, setPhotos] = useState<FileList | null>(null);
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const [preparingPhotos, setPreparingPhotos] = useState(false);
   const [uploadHint, setUploadHint] = useState("");
+
+  useEffect(() => {
+    return () => {
+      photoPreviews.forEach((url) => URL.revokeObjectURL(url));
+    };
+    // Solo al desmontar / reemplazar previews se revoca en onChange.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filtered = useMemo(() => {
     if (filter === "abiertos") {
@@ -70,14 +83,55 @@ export function ReportesClient({
     return reports;
   }, [filter, reports]);
 
+  function clearPhotoPreviews() {
+    setPhotoPreviews((prev) => {
+      prev.forEach((url) => URL.revokeObjectURL(url));
+      return [];
+    });
+    setPhotos([]);
+  }
+
   function resetForm() {
     setTitle("");
     setDescription("");
     setCategory(ISSUE_CATEGORIES[0]);
     setLocation("");
-    setPhotos(null);
+    clearPhotoPreviews();
     setUploadHint("");
     setShowForm(false);
+  }
+
+  async function onPhotosSelected(fileList: FileList | null) {
+    const list = fileList ? Array.from(fileList).slice(0, 4) : [];
+    if (list.length === 0) {
+      clearPhotoPreviews();
+      return;
+    }
+    setPreparingPhotos(true);
+    setUploadHint("Preparando fotos…");
+    try {
+      const prepared: File[] = [];
+      for (const file of list) {
+        prepared.push(await prepareImageForClient(file));
+      }
+      setPhotoPreviews((prev) => {
+        prev.forEach((url) => URL.revokeObjectURL(url));
+        return prepared.map((f) => URL.createObjectURL(f));
+      });
+      setPhotos(prepared);
+      setUploadHint("");
+    } catch (err) {
+      clearPhotoPreviews();
+      toast(
+        err instanceof Error
+          ? err.message
+          : "No se pudieron leer las fotos de la fototeca.",
+        "error",
+      );
+      setUploadHint("");
+    } finally {
+      setPreparingPhotos(false);
+    }
   }
 
   return (
@@ -138,13 +192,12 @@ export function ReportesClient({
               const fd = new FormData(form);
               startTransition(async () => {
                 try {
-                  const list = photos ? Array.from(photos).slice(0, 4) : [];
-                  if (list.length === 0) {
+                  if (photos.length === 0) {
                     toast("Agrega al menos una foto.", "error");
                     return;
                   }
                   setUploadHint("Subiendo fotos…");
-                  const uploaded = await uploadFilesFromClient(list, {
+                  const uploaded = await uploadFilesFromClient(photos, {
                     folder: "reports",
                     kind: "image",
                   });
@@ -230,22 +283,39 @@ export function ReportesClient({
               </span>
               <input
                 type="file"
-                accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif"
+                accept="image/jpeg,image/jpg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
                 multiple
-                required
-                onChange={(e) => setPhotos(e.target.files)}
+                required={photos.length === 0}
+                disabled={preparingPhotos || pending}
+                onChange={(e) => {
+                  void onPhotosSelected(e.target.files);
+                  e.target.value = "";
+                }}
                 className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-primary-soft file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary"
               />
               <span className="mt-1 block text-xs">
-                En el teléfono se comprimen automáticamente. Preferible JPG/PNG.
+                Se convierten a JPG al elegirlas (fototeca del iPhone incluida).
               </span>
             </label>
+            {photoPreviews.length > 0 && (
+              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                {photoPreviews.map((src, i) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={src}
+                    src={src}
+                    alt={photos[i]?.name ?? `Foto ${i + 1}`}
+                    className="h-20 w-20 rounded-xl object-cover ring-1 ring-border"
+                  />
+                ))}
+              </div>
+            )}
             {uploadHint ? (
               <p className="mt-2 text-xs font-medium text-primary">{uploadHint}</p>
             ) : null}
             <button
               type="submit"
-              disabled={pending}
+              disabled={pending || preparingPhotos || photos.length === 0}
               className="mt-4 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
             >
               {pending ? "Enviando…" : "Enviar reporte"}
@@ -309,7 +379,15 @@ export function ReportesClient({
                         <img
                           src={p.url}
                           alt={p.name ?? "Evidencia"}
-                          className="h-20 w-20 rounded-xl object-cover ring-1 ring-border"
+                          loading="lazy"
+                          decoding="async"
+                          referrerPolicy="no-referrer"
+                          className="h-20 w-20 rounded-xl bg-background object-cover ring-1 ring-border"
+                          onError={(e) => {
+                            const el = e.currentTarget;
+                            el.style.opacity = "0.35";
+                            el.alt = "No se pudo mostrar";
+                          }}
                         />
                       </a>
                     ))}

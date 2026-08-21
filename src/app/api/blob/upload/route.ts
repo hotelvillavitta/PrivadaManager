@@ -4,17 +4,13 @@ import { auth } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
-const IMAGE_TYPES = [
+const DOC_TYPES = [
   "image/jpeg",
+  "image/jpg",
   "image/png",
   "image/webp",
   "image/heic",
   "image/heif",
-  "image/jpg",
-];
-
-const DOC_TYPES = [
-  ...IMAGE_TYPES,
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -66,7 +62,11 @@ export async function POST(request: Request) {
         }
 
         return {
-          allowedContentTypes: kind === "image" ? IMAGE_TYPES : DOC_TYPES,
+          // Tras convertir en el cliente, las fotos van como JPEG.
+          allowedContentTypes:
+            kind === "image"
+              ? ["image/jpeg", "image/jpg", "image/png", "image/webp"]
+              : DOC_TYPES,
           maximumSizeInBytes: 12 * 1024 * 1024,
           addRandomSuffix: true,
           tokenPayload: JSON.stringify({
