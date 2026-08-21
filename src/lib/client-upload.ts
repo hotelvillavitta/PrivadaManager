@@ -13,16 +13,47 @@ function sanitizeName(name: string) {
   return name.replace(/[^\w.\-()\s]+/g, "_").slice(0, 80) || "archivo";
 }
 
-/** Comprime imágenes grandes a JPEG para móvil (iPhone ~10MB → ~1MB). */
+function isHeicLike(file: File) {
+  const type = (file.type || "").toLowerCase();
+  const name = file.name.toLowerCase();
+  return (
+    type.includes("heic") ||
+    type.includes("heif") ||
+    name.endsWith(".heic") ||
+    name.endsWith(".heif")
+  );
+}
+
+function isImageLike(file: File) {
+  if (file.type.startsWith("image/")) return true;
+  return /\.(jpe?g|png|webp|heic|heif|gif)$/i.test(file.name);
+}
+
+/** iPhone fototeca → HEIC; casi ningún navegador lo muestra en <img>. */
+async function convertHeicToJpeg(file: File): Promise<File> {
+  if (!isHeicLike(file)) return file;
+  try {
+    const heic2any = (await import("heic2any")).default;
+    const result = await heic2any({
+      blob: file,
+      toType: "image/jpeg",
+      quality: 0.85,
+    });
+    const blob = Array.isArray(result) ? result[0] : result;
+    if (!blob) return file;
+    const base = file.name.replace(/\.[^.]+$/, "") || "foto";
+    return new File([blob], `${base}.jpg`, { type: "image/jpeg" });
+  } catch {
+    throw new Error(
+      "Esta foto está en formato HEIC. En el iPhone: Ajustes → Cámara → Formatos → Más compatible, o elige “Imagen JPEG” al compartir.",
+    );
+  }
+}
+
+/** Comprime imágenes grandes a JPEG (iPhone ~10MB → ~1MB). */
 async function maybeCompressImage(file: File): Promise<File> {
-  if (!file.type.startsWith("image/") && !/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name)) {
-    return file;
-  }
-  // HEIC a veces no entra al canvas; si falla, se sube original.
-  if (file.type.includes("heic") || file.type.includes("heif")) {
-    return file;
-  }
-  if (file.size < 1.2 * 1024 * 1024) return file;
+  if (!isImageLike(file)) return file;
+  if (file.size < 1.2 * 1024 * 1024 && !isHeicLike(file)) return file;
 
   try {
     const bitmap = await createImageBitmap(file);
@@ -41,13 +72,20 @@ async function maybeCompressImage(file: File): Promise<File> {
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob((b) => resolve(b), "image/jpeg", 0.82),
     );
-    if (!blob || blob.size >= file.size) return file;
+    if (!blob) return file;
+    // Tras HEIC→JPEG conviene siempre devolver .jpg aunque el tamaño no baje.
+    if (blob.size >= file.size && file.type === "image/jpeg") return file;
 
     const base = file.name.replace(/\.[^.]+$/, "") || "foto";
     return new File([blob], `${base}.jpg`, { type: "image/jpeg" });
   } catch {
     return file;
   }
+}
+
+async function prepareImageForUpload(file: File): Promise<File> {
+  const asJpeg = await convertHeicToJpeg(file);
+  return maybeCompressImage(asJpeg);
 }
 
 /**
@@ -65,17 +103,25 @@ export async function uploadFileFromClient(
     throw new Error("El archivo supera el límite de 12 MB.");
   }
 
-  const prepared =
-    opts.kind === "image" ? await maybeCompressImage(file) : file;
+  let prepared = file;
+  if (opts.kind === "image" || isHeicLike(file) || isImageLike(file)) {
+    // Documentos que son foto de la fototeca también se normalizan a JPEG.
+    if (opts.kind === "image" || isHeicLike(file)) {
+      prepared = await prepareImageForUpload(file);
+    } else if (opts.kind === "document" && isImageLike(file)) {
+      prepared = await prepareImageForUpload(file);
+    }
+  }
 
   const pathname = `grenache/${opts.folder}/${Date.now()}-${sanitizeName(prepared.name)}`;
 
   const blob = await upload(pathname, prepared, {
     access: "public",
     handleUploadUrl: "/api/blob/upload",
+    contentType: prepared.type || undefined,
     clientPayload: JSON.stringify({
       folder: opts.folder,
-      kind: opts.kind,
+      kind: opts.kind === "image" || isImageLike(prepared) ? "image" : "document",
     }),
   });
 
