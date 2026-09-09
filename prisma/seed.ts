@@ -20,9 +20,24 @@ async function main() {
       name: "Grenache",
       address: "Priv. Grenache 4176, Fracc. Viñas del Mar",
       phone: "+52 (664) 356-4100",
-      email: "comitegrenche@gmail.com",
+      email: "comitegrenache@gmail.com",
       tagline:
         "Comunidad residencial comprometida con la excelencia y el bienestar de todos sus residentes.",
+      capacityMax: 50,
+      capacityNote: "Capacidad máxima del salón",
+      schedulesJson: JSON.stringify([
+        { days: "Domingo a Jueves", hours: "12:00 pm - 22:00 pm" },
+        { days: "Viernes y Sábado", hours: "12:00 pm - 2:00 am" },
+      ]),
+      rulesJson: JSON.stringify([
+        "Las reservaciones deben realizarse con al menos una semana de anticipación.",
+        "El área común puede reservarse por un máximo de 6 horas consecutivas.",
+        "El residente responsable debe estar presente durante todo el evento.",
+        "Está prohibido el uso de equipos de sonido después de las 22:00 hrs.",
+        "Se debe dejar el área en las mismas condiciones en que se encontró.",
+      ]),
+      primaryColor: "#4f334a",
+      slug: "grenache",
     },
   });
 

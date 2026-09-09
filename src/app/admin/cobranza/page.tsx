@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { auth } from "@/lib/auth";
 import {
   getFeeSummary,
@@ -14,7 +15,7 @@ import { CuotasClient } from "@/app/cuotas/cuotas-client";
 export default async function AdminCobranzaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ casa?: string }>;
+  searchParams: Promise<{ casa?: string; anio?: string; mes?: string }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
@@ -31,6 +32,9 @@ export default async function AdminCobranzaPage({
     session.user.houseNumber ||
     "1";
 
+  const initialYear = Number(params.anio);
+  const initialMonth = Number(params.mes);
+
   const [fees, palapaPayments, fines, summary] = await Promise.all([
     getFeesForHouse(houseNumber),
     getPalapaPaymentsForHouse(houseNumber),
@@ -40,8 +44,14 @@ export default async function AdminCobranzaPage({
 
   return (
     <div className="pb-8">
-      <div className="mx-auto max-w-4xl px-4 pt-6 lg:px-6">
+      <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-2 px-4 pt-6 lg:px-6">
         <AdminBackLink />
+        <Link
+          href="/admin/cobranza/matriz"
+          className="rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white"
+        >
+          Ver calendario de pagos
+        </Link>
       </div>
       <CuotasClient
         isAdmin
@@ -51,6 +61,18 @@ export default async function AdminCobranzaPage({
         houseDirectory={houseDirectory}
         accessCode={null}
         gateCode={null}
+        initialChargeYear={
+          Number.isFinite(initialYear) && initialYear > 2000
+            ? initialYear
+            : undefined
+        }
+        initialChargeMonth={
+          Number.isFinite(initialMonth) &&
+          initialMonth >= 1 &&
+          initialMonth <= 12
+            ? initialMonth
+            : undefined
+        }
         summary={summary}
         fees={fees.map((f) => ({
           id: f.id,

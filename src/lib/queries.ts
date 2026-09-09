@@ -3,18 +3,47 @@ import {
   calendarPartsInTijuana,
   overdueMaintenanceWhere,
 } from "@/lib/utils";
+import {
+  DEFAULT_PRIVADA,
+  darkColorFromPrimary,
+  normalizePrimaryColor,
+  parseRulesJson,
+  parseSchedulesJson,
+  softColorFromPrimary,
+  type Privada,
+} from "@/lib/privada";
 
-export async function getPrivada() {
-  return (
-    (await prisma.privadaSettings.findUnique({ where: { id: 1 } })) ?? {
-      name: "Grenache",
-      address: "Priv. Grenache 4176, Fracc. Viñas del Mar",
-      phone: "+52 (664) 356-4100",
-      email: "comitegrenche@gmail.com",
-      tagline:
-        "Comunidad residencial comprometida con la excelencia y el bienestar de todos sus residentes.",
-    }
-  );
+export async function getPrivada(): Promise<Privada> {
+  const row = await prisma.privadaSettings.findUnique({ where: { id: 1 } });
+  if (!row) return DEFAULT_PRIVADA;
+
+  return {
+    id: row.id,
+    name: row.name || DEFAULT_PRIVADA.name,
+    address: row.address || DEFAULT_PRIVADA.address,
+    phone: row.phone || DEFAULT_PRIVADA.phone,
+    email: row.email || DEFAULT_PRIVADA.email,
+    tagline: row.tagline || DEFAULT_PRIVADA.tagline,
+    capacityMax: row.capacityMax || DEFAULT_PRIVADA.capacityMax,
+    capacityNote: row.capacityNote,
+    schedules: parseSchedulesJson(row.schedulesJson),
+    rules: parseRulesJson(row.rulesJson),
+    logoUrl: row.logoUrl,
+    primaryColor: normalizePrimaryColor(row.primaryColor),
+    slug: row.slug || DEFAULT_PRIVADA.slug,
+  };
+}
+
+/** Variables CSS derivadas del color principal de la privada. */
+export function privadaThemeStyle(privada: Privada): Record<string, string> {
+  const primary = normalizePrimaryColor(privada.primaryColor);
+  return {
+    "--primary": primary,
+    "--primary-soft": softColorFromPrimary(primary),
+    "--primary-dark": darkColorFromPrimary(primary),
+    "--ring": primary,
+    "--unread": primary,
+  };
 }
 
 export async function getNewsFeed(userId?: string) {
@@ -136,6 +165,18 @@ export async function houseHasPendingFees(houseNumber: string | null | undefined
 }
 
 
+
+export async function getFinanceEntries(take = 200) {
+  return prisma.financeEntry.findMany({
+    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+    take,
+    include: {
+      monthlyFee: { select: { id: true, houseNumber: true, year: true, month: true } },
+      palapaPayment: { select: { id: true, houseNumber: true } },
+      fine: { select: { id: true, houseNumber: true } },
+    },
+  });
+}
 
 export async function getFinanceSummary() {
   const { year: cy, month: cm } = calendarPartsInTijuana();

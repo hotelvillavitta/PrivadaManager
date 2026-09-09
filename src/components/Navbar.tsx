@@ -53,11 +53,13 @@ export function Navbar({
   unread,
   notifications,
   privadaName,
+  logoUrl = null,
 }: {
   user: NavUser;
   unread: number;
   notifications: NavNotification[];
   privadaName: string;
+  logoUrl?: string | null;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -96,6 +98,8 @@ export function Navbar({
             <span className="relative block h-11 w-11 shrink-0 overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-border sm:h-12 sm:w-12">
               <BrandLogo
                 variant="mark"
+                src={logoUrl}
+                alt={privadaName}
                 className="h-full w-full object-cover"
                 priority
               />

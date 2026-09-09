@@ -1,14 +1,7 @@
 import Link from "next/link";
 import { Mail, MapPin, Phone } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
-
-type Privada = {
-  name: string;
-  address: string;
-  phone: string;
-  email: string;
-  tagline: string;
-};
+import type { Privada } from "@/lib/privada";
 
 export function Footer({ privada }: { privada: Privada }) {
   return (
@@ -17,6 +10,8 @@ export function Footer({ privada }: { privada: Privada }) {
         <div>
           <BrandLogo
             variant="mark"
+            src={privada.logoUrl}
+            alt={privada.name}
             className="mb-4 h-14 w-14 rounded-full bg-white object-cover ring-1 ring-border"
           />
           <p className="mb-1 text-sm font-semibold text-primary-dark">

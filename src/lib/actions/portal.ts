@@ -145,8 +145,12 @@ export async function createReservation(formData: FormData) {
   if (!date || !eventName || !guests) {
     return { error: "Completa fecha, motivo e invitados." };
   }
-  if (guests < 1 || guests > 50) {
-    return { error: "La capacidad máxima es de 50 personas." };
+  const privada = await getPrivada();
+  const capacityMax = privada.capacityMax || 50;
+  if (guests < 1 || guests > capacityMax) {
+    return {
+      error: `La capacidad máxima es de ${capacityMax} personas.`,
+    };
   }
 
   if (!user.houseNumber) {
@@ -824,6 +828,10 @@ export async function registerCobranza(formData: FormData) {
   revalidatePath("/cuotas");
   revalidatePath("/finanzas");
   revalidatePath("/admin");
+  revalidatePath("/admin/cobranza");
+  revalidatePath("/admin/cobranza/matriz");
+  revalidatePath("/admin/analiticos");
+  revalidatePath("/admin/finanzas");
   revalidatePath("/notificaciones");
   return { ok: true, amount: total, concepts: parts };
 }
@@ -844,50 +852,103 @@ export async function upsertMonthlyFee(formData: FormData) {
   return registerCobranza(formData);
 }
 
+function parseEntryDate(raw: string) {
+  const value = raw.trim();
+  if (!value) return new Date();
+  // YYYY-MM-DD from <input type="date">
+  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) {
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0);
+  }
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? new Date() : d;
+}
+
 export async function createFinanceEntry(formData: FormData) {
   await requireAdmin();
-  const type = String(formData.get("type") ?? "GASTO");
+  const type = String(formData.get("type") ?? "GASTO").toUpperCase();
   const category = String(formData.get("category") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim();
   const amount = Number(formData.get("amount") ?? 0);
+  const date = parseEntryDate(String(formData.get("date") ?? ""));
 
-  if (!category || !description || !amount) {
-    return { error: "Completa categoría, descripción y monto." };
+  if (!["INGRESO", "GASTO"].includes(type)) {
+    return { error: "Tipo inválido. Usa Ingreso o Gasto." };
+  }
+  if (!category || !description || !amount || amount <= 0) {
+    return { error: "Completa categoría, descripción y monto válido." };
   }
 
+  const fullDescription = notes ? `${description} · ${notes}` : description;
+
   await prisma.financeEntry.create({
-    data: { type, category, description, amount },
+    data: {
+      type,
+      category,
+      description: fullDescription,
+      amount,
+      date,
+    },
   });
 
   revalidatePath("/finanzas");
+  revalidatePath("/admin/finanzas");
   return { ok: true };
 }
 
 export async function updateFinanceEntry(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get("id") ?? "").trim();
-  const type = String(formData.get("type") ?? "GASTO");
+  const type = String(formData.get("type") ?? "GASTO").toUpperCase();
   const category = String(formData.get("category") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const amount = Number(formData.get("amount") ?? 0);
+  const dateRaw = String(formData.get("date") ?? "").trim();
 
-  if (!id || !category || !description || !amount) {
+  if (!id || !category || !description || !amount || amount <= 0) {
     return { error: "Completa todos los campos." };
+  }
+  if (!["INGRESO", "GASTO"].includes(type)) {
+    return { error: "Tipo inválido." };
   }
 
   await prisma.financeEntry.update({
     where: { id },
-    data: { type, category, description, amount },
+    data: {
+      type,
+      category,
+      description,
+      amount,
+      ...(dateRaw ? { date: parseEntryDate(dateRaw) } : {}),
+    },
   });
   revalidatePath("/finanzas");
+  revalidatePath("/admin/finanzas");
   return { ok: true };
 }
 
 export async function deleteFinanceEntry(id: string) {
   await requireAdmin();
   if (!id) return { error: "Movimiento inválido." };
+  const entry = await prisma.financeEntry.findUnique({
+    where: { id },
+    include: {
+      monthlyFee: { select: { id: true } },
+      palapaPayment: { select: { id: true } },
+      fine: { select: { id: true } },
+    },
+  });
+  if (!entry) return { error: "Movimiento no encontrado." };
+  if (entry.monthlyFee || entry.palapaPayment || entry.fine) {
+    return {
+      error:
+        "No se puede eliminar un movimiento ligado a una cuota, palapa o multa.",
+    };
+  }
   await prisma.financeEntry.delete({ where: { id } });
   revalidatePath("/finanzas");
+  revalidatePath("/admin/finanzas");
   revalidatePath("/cuotas");
   return { ok: true };
 }
@@ -1295,5 +1356,166 @@ export async function updateIssueReport(formData: FormData) {
   revalidatePath("/admin/reportes");
   revalidatePath("/admin");
   revalidatePath("/notificaciones");
+  return { ok: true };
+}
+
+async function ensurePrivadaRow() {
+  const existing = await prisma.privadaSettings.findUnique({ where: { id: 1 } });
+  if (existing) return existing;
+  return prisma.privadaSettings.create({
+    data: {
+      id: 1,
+      name: "Grenache",
+      address: "Priv. Grenache 4176, Fracc. Viñas del Mar",
+      phone: "+52 (664) 356-4100",
+      email: "comitegrenache@gmail.com",
+      tagline:
+        "Comunidad residencial comprometida con la excelencia y el bienestar de todos sus residentes.",
+      capacityMax: 50,
+      capacityNote: "Capacidad máxima del salón",
+      schedulesJson: JSON.stringify([
+        { days: "Domingo a Jueves", hours: "12:00 pm - 22:00 pm" },
+        { days: "Viernes y Sábado", hours: "12:00 pm - 2:00 am" },
+      ]),
+      rulesJson: JSON.stringify([
+        "Las reservaciones deben realizarse con al menos una semana de anticipación.",
+        "El área común puede reservarse por un máximo de 6 horas consecutivas.",
+        "El residente responsable debe estar presente durante todo el evento.",
+        "Está prohibido el uso de equipos de sonido después de las 22:00 hrs.",
+        "Se debe dejar el área en las mismas condiciones en que se encontró.",
+      ]),
+      primaryColor: "#4f334a",
+      slug: "grenache",
+    },
+  });
+}
+
+/** Actualiza datos de contacto, capacidad, horarios y reglamento. */
+export async function updatePrivadaInfo(formData: FormData) {
+  await requireAdmin();
+  await ensurePrivadaRow();
+
+  const address = String(formData.get("address") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim();
+  const capacityMax = Number(formData.get("capacityMax") ?? 50);
+  const capacityNote = String(formData.get("capacityNote") ?? "").trim() || null;
+  const schedulesRaw = String(formData.get("schedulesJson") ?? "[]");
+  const rulesRaw = String(formData.get("rulesJson") ?? "[]");
+
+  if (!address || !phone || !email) {
+    return { error: "Completa dirección, teléfono y correo." };
+  }
+  if (!Number.isFinite(capacityMax) || capacityMax < 1 || capacityMax > 500) {
+    return { error: "La capacidad debe ser entre 1 y 500." };
+  }
+
+  let schedulesJson = "[]";
+  let rulesJson = "[]";
+  try {
+    const schedules = JSON.parse(schedulesRaw) as unknown;
+    if (!Array.isArray(schedules)) throw new Error("invalid");
+    schedulesJson = JSON.stringify(
+      schedules
+        .map((s) => ({
+          days: String((s as { days?: unknown })?.days ?? "").trim(),
+          hours: String((s as { hours?: unknown })?.hours ?? "").trim(),
+        }))
+        .filter((s) => s.days && s.hours),
+    );
+  } catch {
+    return { error: "Horarios inválidos." };
+  }
+  try {
+    const rules = JSON.parse(rulesRaw) as unknown;
+    if (!Array.isArray(rules)) throw new Error("invalid");
+    rulesJson = JSON.stringify(
+      rules.map((r) => String(r ?? "").trim()).filter(Boolean),
+    );
+  } catch {
+    return { error: "Reglamento inválido." };
+  }
+
+  await prisma.privadaSettings.update({
+    where: { id: 1 },
+    data: {
+      address,
+      phone,
+      email,
+      capacityMax,
+      capacityNote,
+      schedulesJson,
+      rulesJson,
+    },
+  });
+
+  revalidatePath("/");
+  revalidatePath("/admin");
+  revalidatePath("/admin/informacion");
+  revalidatePath("/reservaciones");
+  return { ok: true };
+}
+
+/** Actualiza identidad visual: nombre, logo, color y slug. */
+export async function updatePrivadaBranding(formData: FormData) {
+  await requireAdmin();
+  await ensurePrivadaRow();
+
+  const name = String(formData.get("name") ?? "").trim();
+  const tagline = String(formData.get("tagline") ?? "").trim();
+  const primaryColor = String(formData.get("primaryColor") ?? "").trim();
+  const slugRaw = String(formData.get("slug") ?? "").trim();
+  const removeLogo = formData.get("removeLogo") === "on";
+  const logoFile = formData.get("logo");
+
+  if (!name) return { error: "El nombre de la privada es obligatorio." };
+
+  const { normalizePrimaryColor, slugifyPrivadaName } = await import(
+    "@/lib/privada"
+  );
+  const color = normalizePrimaryColor(primaryColor);
+  const slug =
+    slugRaw
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 40) || slugifyPrivadaName(name);
+
+  let logoUrl: string | null | undefined = undefined;
+  if (removeLogo) {
+    logoUrl = null;
+  } else {
+    try {
+      const saved = await saveUploadedDocument(fileFromFormData(logoFile), {
+        folder: "brand",
+      });
+      if (saved.documentUrl) logoUrl = saved.documentUrl;
+    } catch (error) {
+      return {
+        error:
+          error instanceof Error
+            ? error.message
+            : "No se pudo subir el logo.",
+      };
+    }
+  }
+
+  await prisma.privadaSettings.update({
+    where: { id: 1 },
+    data: {
+      name,
+      tagline:
+        tagline ||
+        "Comunidad residencial comprometida con la excelencia y el bienestar de todos sus residentes.",
+      primaryColor: color,
+      slug,
+      ...(logoUrl !== undefined ? { logoUrl } : {}),
+    },
+  });
+
+  revalidatePath("/");
+  revalidatePath("/admin");
+  revalidatePath("/admin/personalizacion");
+  revalidatePath("/login");
   return { ok: true };
 }

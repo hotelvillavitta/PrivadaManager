@@ -284,4 +284,15 @@ model PrivadaSettings {
   phone   String
   email   String
   tagline String
+  /// Capacidad máxima del área común (palapa).
+  capacityMax  Int     @default(50)
+  capacityNote String?
+  /// JSON: [{ "days": "Domingo a Jueves", "hours": "12:00 pm - 22:00 pm" }]
+  schedulesJson String @default("[]")
+  /// JSON: string[]
+  rulesJson     String @default("[]")
+  logoUrl       String?
+  primaryColor  String @default("#4f334a")
+  /// Slug público para enlace personalizado (ej. grenache).
+  slug          String?
 }

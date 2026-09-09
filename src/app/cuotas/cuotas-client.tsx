@@ -72,6 +72,8 @@ export function CuotasClient({
   summary,
   isAdmin,
   houseBasePath = "/cuotas",
+  initialChargeYear,
+  initialChargeMonth,
 }: {
   houseNumber: string;
   houses?: string[];
@@ -90,14 +92,17 @@ export function CuotasClient({
   };
   isAdmin: boolean;
   houseBasePath?: string;
+  initialChargeYear?: number;
+  initialChargeMonth?: number;
 }) {
   const router = useRouter();
   const currentYear = new Date().getFullYear();
   const years = useMemo(() => {
     const fromFees = fees.map((f) => f.year);
     const set = new Set([...fromFees, currentYear, currentYear - 1]);
+    if (initialChargeYear) set.add(initialChargeYear);
     return [...set].sort((a, b) => b - a);
-  }, [fees, currentYear]);
+  }, [fees, currentYear, initialChargeYear]);
 
   const houseOptions = useMemo(() => {
     const byHouse = new Map(
@@ -132,8 +137,12 @@ export function CuotasClient({
   );
 
   const [historyYear, setHistoryYear] = useState(years[0] ?? currentYear);
-  const [chargeYear, setChargeYear] = useState(currentYear);
-  const [chargeMonth, setChargeMonth] = useState(() => new Date().getMonth() + 1);
+  const [chargeYear, setChargeYear] = useState(
+    initialChargeYear ?? currentYear,
+  );
+  const [chargeMonth, setChargeMonth] = useState(
+    () => initialChargeMonth ?? new Date().getMonth() + 1,
+  );
   const [includeMaintenance, setIncludeMaintenance] = useState(true);
   const [includeLate, setIncludeLate] = useState(false);
   const [includePalapa, setIncludePalapa] = useState(false);
@@ -142,6 +151,11 @@ export function CuotasClient({
   const [palapaAmount, setPalapaAmount] = useState(FEE_PALAPA_AMOUNT);
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (initialChargeYear) setChargeYear(initialChargeYear);
+    if (initialChargeMonth) setChargeMonth(initialChargeMonth);
+  }, [houseNumber, initialChargeYear, initialChargeMonth]);
 
   const months = fees.filter((f) => f.year === historyYear);
 

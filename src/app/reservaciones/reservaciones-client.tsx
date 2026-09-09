@@ -35,14 +35,6 @@ type Reservation = {
 
 const weekDays = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
-const RULES = [
-  "Las reservaciones deben solicitarse con al menos 1 semana de anticipación.",
-  "Máximo 6 horas consecutivas de uso.",
-  "El residente responsable debe estar presente durante todo el evento.",
-  "Queda prohibido el uso de equipo de sonido después de las 22:00 hrs.",
-  "El área debe dejarse en las mismas condiciones en que se encontró.",
-];
-
 function toKey(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
@@ -65,6 +57,10 @@ export function ReservacionesClient({
   houseNumber,
   hasPendingFees,
   focusReservationId,
+  capacityMax = 50,
+  capacityNote = "Capacidad máxima del salón",
+  schedules = [],
+  rules = [],
 }: {
   reservations: Reservation[];
   isAdmin: boolean;
@@ -72,6 +68,10 @@ export function ReservacionesClient({
   houseNumber: string | null;
   hasPendingFees: boolean;
   focusReservationId: string | null;
+  capacityMax?: number;
+  capacityNote?: string | null;
+  schedules?: { days: string; hours: string }[];
+  rules?: string[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"calendar" | "new">(
@@ -237,18 +237,26 @@ export function ReservacionesClient({
               </h3>
             </div>
             <ul className="space-y-2 text-sm text-muted">
-              <li>
-                <span className="font-medium text-foreground">
-                  Domingo a Jueves:
-                </span>{" "}
-                12:00 pm – 22:00 pm
-              </li>
-              <li>
-                <span className="font-medium text-foreground">
-                  Viernes y Sábado:
-                </span>{" "}
-                12:00 pm – 2:00 am
-              </li>
+              {(schedules.length
+                ? schedules
+                : [
+                    {
+                      days: "Domingo a Jueves",
+                      hours: "12:00 pm – 22:00 pm",
+                    },
+                    {
+                      days: "Viernes y Sábado",
+                      hours: "12:00 pm – 2:00 am",
+                    },
+                  ]
+              ).map((s) => (
+                <li key={`${s.days}-${s.hours}`}>
+                  <span className="font-medium text-foreground">
+                    {s.days}:
+                  </span>{" "}
+                  {s.hours}
+                </li>
+              ))}
             </ul>
           </div>
 
@@ -259,9 +267,11 @@ export function ReservacionesClient({
                 Capacidad
               </h3>
             </div>
-            <p className="font-display text-3xl text-primary-dark">50 personas</p>
+            <p className="font-display text-3xl text-primary-dark">
+              {capacityMax} personas
+            </p>
             <p className="mt-1 text-sm text-muted">
-              Capacidad máxima del salón
+              {capacityNote || "Capacidad máxima del salón"}
             </p>
           </div>
 
@@ -273,7 +283,16 @@ export function ReservacionesClient({
               </h3>
             </div>
             <ul className="space-y-2 text-sm text-muted">
-              {RULES.map((rule) => (
+              {(rules.length
+                ? rules
+                : [
+                    "Las reservaciones deben solicitarse con al menos 1 semana de anticipación.",
+                    "Máximo 6 horas consecutivas de uso.",
+                    "El residente responsable debe estar presente durante todo el evento.",
+                    "Queda prohibido el uso de equipo de sonido después de las 22:00 hrs.",
+                    "El área debe dejarse en las mismas condiciones en que se encontró.",
+                  ]
+              ).map((rule) => (
                 <li key={rule} className="flex gap-2">
                   <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                   <span>{rule}</span>
@@ -829,13 +848,15 @@ export function ReservacionesClient({
                     type="number"
                     name="guests"
                     min={1}
-                    max={50}
+                    max={capacityMax}
                     required
-                    defaultValue={20}
+                    defaultValue={Math.min(20, capacityMax)}
                     disabled={hasPendingFees}
                     className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary disabled:opacity-60"
                   />
-                </label>
+                  <span className="mt-1 block text-xs text-muted">
+                    Máximo {capacityMax} personas
+                  </span>                </label>
 
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium">

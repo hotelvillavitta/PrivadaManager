@@ -1,6 +1,11 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { getFinanceSummary, getPrivada } from "@/lib/queries";
+import {
+  getFinanceEntries,
+  getFinanceSummary,
+  getHouseNumbers,
+  getPrivada,
+} from "@/lib/queries";
 import { AdminBackLink } from "../admin-back-link";
 import { FinanzasClient } from "@/app/finanzas/finanzas-client";
 
@@ -9,9 +14,11 @@ export default async function AdminFinanzasPage() {
   if (!session?.user) redirect("/login");
   if (session.user.role !== "ADMIN") redirect("/");
 
-  const [summary, privada] = await Promise.all([
+  const [summary, privada, entries, houses] = await Promise.all([
     getFinanceSummary(),
     getPrivada(),
+    getFinanceEntries(250),
+    getHouseNumbers(),
   ]);
 
   return (
@@ -23,6 +30,16 @@ export default async function AdminFinanzasPage() {
         isAdmin
         privadaName={privada.name}
         summary={summary}
+        houses={houses}
+        entries={entries.map((e) => ({
+          id: e.id,
+          type: e.type,
+          category: e.category,
+          description: e.description,
+          amount: e.amount,
+          date: e.date.toISOString(),
+          linked: Boolean(e.monthlyFee || e.palapaPayment || e.fine),
+        }))}
       />
     </div>
   );

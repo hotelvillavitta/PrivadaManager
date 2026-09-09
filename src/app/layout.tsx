@@ -4,7 +4,7 @@ import { Providers } from "@/components/Providers";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { auth } from "@/lib/auth";
-import { getPrivada, getRecentNotifications, getUnreadCount } from "@/lib/queries";
+import { getPrivada, getRecentNotifications, getUnreadCount, privadaThemeStyle } from "@/lib/queries";
 import "./globals.css";
 
 /** Portal autenticado: nunca cachear HTML en CDN/navegador. */
@@ -75,6 +75,7 @@ export default async function RootLayout({
 }) {
   const session = await auth();
   const privada = await getPrivada();
+  const themeStyle = privadaThemeStyle(privada);
   const userId = session?.user?.id;
   const [unread, recent] = userId
     ? await Promise.all([
@@ -88,12 +89,16 @@ export default async function RootLayout({
       lang="es"
       className={`${display.variable} ${body.variable} h-full antialiased`}
     >
-      <body className="flex min-h-dvh flex-col bg-transparent font-sans">
+      <body
+        className="flex min-h-dvh flex-col bg-transparent font-sans"
+        style={themeStyle}
+      >
         <Providers>
           <Navbar
             user={session?.user ?? null}
             unread={unread}
             privadaName={privada.name}
+            logoUrl={privada.logoUrl}
             notifications={recent.map((n) => ({
               id: n.id,
               title: n.title,

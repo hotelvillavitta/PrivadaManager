@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { getReservations, houseHasPendingFees } from "@/lib/queries";
+import { getPrivada, getReservations, houseHasPendingFees } from "@/lib/queries";
 import { ReservacionesClient } from "./reservaciones-client";
 
 export default async function ReservacionesPage({
@@ -12,9 +12,10 @@ export default async function ReservacionesPage({
   if (!session?.user) redirect("/login");
 
   const params = await searchParams;
-  const [reservations, hasPendingFees] = await Promise.all([
+  const [reservations, hasPendingFees, privada] = await Promise.all([
     getReservations(),
     houseHasPendingFees(session.user.houseNumber),
+    getPrivada(),
   ]);
 
   return (
@@ -24,6 +25,10 @@ export default async function ReservacionesPage({
       houseNumber={session.user.houseNumber}
       hasPendingFees={hasPendingFees}
       focusReservationId={params.solicitud ?? null}
+      capacityMax={privada.capacityMax}
+      capacityNote={privada.capacityNote}
+      schedules={privada.schedules}
+      rules={privada.rules}
       reservations={reservations.map((r) => ({
         id: r.id,
         date: r.date,
