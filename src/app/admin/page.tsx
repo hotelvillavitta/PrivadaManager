@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { PageHero } from "@/components/PageHero";
 import { auth } from "@/lib/auth";
-import { getAdminDashboard } from "@/lib/queries";
+import { getAdminHubCounts } from "@/lib/queries";
 
 const modules = [
   {
@@ -110,11 +110,11 @@ export default async function AdminPage() {
   if (!session?.user) redirect("/login");
   if (session.user.role !== "ADMIN") redirect("/");
 
-  const data = await getAdminDashboard();
+  const data = await getAdminHubCounts();
   const badges = {
     residents: data.residentCount,
-    reservations: data.pendingReservations.length,
-    fines: data.pendingFines.length,
+    reservations: data.pendingReservations,
+    fines: data.pendingFines,
     issues: data.openIssues,
   };
 

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { FEE_CONCEPT } from "@/lib/utils";
 import { parseFeesWorkbook, type ParsedFeeRow } from "@/lib/fees/workbook";
-import { getPaymentMatrix } from "@/lib/fees/matrix";
+import { getPaymentMatrix, yearMatrixRange, MATRIX_START } from "@/lib/fees/matrix";
 import { buildFeesWorkbookBuffer } from "@/lib/fees/workbook";
 
 export type FeeImportPreviewItem = {
@@ -242,6 +242,20 @@ export async function confirmFeesImport(
   revalidatePath("/admin/finanzas");
 
   return { ok: true, written };
+}
+
+/** Carga matriz filtrada por año (o todo el historial desde AGO21). */
+export async function loadPaymentMatrix(
+  year: number | "todos",
+): Promise<{ error: string } | Awaited<ReturnType<typeof getPaymentMatrix>>> {
+  await requireAdmin();
+  if (year === "todos") {
+    return getPaymentMatrix();
+  }
+  if (!Number.isFinite(year) || year < MATRIX_START.year) {
+    return { error: "Año inválido." };
+  }
+  return getPaymentMatrix(yearMatrixRange(year));
 }
 
 /** Exporta concentrado actual como base64 XLSX (descarga en cliente). */

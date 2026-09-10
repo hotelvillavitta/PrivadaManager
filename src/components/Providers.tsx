@@ -7,7 +7,7 @@ import { ToastHost } from "@/components/Toast";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider refetchOnWindowFocus refetchInterval={60}>
+    <SessionProvider refetchOnWindowFocus refetchInterval={0}>
       <DeployRefresh />
       {children}
       <InstallPrompt />

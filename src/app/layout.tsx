@@ -4,7 +4,7 @@ import { Providers } from "@/components/Providers";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { auth } from "@/lib/auth";
-import { getPrivada, getRecentNotifications, getUnreadCount, privadaThemeStyle } from "@/lib/queries";
+import { getPrivada, privadaThemeStyle } from "@/lib/queries";
 import "./globals.css";
 
 /** Portal autenticado: nunca cachear HTML en CDN/navegador. */
@@ -73,16 +73,8 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth();
-  const privada = await getPrivada();
+  const [session, privada] = await Promise.all([auth(), getPrivada()]);
   const themeStyle = privadaThemeStyle(privada);
-  const userId = session?.user?.id;
-  const [unread, recent] = userId
-    ? await Promise.all([
-        getUnreadCount(userId),
-        getRecentNotifications(userId, 5),
-      ])
-    : [0, [] as Awaited<ReturnType<typeof getRecentNotifications>>];
 
   return (
     <html
@@ -96,20 +88,8 @@ export default async function RootLayout({
         <Providers>
           <Navbar
             user={session?.user ?? null}
-            unread={unread}
             privadaName={privada.name}
             logoUrl={privada.logoUrl}
-            notifications={recent.map((n) => ({
-              id: n.id,
-              title: n.title,
-              body: n.body,
-              read: n.read,
-              newsId: n.newsId,
-              reservationId: n.reservationId,
-              fineId: n.fineId,
-              issueReportId: n.issueReportId,
-              createdAt: n.createdAt.toISOString(),
-            }))}
           />
           <main className="flex-1 pb-28 landscape:max-md:pb-20 md:pb-0">
             {children}

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-const POLL_MS = 60_000;
+const POLL_MS = 5 * 60_000;
 
 /**
  * Cuando hay un deploy nuevo en Vercel, recarga la app en todos los clientes

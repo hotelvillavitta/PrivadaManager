@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import type { NewsCategory, ReservationStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireAdmin, requireUser } from "@/lib/session";
@@ -48,7 +49,6 @@ export async function toggleNewsReaction(newsId: string, emoji: string) {
   }
 
   revalidatePath("/noticias");
-  revalidatePath(`/noticias/${newsId}`);
   return { ok: true };
 }
 
@@ -806,33 +806,30 @@ export async function registerCobranza(formData: FormData) {
     });
 
     const privada = await getPrivada();
-    await Promise.all(
-      residents.map((r) =>
-        sendPaymentReceiptEmail({
-          residentName: fullName(r),
-          residentEmail: r.email,
-          houseNumber,
-          periodLabel: label,
-          lines: receiptLines,
-          total,
-          paidAt,
-          privadaName: privada.name,
-          privadaAddress: privada.address,
-          privadaEmail: privada.email,
-          privadaPhone: privada.phone,
-        }),
-      ),
-    );
+    after(() => {
+      void Promise.all(
+        residents.map((r) =>
+          sendPaymentReceiptEmail({
+            residentName: fullName(r),
+            residentEmail: r.email,
+            houseNumber,
+            periodLabel: label,
+            lines: receiptLines,
+            total,
+            paidAt,
+            privadaName: privada.name,
+            privadaAddress: privada.address,
+            privadaEmail: privada.email,
+            privadaPhone: privada.phone,
+          }),
+        ),
+      ).catch((err) => console.error("[cobranza] email receipt failed", err));
+    });
   }
 
-  revalidatePath("/cuotas");
-  revalidatePath("/finanzas");
-  revalidatePath("/admin");
   revalidatePath("/admin/cobranza");
   revalidatePath("/admin/cobranza/matriz");
-  revalidatePath("/admin/analiticos");
-  revalidatePath("/admin/finanzas");
-  revalidatePath("/notificaciones");
+  revalidatePath("/cuotas");
   return { ok: true, amount: total, concepts: parts };
 }
 
@@ -1097,33 +1094,34 @@ export async function issueFine(formData: FormData) {
     });
 
     const privada = await getPrivada();
-    await Promise.all(
-      residents.map((r) =>
-        sendFineNoticeEmail({
-          residentName: fullName(r),
-          residentEmail: r.email,
-          houseNumber,
-          category: cause.category,
-          cause: cause.label,
-          regulationArticle: cause.article,
-          regulationExcerpt: cause.excerpt,
-          amount,
-          notes,
-          issuedAt,
-          billingPeriodLabel: periodLabel,
-          privadaName: privada.name,
-          privadaAddress: privada.address,
-          privadaEmail: privada.email,
-          privadaPhone: privada.phone,
-        }),
-      ),
-    );
+    after(() => {
+      void Promise.all(
+        residents.map((r) =>
+          sendFineNoticeEmail({
+            residentName: fullName(r),
+            residentEmail: r.email,
+            houseNumber,
+            category: cause.category,
+            cause: cause.label,
+            regulationArticle: cause.article,
+            regulationExcerpt: cause.excerpt,
+            amount,
+            notes,
+            issuedAt,
+            billingPeriodLabel: periodLabel,
+            privadaName: privada.name,
+            privadaAddress: privada.address,
+            privadaEmail: privada.email,
+            privadaPhone: privada.phone,
+          }),
+        ),
+      ).catch((err) => console.error("[multa] email notice failed", err));
+    });
   }
 
+  revalidatePath("/admin/multas");
+  revalidatePath("/admin/cobranza");
   revalidatePath("/cuotas");
-  revalidatePath("/admin");
-  revalidatePath("/notificaciones");
-  revalidatePath("/finanzas");
   return {
     ok: true,
     fineId: fine.id,

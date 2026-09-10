@@ -2,7 +2,12 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { PageHero } from "@/components/PageHero";
 import { auth } from "@/lib/auth";
-import { getPaymentMatrix } from "@/lib/fees/matrix";
+import {
+  currentYearMatrixRange,
+  getPaymentMatrix,
+  getPaymentMatrixYears,
+} from "@/lib/fees/matrix";
+import { calendarPartsInTijuana } from "@/lib/utils";
 import { AdminBackLink } from "../../admin-back-link";
 import { CobranzaMatrixClient } from "./cobranza-matrix-client";
 
@@ -11,7 +16,11 @@ export default async function CobranzaMatrizPage() {
   if (!session?.user) redirect("/login");
   if (session.user.role !== "ADMIN") redirect("/");
 
-  const matrix = await getPaymentMatrix();
+  const now = calendarPartsInTijuana();
+  const [matrix, years] = await Promise.all([
+    getPaymentMatrix(currentYearMatrixRange()),
+    getPaymentMatrixYears(),
+  ]);
 
   return (
     <div className="pb-16">
@@ -30,7 +39,11 @@ export default async function CobranzaMatrizPage() {
             Cobrar por casa
           </Link>
         </div>
-        <CobranzaMatrixClient matrix={matrix} />
+        <CobranzaMatrixClient
+          initialMatrix={matrix}
+          years={years}
+          initialYear={now.year}
+        />
       </div>
     </div>
   );

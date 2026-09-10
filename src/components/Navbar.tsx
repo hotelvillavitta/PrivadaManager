@@ -21,7 +21,6 @@ import { logoutAction } from "@/lib/actions/auth";
 import { BrandLogo } from "@/components/BrandLogo";
 import {
   NotificationBell,
-  type NavNotification,
 } from "@/components/NotificationBell";
 
 type NavUser = {
@@ -50,14 +49,10 @@ const mobilePrimaryHrefs = new Set([
 
 export function Navbar({
   user,
-  unread,
-  notifications,
   privadaName,
   logoUrl = null,
 }: {
   user: NavUser;
-  unread: number;
-  notifications: NavNotification[];
   privadaName: string;
   logoUrl?: string | null;
 }) {
@@ -180,7 +175,7 @@ export function Navbar({
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {user ? (
               <>
-                <NotificationBell unread={unread} items={notifications} />
+                <NotificationBell enabled={Boolean(user)} />
                 <div className="hidden text-right sm:block">
                   <p className="text-sm font-semibold uppercase tracking-wide text-primary-dark">
                     {user.firstName}

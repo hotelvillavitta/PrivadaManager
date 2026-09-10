@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHero } from "@/components/PageHero";
 import { auth } from "@/lib/auth";
-import { getAdminDashboard } from "@/lib/queries";
+import { getPendingReservationsAdmin } from "@/lib/queries";
 import { AdminBackLink } from "../admin-back-link";
 import { PendingReservationsAdmin } from "./pending-reservations-admin";
 
@@ -11,8 +11,7 @@ export default async function AdminReservacionesPage() {
   if (!session?.user) redirect("/login");
   if (session.user.role !== "ADMIN") redirect("/");
 
-  const data = await getAdminDashboard();
-  const pending = data.pendingReservations;
+  const pending = await getPendingReservationsAdmin();
 
   return (
     <div className="pb-16">

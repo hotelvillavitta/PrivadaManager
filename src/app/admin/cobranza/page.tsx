@@ -2,12 +2,12 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import {
-  getFeeSummary,
   getFeesForHouse,
   getFinesForHouse,
   getHouseNumbers,
   getHousesWithResidents,
   getPalapaPaymentsForHouse,
+  summarizeFees,
 } from "@/lib/queries";
 import { AdminBackLink } from "../admin-back-link";
 import { CuotasClient } from "@/app/cuotas/cuotas-client";
@@ -35,12 +35,22 @@ export default async function AdminCobranzaPage({
   const initialYear = Number(params.anio);
   const initialMonth = Number(params.mes);
 
-  const [fees, palapaPayments, fines, summary] = await Promise.all([
+  const [fees, palapaPayments, fines] = await Promise.all([
     getFeesForHouse(houseNumber),
     getPalapaPaymentsForHouse(houseNumber),
     getFinesForHouse(houseNumber),
-    getFeeSummary(houseNumber),
   ]);
+
+  const summary = summarizeFees(
+    fees,
+    fines
+      .filter((f) => f.status === "PENDIENTE")
+      .map((f) => ({
+        amount: f.amount,
+        billingYear: f.billingYear,
+        billingMonth: f.billingMonth,
+      })),
+  );
 
   return (
     <div className="pb-8">

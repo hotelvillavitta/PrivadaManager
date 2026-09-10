@@ -225,3 +225,50 @@ export async function getPaymentMatrix(opts?: {
     startLabel: feeLabel(MATRIX_START.year, MATRIX_START.month),
   };
 }
+
+/** Años disponibles en el concentrado (desde AGO21). */
+export async function getPaymentMatrixYears(): Promise<number[]> {
+  const now = calendarPartsInTijuana();
+  const rows = await prisma.monthlyFee.findMany({
+    where: {
+      concept: FEE_CONCEPT.MANTENIMIENTO,
+      OR: [
+        { year: { gt: MATRIX_START.year } },
+        { year: MATRIX_START.year, month: { gte: MATRIX_START.month } },
+      ],
+    },
+    select: { year: true },
+    distinct: ["year"],
+    orderBy: { year: "desc" },
+  });
+  const set = new Set(rows.map((r) => r.year));
+  set.add(now.year);
+  if (now.year >= MATRIX_START.year) set.add(MATRIX_START.year);
+  return [...set].sort((a, b) => b - a);
+}
+
+/** Rango por defecto: año en curso (carga rápida). */
+export function currentYearMatrixRange() {
+  const now = calendarPartsInTijuana();
+  const fromMonth =
+    now.year === MATRIX_START.year ? MATRIX_START.month : 1;
+  return {
+    fromYear: now.year,
+    fromMonth,
+    toYear: now.year,
+    toMonth: now.month,
+  };
+}
+
+export function yearMatrixRange(year: number) {
+  const now = calendarPartsInTijuana();
+  const fromMonth =
+    year === MATRIX_START.year ? MATRIX_START.month : 1;
+  const toMonth = year === now.year ? now.month : 12;
+  return {
+    fromYear: year,
+    fromMonth,
+    toYear: year,
+    toMonth,
+  };
+}

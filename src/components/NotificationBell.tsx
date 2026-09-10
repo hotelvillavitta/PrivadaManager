@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Bell } from "lucide-react";
 import { markNotificationRead } from "@/lib/actions/portal";
 import {
@@ -22,17 +22,40 @@ export type NavNotification = {
   createdAt: string;
 };
 
-export function NotificationBell({
-  unread,
-  items,
-}: {
-  unread: number;
-  items: NavNotification[];
-}) {
+export function NotificationBell({ enabled = true }: { enabled?: boolean }) {
   const [open, setOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
+  const [items, setItems] = useState<NavNotification[]>([]);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement>(null);
+
+  const load = useCallback(async () => {
+    if (!enabled) return;
+    try {
+      const res = await fetch("/api/nav-notifications", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        unread: number;
+        items: NavNotification[];
+      };
+      setUnread(data.unread ?? 0);
+      setItems(data.items ?? []);
+    } catch {
+      // sin red: mantener último estado
+    }
+  }, [enabled]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const onFocus = () => void load();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [enabled, load]);
 
   useEffect(() => {
     if (!open) return;
@@ -54,11 +77,17 @@ export function NotificationBell({
     const href = hrefForNotification(n);
     startTransition(async () => {
       await markNotificationRead(n.id);
+      setUnread((u) => Math.max(0, u - (n.read ? 0 : 1)));
+      setItems((list) =>
+        list.map((x) => (x.id === n.id ? { ...x, read: true } : x)),
+      );
       setOpen(false);
       if (href) router.push(href);
-      else router.refresh();
+      else void load();
     });
   }
+
+  if (!enabled) return null;
 
   return (
     <div className="relative" ref={rootRef}>
@@ -67,7 +96,10 @@ export function NotificationBell({
         aria-label="Notificaciones"
         aria-expanded={open}
         aria-haspopup="dialog"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setOpen((v) => !v);
+          if (!open) void load();
+        }}
         className="relative rounded-full p-2.5 text-primary-dark transition hover:bg-primary-soft"
       >
         <Bell className="h-5 w-5" strokeWidth={2.25} />

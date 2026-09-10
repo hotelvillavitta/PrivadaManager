@@ -163,6 +163,9 @@ model MonthlyFee {
   updatedAt      DateTime  @updatedAt
 
   @@unique([houseNumber, year, month, concept])
+  @@index([concept, year, month])
+  @@index([concept, status, year, month])
+  @@index([status, paidAt])
 }
 
 /// Cargo independiente por cada uso de palapa. No es una cuota mensual:
@@ -241,6 +244,9 @@ model Notification {
   issueReportId  String?
   issueReport    IssueReport? @relation(fields: [issueReportId], references: [id], onDelete: SetNull)
   createdAt      DateTime @default(now())
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
 }
 
 /// Reporte de desperfecto / incidencia por un residente.

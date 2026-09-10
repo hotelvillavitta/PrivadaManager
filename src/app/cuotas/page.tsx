@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import {
-  getFeeSummary,
   getFeesForHouse,
   getFinesForHouse,
   getPalapaPaymentsForHouse,
+  summarizeFees,
 } from "@/lib/queries";
 import { CuotasClient } from "./cuotas-client";
 
@@ -14,12 +14,22 @@ export default async function CuotasPage() {
 
   const houseNumber = session.user.houseNumber ?? "0";
 
-  const [fees, palapaPayments, fines, summary] = await Promise.all([
+  const [fees, palapaPayments, fines] = await Promise.all([
     getFeesForHouse(houseNumber),
     getPalapaPaymentsForHouse(houseNumber),
     getFinesForHouse(houseNumber),
-    getFeeSummary(houseNumber),
   ]);
+
+  const summary = summarizeFees(
+    fees,
+    fines
+      .filter((f) => f.status === "PENDIENTE")
+      .map((f) => ({
+        amount: f.amount,
+        billingYear: f.billingYear,
+        billingMonth: f.billingMonth,
+      })),
+  );
 
   return (
     <CuotasClient

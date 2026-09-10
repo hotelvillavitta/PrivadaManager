@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { prisma } from "@/lib/db";
 import {
   calendarPartsInTijuana,
@@ -13,7 +14,7 @@ import {
   type Privada,
 } from "@/lib/privada";
 
-export async function getPrivada(): Promise<Privada> {
+export const getPrivada = cache(async (): Promise<Privada> => {
   const row = await prisma.privadaSettings.findUnique({ where: { id: 1 } });
   if (!row) return DEFAULT_PRIVADA;
 
@@ -32,7 +33,7 @@ export async function getPrivada(): Promise<Privada> {
     primaryColor: normalizePrimaryColor(row.primaryColor),
     slug: row.slug || DEFAULT_PRIVADA.slug,
   };
-}
+});
 
 /** Variables CSS derivadas del color principal de la privada. */
 export function privadaThemeStyle(privada: Privada): Record<string, string> {
@@ -49,6 +50,7 @@ export function privadaThemeStyle(privada: Privada): Record<string, string> {
 export async function getNewsFeed(userId?: string) {
   const posts = await prisma.newsPost.findMany({
     orderBy: { publishedAt: "desc" },
+    take: 40,
     include: {
       reactions: true,
     },
@@ -66,11 +68,24 @@ export async function getNewsFeed(userId?: string) {
 }
 
 export async function getProviders() {
-  return prisma.provider.findMany({ orderBy: [{ category: "asc" }, { name: "asc" }] });
+  return prisma.provider.findMany({
+    orderBy: [{ category: "asc" }, { name: "asc" }],
+  });
 }
 
 export async function getReservations() {
+  const from = new Date();
+  from.setMonth(from.getMonth() - 2);
+  from.setDate(1);
+  const to = new Date();
+  to.setMonth(to.getMonth() + 14);
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const toKey = (d: Date) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
   return prisma.reservation.findMany({
+    where: { date: { gte: toKey(from), lte: toKey(to) } },
     orderBy: { date: "asc" },
     include: {
       user: { select: { firstName: true, lastName: true, houseNumber: true } },
@@ -80,7 +95,6 @@ export async function getReservations() {
 
 export async function getFeesForHouse(houseNumber: string) {
   return prisma.monthlyFee.findMany({
-    // Solo mantenimiento y sus recargos forman parte del historial de cuotas.
     where: { houseNumber, concept: "MANTENIMIENTO" },
     orderBy: [{ year: "desc" }, { month: "asc" }],
   });
@@ -108,19 +122,23 @@ export async function getPendingFines(take = 30) {
   });
 }
 
-export async function getFeeSummary(houseNumber: string) {
+type FeeLike = {
+  status: string;
+  year: number;
+  month: number;
+  amount: number;
+};
+
+type FineLike = {
+  amount: number;
+  billingYear: number;
+  billingMonth: number;
+};
+
+/** Resume cuotas/multas ya cargadas (evita segunda query). */
+export function summarizeFees(fees: FeeLike[], pendingFines: FineLike[]) {
   const { year: cy, month: cm } = calendarPartsInTijuana();
   const currentKey = cy * 12 + cm;
-
-  const [fees, pendingFines] = await Promise.all([
-    prisma.monthlyFee.findMany({
-      where: { houseNumber, concept: "MANTENIMIENTO" },
-    }),
-    prisma.fine.findMany({
-      where: { houseNumber, status: "PENDIENTE" },
-      select: { amount: true, billingYear: true, billingMonth: true },
-    }),
-  ]);
 
   const paid = fees.filter((f) => f.status === "PAGADO").length;
   const debt = fees.filter(
@@ -129,14 +147,12 @@ export async function getFeeSummary(houseNumber: string) {
       (f.status === "PENDIENTE" && f.year * 12 + f.month <= currentKey),
   ).length;
 
-  // Cuotas ya exigibles (mes actual o anterior) no pagadas.
   const dueFeesAmount = fees
     .filter(
       (f) => f.status !== "PAGADO" && f.year * 12 + f.month <= currentKey,
     )
     .reduce((sum, f) => sum + f.amount, 0);
 
-  // Multas pendientes: las de meses futuros aún no están en una cuota exigible.
   const futureFinesAmount = pendingFines
     .filter((f) => f.billingYear * 12 + f.billingMonth > currentKey)
     .reduce((sum, f) => sum + f.amount, 0);
@@ -155,8 +171,25 @@ export async function getFeeSummary(houseNumber: string) {
   };
 }
 
+export async function getFeeSummary(houseNumber: string) {
+  const [fees, pendingFines] = await Promise.all([
+    prisma.monthlyFee.findMany({
+      where: { houseNumber, concept: "MANTENIMIENTO" },
+      select: { status: true, year: true, month: true, amount: true },
+    }),
+    prisma.fine.findMany({
+      where: { houseNumber, status: "PENDIENTE" },
+      select: { amount: true, billingYear: true, billingMonth: true },
+    }),
+  ]);
+
+  return summarizeFees(fees, pendingFines);
+}
+
 /** True si la casa adeuda mantenimiento del mes actual o de meses anteriores. */
-export async function houseHasPendingFees(houseNumber: string | null | undefined) {
+export async function houseHasPendingFees(
+  houseNumber: string | null | undefined,
+) {
   if (!houseNumber) return true;
   const pending = await prisma.monthlyFee.count({
     where: overdueMaintenanceWhere(houseNumber),
@@ -164,14 +197,14 @@ export async function houseHasPendingFees(houseNumber: string | null | undefined
   return pending > 0;
 }
 
-
-
 export async function getFinanceEntries(take = 200) {
   return prisma.financeEntry.findMany({
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
     take,
     include: {
-      monthlyFee: { select: { id: true, houseNumber: true, year: true, month: true } },
+      monthlyFee: {
+        select: { id: true, houseNumber: true, year: true, month: true },
+      },
       palapaPayment: { select: { id: true, houseNumber: true } },
       fine: { select: { id: true, houseNumber: true } },
     },
@@ -180,47 +213,63 @@ export async function getFinanceEntries(take = 200) {
 
 export async function getFinanceSummary() {
   const { year: cy, month: cm } = calendarPartsInTijuana();
+  const monthStart = new Date(cy, cm - 1, 1);
+  const monthEnd = new Date(cy, cm, 1);
 
-  const [paidFees, palapaPayments, ledger] = await Promise.all([
-    prisma.monthlyFee.findMany({
+  const [
+    cuotaAgg,
+    cuotaMesAgg,
+    palapaAgg,
+    palapaMesAgg,
+    manualLedger,
+  ] = await Promise.all([
+    prisma.monthlyFee.aggregate({
       where: { status: "PAGADO", concept: "MANTENIMIENTO" },
-      select: { year: true, month: true, amount: true },
+      _sum: { amount: true },
+      _count: { _all: true },
     }),
-    prisma.palapaPayment.findMany({
-      select: { amount: true, paidAt: true },
+    prisma.monthlyFee.aggregate({
+      where: {
+        status: "PAGADO",
+        concept: "MANTENIMIENTO",
+        year: cy,
+        month: cm,
+      },
+      _sum: { amount: true },
+    }),
+    prisma.palapaPayment.aggregate({
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
+    prisma.palapaPayment.aggregate({
+      where: { paidAt: { gte: monthStart, lt: monthEnd } },
+      _sum: { amount: true },
     }),
     prisma.financeEntry.findMany({
-      include: {
-        monthlyFee: { select: { id: true } },
-        palapaPayment: { select: { id: true } },
-        fine: { select: { id: true } },
+      where: {
+        AND: [
+          { monthlyFee: { is: null } },
+          { palapaPayment: { is: null } },
+          { fine: { is: null } },
+        ],
       },
+      select: { type: true, amount: true, date: true },
     }),
   ]);
 
-  const cuotaIngresos = paidFees.reduce((sum, f) => sum + f.amount, 0);
-  const palapaIngresos = palapaPayments.reduce((sum, p) => sum + p.amount, 0);
-  const ingresosMesCuotas = paidFees
-    .filter((f) => f.year === cy && f.month === cm)
-    .reduce((sum, f) => sum + f.amount, 0);
-  const ingresosMesPalapa = palapaPayments
-    .filter((p) => {
-      const d = p.paidAt;
-      return d.getFullYear() === cy && d.getMonth() + 1 === cm;
-    })
-    .reduce((sum, p) => sum + p.amount, 0);
+  const cuotaIngresos = cuotaAgg._sum.amount ?? 0;
+  const palapaIngresos = palapaAgg._sum.amount ?? 0;
+  const ingresosMesCuotas = cuotaMesAgg._sum.amount ?? 0;
+  const ingresosMesPalapa = palapaMesAgg._sum.amount ?? 0;
 
   let ingresosManual = 0;
   let ingresosMesManual = 0;
   let gastosTotales = 0;
   let gastosMes = 0;
   let gastosRegistrados = 0;
-  const monthStart = new Date(cy, cm - 1, 1);
 
-  for (const e of ledger) {
-    const linked = Boolean(e.monthlyFee || e.palapaPayment || e.fine);
-    if (linked) continue;
-    const inMonth = e.date >= monthStart;
+  for (const e of manualLedger) {
+    const inMonth = e.date >= monthStart && e.date < monthEnd;
     if (e.type === "INGRESO") {
       ingresosManual += e.amount;
       if (inMonth) ingresosMesManual += e.amount;
@@ -240,7 +289,7 @@ export async function getFinanceSummary() {
     ingresosTotales,
     gastosMes,
     gastosTotales,
-    pagosRegistrados: paidFees.length + palapaPayments.length,
+    pagosRegistrados: cuotaAgg._count._all + palapaAgg._count._all,
     gastosRegistrados,
     balanceNetoMes: ingresosMes - gastosMes,
   };
@@ -264,6 +313,57 @@ export async function getRecentNotifications(userId: string, take = 5) {
   return getNotifications(userId, take);
 }
 
+/** Contadores ligeros para el hub /admin. */
+export async function getAdminHubCounts() {
+  const [residentCount, pendingReservations, pendingFines, openIssues] =
+    await Promise.all([
+      prisma.user.count({ where: { role: "COLONO" } }),
+      prisma.reservation.count({ where: { status: "PENDING" } }),
+      prisma.fine.count({ where: { status: "PENDIENTE" } }),
+      prisma.issueReport.count({
+        where: { status: { in: ["ABIERTO", "EN_REVISION"] } },
+      }),
+    ]);
+
+  return {
+    residentCount,
+    pendingReservations,
+    pendingFines,
+    openIssues,
+  };
+}
+
+export async function getResidentsAdmin() {
+  return prisma.user.findMany({
+    where: { role: { in: ["COLONO", "ADMIN"] } },
+    orderBy: [{ role: "asc" }, { houseNumber: "asc" }],
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      houseNumber: true,
+      accessCode: true,
+      gateCode: true,
+      role: true,
+      createdAt: true,
+    },
+  });
+}
+
+export async function getPendingReservationsAdmin() {
+  return prisma.reservation.findMany({
+    where: { status: "PENDING" },
+    orderBy: { date: "asc" },
+    include: {
+      user: {
+        select: { firstName: true, lastName: true, houseNumber: true },
+      },
+    },
+  });
+}
+
+/** Dashboard completo (solo cuando se necesitan varias secciones juntas). */
 export async function getAdminDashboard() {
   const { year: cy, month: cm } = calendarPartsInTijuana();
   const [
@@ -274,31 +374,10 @@ export async function getAdminDashboard() {
     debtFees,
     paidThisMonth,
     pendingFines,
+    openIssues,
   ] = await Promise.all([
-    prisma.user.findMany({
-      where: { role: { in: ["COLONO", "ADMIN"] } },
-      orderBy: [{ role: "asc" }, { houseNumber: "asc" }],
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        houseNumber: true,
-        accessCode: true,
-        gateCode: true,
-        role: true,
-        createdAt: true,
-      },
-    }),
-    prisma.reservation.findMany({
-      where: { status: "PENDING" },
-      orderBy: { date: "asc" },
-      include: {
-        user: {
-          select: { firstName: true, lastName: true, houseNumber: true },
-        },
-      },
-    }),
+    getResidentsAdmin(),
+    getPendingReservationsAdmin(),
     prisma.newsPost.count(),
     prisma.provider.count(),
     prisma.monthlyFee.findMany({
@@ -317,16 +396,11 @@ export async function getAdminDashboard() {
         },
       },
     }),
-    prisma.fine.findMany({
-      where: { status: "PENDIENTE" },
-      orderBy: { issuedAt: "desc" },
-      take: 30,
+    getPendingFines(30),
+    prisma.issueReport.count({
+      where: { status: { in: ["ABIERTO", "EN_REVISION"] } },
     }),
   ]);
-
-  const openIssues = await prisma.issueReport.count({
-    where: { status: { in: ["ABIERTO", "EN_REVISION"] } },
-  });
 
   return {
     residents,

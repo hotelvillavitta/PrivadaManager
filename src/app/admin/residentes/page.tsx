@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { PageHero } from "@/components/PageHero";
 import { auth } from "@/lib/auth";
-import { getAdminDashboard } from "@/lib/queries";
+import { getResidentsAdmin } from "@/lib/queries";
 import { AdminBackLink } from "../admin-back-link";
 import { ResidentsAdmin } from "../residents-admin";
 
@@ -10,8 +10,8 @@ export default async function AdminResidentesPage() {
   if (!session?.user) redirect("/login");
   if (session.user.role !== "ADMIN") redirect("/");
 
-  const data = await getAdminDashboard();
-  const residents = [...data.residents].sort((a, b) => {
+  const residentsRaw = await getResidentsAdmin();
+  const residents = [...residentsRaw].sort((a, b) => {
     const na = Number(a.houseNumber);
     const nb = Number(b.houseNumber);
     if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;

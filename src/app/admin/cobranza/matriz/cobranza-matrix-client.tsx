@@ -14,6 +14,7 @@ import { toast } from "@/components/Toast";
 import {
   confirmFeesImport,
   exportFeesWorkbook,
+  loadPaymentMatrix,
   previewFeesImport,
   type FeeImportPreview,
 } from "@/lib/actions/fees";
@@ -25,7 +26,9 @@ import {
 } from "@/lib/fees/matrix-shared";
 
 type Props = {
-  matrix: PaymentMatrix;
+  initialMatrix: PaymentMatrix;
+  years: number[];
+  initialYear: number;
 };
 
 function houseMatchesQuery(houseNumber: string, q: string) {
@@ -37,26 +40,35 @@ function houseMatchesQuery(houseNumber: string, q: string) {
   return false;
 }
 
-export function CobranzaMatrixClient({ matrix }: Props) {
+export function CobranzaMatrixClient({
+  initialMatrix,
+  years,
+  initialYear,
+}: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [matrix, setMatrix] = useState(initialMatrix);
   const [houseQuery, setHouseQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "todos" | "adeudo" | "al_corriente"
   >("todos");
-  const [yearFilter, setYearFilter] = useState<number | "todos">("todos");
+  const [yearFilter, setYearFilter] = useState<number | "todos">(initialYear);
   const [preview, setPreview] = useState<FeeImportPreview | null>(null);
   const [applyPayload, setApplyPayload] = useState("");
 
-  const years = useMemo(() => {
-    const set = new Set(matrix.periods.map((p) => p.year));
-    return [...set].sort((a, b) => b - a);
-  }, [matrix.periods]);
+  const visiblePeriods = matrix.periods;
 
-  const visiblePeriods = useMemo(() => {
-    if (yearFilter === "todos") return matrix.periods;
-    return matrix.periods.filter((p) => p.year === yearFilter);
-  }, [matrix.periods, yearFilter]);
+  function onYearChange(next: number | "todos") {
+    setYearFilter(next);
+    startTransition(async () => {
+      const res = await loadPaymentMatrix(next);
+      if ("error" in res) {
+        toast(res.error, "error");
+        return;
+      }
+      setMatrix(res);
+    });
+  }
 
   const enrichedRows = useMemo(() => {
     return matrix.rows.map((row) => {
@@ -210,11 +222,12 @@ export function CobranzaMatrixClient({ matrix }: Props) {
           <select
             value={yearFilter === "todos" ? "todos" : String(yearFilter)}
             onChange={(e) =>
-              setYearFilter(
+              onYearChange(
                 e.target.value === "todos" ? "todos" : Number(e.target.value),
               )
             }
-            className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
+            disabled={pending}
+            className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm disabled:opacity-60"
           >
             <option value="todos">Todos los años</option>
             {years.map((y) => (

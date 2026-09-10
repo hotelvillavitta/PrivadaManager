@@ -49,9 +49,24 @@ export type CollectionKpis = {
 };
 
 export async function getCollectionKpis(): Promise<CollectionKpis> {
+  // Últimos ~36 meses (suficiente para KPIs; evita cargar todo el historial).
+  const now = new Date();
+  let fromYear = now.getFullYear() - 3;
+  let fromMonth = now.getMonth() + 1;
+  if (fromYear < 2021 || (fromYear === 2021 && fromMonth < 8)) {
+    fromYear = 2021;
+    fromMonth = 8;
+  }
+
   const [fees, residents] = await Promise.all([
     prisma.monthlyFee.findMany({
-      where: { concept: "MANTENIMIENTO" },
+      where: {
+        concept: "MANTENIMIENTO",
+        OR: [
+          { year: { gt: fromYear } },
+          { year: fromYear, month: { gte: fromMonth } },
+        ],
+      },
       select: {
         houseNumber: true,
         year: true,
