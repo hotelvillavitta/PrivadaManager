@@ -18,11 +18,24 @@ import {
   type FeeImportPreview,
 } from "@/lib/actions/fees";
 import { formatCurrency } from "@/lib/utils";
-import type { PaymentMatrix } from "@/lib/fees/matrix";
+import {
+  unpaidForPeriods,
+  type PaymentMatrix,
+  type PaymentMatrixRow,
+} from "@/lib/fees/matrix-shared";
 
 type Props = {
   matrix: PaymentMatrix;
 };
+
+function houseMatchesQuery(houseNumber: string, q: string) {
+  const lower = houseNumber.toLowerCase();
+  if (lower.includes(q)) return true;
+  const nq = Number(q);
+  const nh = Number(houseNumber);
+  if (!Number.isNaN(nq) && !Number.isNaN(nh) && nq === nh) return true;
+  return false;
+}
 
 export function CobranzaMatrixClient({ matrix }: Props) {
   const router = useRouter();
@@ -45,16 +58,35 @@ export function CobranzaMatrixClient({ matrix }: Props) {
     return matrix.periods.filter((p) => p.year === yearFilter);
   }, [matrix.periods, yearFilter]);
 
+  const enrichedRows = useMemo(() => {
+    return matrix.rows.map((row) => {
+      const scoped = unpaidForPeriods(row.cells, visiblePeriods);
+      return { ...row, ...scoped };
+    });
+  }, [matrix.rows, visiblePeriods]);
+
   const rows = useMemo(() => {
     const q = houseQuery.trim().toLowerCase();
-    return matrix.rows.filter((row) => {
+    return enrichedRows.filter((row) => {
       if (statusFilter === "adeudo" && row.unpaidCount === 0) return false;
       if (statusFilter === "al_corriente" && row.unpaidCount > 0) return false;
       if (!q) return true;
-      if (row.houseNumber.toLowerCase().includes(q)) return true;
+      if (houseMatchesQuery(row.houseNumber, q)) return true;
       return row.residents.some((r) => r.toLowerCase().includes(q));
     });
-  }, [matrix.rows, houseQuery, statusFilter]);
+  }, [enrichedRows, houseQuery, statusFilter]);
+
+  const summary = useMemo(() => {
+    let withDebt = 0;
+    let totalDebt = 0;
+    for (const row of rows) {
+      if (row.unpaidCount > 0) {
+        withDebt += 1;
+        totalDebt += row.unpaidAmount;
+      }
+    }
+    return { withDebt, totalDebt };
+  }, [rows]);
 
   function onImportFile(file: File | null) {
     if (!file) return;
@@ -123,8 +155,8 @@ export function CobranzaMatrixClient({ matrix }: Props) {
               Calendario de pagos
             </h2>
             <p className="mt-1 text-sm text-muted">
-              {matrix.rangeLabel} · {matrix.rows.length} casas · clic en adeudo
-              para cobrar
+              Desde {matrix.startLabel} · {matrix.rangeLabel} ·{" "}
+              {matrix.rows.length} casas · clic en adeudo para cobrar
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -191,6 +223,19 @@ export function CobranzaMatrixClient({ matrix }: Props) {
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+          <p className="font-semibold text-primary-dark">
+            Vista filtrada: {rows.length} casas
+          </p>
+          <p className="text-danger">
+            Con adeudo: {summary.withDebt} · Total:{" "}
+            {formatCurrency(summary.totalDebt)}
+          </p>
+          {yearFilter !== "todos" && (
+            <p className="text-muted">Totales solo de {yearFilter}</p>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-3 text-[11px] text-muted">
@@ -276,11 +321,12 @@ export function CobranzaMatrixClient({ matrix }: Props) {
                 ))}
                 <th className="sticky top-0 z-20 border-b border-border bg-primary-soft px-3 py-2 text-right font-semibold text-primary-dark">
                   Adeudo
+                  {yearFilter !== "todos" ? ` ${yearFilter}` : ""}
                 </th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {rows.map((row: PaymentMatrixRow) => (
                 <tr key={row.houseNumber} className="hover:bg-background/70">
                   <td className="sticky left-0 z-10 border-b border-r border-border bg-surface px-3 py-1.5">
                     <div className="min-w-[7rem]">
@@ -384,7 +430,8 @@ export function CobranzaMatrixClient({ matrix }: Props) {
 
       <p className="text-xs text-muted">
         <Wallet className="mr-1 inline h-3.5 w-3.5" />
-        Mostrando {rows.length} de {matrix.rows.length} casas.
+        Mostrando {rows.length} de {matrix.rows.length} casas
+        {yearFilter !== "todos" ? ` · año ${yearFilter}` : ""}.
       </p>
     </div>
   );

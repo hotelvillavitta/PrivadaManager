@@ -7,45 +7,24 @@ import {
   calendarPartsInTijuana,
   feeLabel,
 } from "@/lib/utils";
+import {
+  MATRIX_START,
+  unpaidForPeriods,
+  type PaymentMatrix,
+  type PaymentMatrixCell,
+  type PaymentMatrixPeriod,
+  type PaymentMatrixRow,
+  type MatrixCellStatus,
+} from "@/lib/fees/matrix-shared";
 
-export type MatrixCellStatus =
-  | "PAGADO"
-  | "ADEUDO"
-  | "PENDIENTE"
-  | "SIN_REGISTRO"
-  | "FUTURO";
-
-export type PaymentMatrixCell = {
-  year: number;
-  month: number;
-  label: string;
-  status: MatrixCellStatus;
-  amount: number;
-  withSurcharge: boolean;
-  paidAt: string | null;
-  feeId: string | null;
-};
-
-export type PaymentMatrixRow = {
-  houseNumber: string;
-  residents: string[];
-  cells: PaymentMatrixCell[];
-  unpaidCount: number;
-  unpaidAmount: number;
-};
-
-export type PaymentMatrixPeriod = {
-  year: number;
-  month: number;
-  label: string;
-  key: number;
-};
-
-export type PaymentMatrix = {
-  periods: PaymentMatrixPeriod[];
-  rows: PaymentMatrixRow[];
-  rangeLabel: string;
-};
+export type {
+  MatrixCellStatus,
+  PaymentMatrix,
+  PaymentMatrixCell,
+  PaymentMatrixPeriod,
+  PaymentMatrixRow,
+} from "@/lib/fees/matrix-shared";
+export { MATRIX_START, unpaidForPeriods, isUnpaidStatus } from "@/lib/fees/matrix-shared";
 
 function periodKey(year: number, month: number) {
   return year * 12 + month;
@@ -83,7 +62,7 @@ function buildPeriods(
   return out;
 }
 
-/** Matriz casa × mes para administración de cobranza. */
+/** Matriz casa × mes para administración de cobranza (desde AGO21). */
 export async function getPaymentMatrix(opts?: {
   fromYear?: number;
   fromMonth?: number;
@@ -91,10 +70,17 @@ export async function getPaymentMatrix(opts?: {
   toMonth?: number;
 }): Promise<PaymentMatrix> {
   const now = calendarPartsInTijuana();
+  const startKey = periodKey(MATRIX_START.year, MATRIX_START.month);
+
   const [feeBounds, housesWithResidents, feeHouses] = await Promise.all([
     prisma.monthlyFee.aggregate({
-      where: { concept: FEE_CONCEPT.MANTENIMIENTO },
-      _min: { year: true, month: true },
+      where: {
+        concept: FEE_CONCEPT.MANTENIMIENTO,
+        OR: [
+          { year: { gt: MATRIX_START.year } },
+          { year: MATRIX_START.year, month: { gte: MATRIX_START.month } },
+        ],
+      },
       _max: { year: true, month: true },
     }),
     prisma.user.findMany({
@@ -109,17 +95,35 @@ export async function getPaymentMatrix(opts?: {
     }),
   ]);
 
-  const fromYear =
-    opts?.fromYear ??
-    feeBounds._min.year ??
-    now.year;
-  const fromMonth = opts?.fromMonth ?? feeBounds._min.month ?? 1;
-  const toYear = opts?.toYear ?? Math.max(feeBounds._max.year ?? now.year, now.year);
-  const toMonth =
-    opts?.toMonth ??
-    (toYear === now.year
-      ? now.month
-      : feeBounds._max.month ?? now.month);
+  // Nunca antes de AGO21.
+  let fromYear = opts?.fromYear ?? MATRIX_START.year;
+  let fromMonth = opts?.fromMonth ?? MATRIX_START.month;
+  if (periodKey(fromYear, fromMonth) < startKey) {
+    fromYear = MATRIX_START.year;
+    fromMonth = MATRIX_START.month;
+  }
+
+  const maxYear = feeBounds._max.year ?? now.year;
+  const maxMonth = feeBounds._max.month ?? now.month;
+  const endFromData = periodKey(maxYear, maxMonth);
+  const endFromNow = periodKey(now.year, now.month);
+  const endKey = Math.max(endFromData, endFromNow, startKey);
+
+  const decodePeriod = (key: number) => {
+    const month = ((key - 1) % 12) + 1;
+    const year = Math.floor((key - month) / 12);
+    return { year, month };
+  };
+  const end = decodePeriod(endKey);
+
+  let toYear = opts?.toYear ?? end.year;
+  let toMonth =
+    opts?.toMonth ?? (opts?.toYear != null ? 12 : end.month);
+
+  if (periodKey(toYear, toMonth) < startKey) {
+    toYear = MATRIX_START.year;
+    toMonth = MATRIX_START.month;
+  }
 
   const periods = buildPeriods(fromYear, fromMonth, toYear, toMonth);
   const currentKey = periodKey(now.year, now.month);
@@ -179,7 +183,7 @@ export async function getPaymentMatrix(opts?: {
           year: p.year,
           month: p.month,
           label: p.label,
-          status: future ? "FUTURO" : "SIN_REGISTRO",
+          status: future ? "FUTURO" : ("SIN_REGISTRO" as MatrixCellStatus),
           amount: future ? 0 : FEE_BASE_AMOUNT,
           withSurcharge: false,
           paidAt: null,
@@ -198,19 +202,14 @@ export async function getPaymentMatrix(opts?: {
       };
     });
 
-    const unpaid = cells.filter(
-      (c) =>
-        c.status === "ADEUDO" ||
-        c.status === "PENDIENTE" ||
-        c.status === "SIN_REGISTRO",
-    );
+    const { unpaidCount, unpaidAmount } = unpaidForPeriods(cells, periods);
 
     return {
       houseNumber,
       residents: residentsByHouse.get(houseNumber) ?? [],
       cells,
-      unpaidCount: unpaid.length,
-      unpaidAmount: unpaid.reduce((sum, c) => sum + c.amount, 0),
+      unpaidCount,
+      unpaidAmount,
     };
   });
 
@@ -219,5 +218,10 @@ export async function getPaymentMatrix(opts?: {
       ? "Sin datos"
       : `${periods[0].label} – ${periods.at(-1)!.label}`;
 
-  return { periods, rows, rangeLabel };
+  return {
+    periods,
+    rows,
+    rangeLabel,
+    startLabel: feeLabel(MATRIX_START.year, MATRIX_START.month),
+  };
 }
