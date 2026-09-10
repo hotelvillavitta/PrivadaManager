@@ -34,6 +34,7 @@ type Fee = {
   year: number;
   month: number;
   amount: number;
+  amountPaid?: number;
   concept: string;
   status: "PAGADO" | "ADEUDO" | "PENDIENTE";
   withSurcharge?: boolean;
@@ -146,6 +147,8 @@ export function CuotasClient({
   const [includeMaintenance, setIncludeMaintenance] = useState(true);
   const [includeLate, setIncludeLate] = useState(false);
   const [includePalapa, setIncludePalapa] = useState(false);
+  const [abonoMode, setAbonoMode] = useState(false);
+  const [abonoAmount, setAbonoAmount] = useState(0);
   const [maintenanceAmount, setMaintenanceAmount] = useState(FEE_BASE_AMOUNT);
   const [lateAmount, setLateAmount] = useState(FEE_LATE_SURCHARGE);
   const [palapaAmount, setPalapaAmount] = useState(FEE_PALAPA_AMOUNT);
@@ -157,11 +160,34 @@ export function CuotasClient({
     if (initialChargeMonth) setChargeMonth(initialChargeMonth);
   }, [houseNumber, initialChargeYear, initialChargeMonth]);
 
-  const months = fees.filter((f) => f.year === historyYear);
-
   const pendingFinesTotal = fines
     .filter((f) => f.status === "PENDIENTE")
     .reduce((sum, f) => sum + f.amount, 0);
+
+  const unpaidFees = useMemo(
+    () =>
+      fees
+        .filter(
+          (f) =>
+            f.concept === FEE_CONCEPT.MANTENIMIENTO && f.status !== "PAGADO",
+        )
+        .map((f) => ({
+          ...f,
+          owed: Math.max(0, f.amount - (f.amountPaid ?? 0)),
+        }))
+        .filter((f) => f.owed > 0)
+        .sort((a, b) => a.year * 12 + a.month - (b.year * 12 + b.month)),
+    [fees],
+  );
+  const feesDebt = unpaidFees.reduce((s, f) => s + f.owed, 0);
+  const totalDebt = feesDebt + pendingFinesTotal;
+
+  useEffect(() => {
+    if (feesDebt > 0) setAbonoAmount(feesDebt);
+  }, [houseNumber, feesDebt]);
+
+  const months = fees.filter((f) => f.year === historyYear);
+
   // Si el servidor aún no suma multas futuras, el cliente las incluye.
   const pendingAmountToShow =
     summary.pendingAmount > 0
@@ -243,12 +269,12 @@ export function CuotasClient({
     .filter(Boolean)
     .join(" + ");
 
-  const canCharge =
-    !pending &&
-    !blockedByPriorDebt &&
-    total > 0 &&
-    ((includeMaintenance && !maintenancePaid) ||
-      includePalapa);
+  const canCharge = abonoMode
+    ? !pending && abonoAmount > 0 && feesDebt > 0
+    : !pending &&
+      !blockedByPriorDebt &&
+      total > 0 &&
+      ((includeMaintenance && !maintenancePaid) || includePalapa);
 
   return (
     <div className="pb-16">
@@ -451,8 +477,89 @@ export function CuotasClient({
               )}
             </div>
 
-            <input type="hidden" name="houseNumber" value={houseNumber} />
+            {totalDebt > 0 && (
+              <div className="mb-4 rounded-xl border border-danger/25 bg-danger-soft/50 px-4 py-3">
+                <p className="text-xs font-bold tracking-wide text-danger uppercase">
+                  Adeudo total
+                </p>
+                <p className="mt-1 font-display text-3xl font-bold text-danger">
+                  {formatCurrency(totalDebt)}
+                </p>
+                <p className="mt-1 text-sm text-muted">
+                  {unpaidFees.length} mes
+                  {unpaidFees.length === 1 ? "" : "es"} de cuota
+                  {feesDebt > 0 ? ` (${formatCurrency(feesDebt)})` : ""}
+                  {pendingFinesTotal > 0
+                    ? ` · multas ${formatCurrency(pendingFinesTotal)}`
+                    : ""}
+                </p>
+                {unpaidFees.length > 0 && (
+                  <p className="mt-2 text-[11px] text-muted">
+                    Más antiguo:{" "}
+                    {feeLabel(unpaidFees[0].year, unpaidFees[0].month)} ·{" "}
+                    {formatCurrency(unpaidFees[0].owed)}
+                  </p>
+                )}
+              </div>
+            )}
 
+            {feesDebt > 0 && (
+              <label className="mb-4 flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-background px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={abonoMode}
+                  onChange={(e) => setAbonoMode(e.target.checked)}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-primary-dark">
+                    Registrar abono a cuenta
+                  </span>
+                  <span className="text-xs text-muted">
+                    Aplica el monto al adeudo más antiguo primero. Queda
+                    pendiente de validar en Tesorería.
+                  </span>
+                </span>
+              </label>
+            )}
+
+            <input type="hidden" name="houseNumber" value={houseNumber} />
+            <input
+              type="hidden"
+              name="mode"
+              value={abonoMode ? "abono" : "periodo"}
+            />
+
+            {abonoMode ? (
+              <div className="mb-4 space-y-3">
+                <label className="block text-sm">
+                  <span className="mb-1.5 block font-medium text-primary-dark">
+                    Monto del abono *
+                  </span>
+                  <input
+                    name="abonoAmount"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max={feesDebt}
+                    required
+                    value={abonoAmount || ""}
+                    onChange={(e) => setAbonoAmount(Number(e.target.value))}
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
+                  />
+                </label>
+                <p className="text-xs text-muted">
+                  Máximo {formatCurrency(feesDebt)} en cuotas (FIFO).
+                </p>
+                <div className="rounded-xl bg-background px-4 py-4">
+                  <p className="text-sm text-muted">Total a recibir</p>
+                  <p className="font-display text-3xl font-bold text-primary-dark">
+                    {formatCurrency(abonoAmount || 0)}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
             <div className="mb-4 grid gap-3 sm:grid-cols-2">
               <label className="flex flex-col gap-1.5 text-sm">
                 <span className="font-medium text-primary-dark">Año</span>
@@ -570,25 +677,34 @@ export function CuotasClient({
               <p className="font-display text-3xl font-bold text-primary-dark">
                 {formatCurrency(total)}
               </p>
+              <p className="mt-2 text-xs text-muted">
+                El ingreso quedará pendiente de validar en Tesorería.
+              </p>
             </div>
+              </>
+            )}
 
             <button
               type="submit"
               disabled={!canCharge}
               className="mt-4 w-full rounded-xl bg-primary px-4 py-3.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[280px]"
             >
-              {blockedByPriorDebt
-                ? "Hay adeudos anteriores"
-                : maintenancePaid && !includePalapa
-                  ? "Periodo ya pagado"
-                  : pending
-                    ? "Registrando…"
-                    : `Cobrar Casa ${houseNumber} · ${formatCurrency(total)}`}
+              {abonoMode
+                ? pending
+                  ? "Registrando abono…"
+                  : `Registrar abono · ${formatCurrency(abonoAmount || 0)}`
+                : blockedByPriorDebt
+                  ? "Hay adeudos anteriores — usa abono o cobra el mes más antiguo"
+                  : maintenancePaid && !includePalapa
+                    ? "Periodo ya pagado"
+                    : pending
+                      ? "Registrando…"
+                      : `Cobrar Casa ${houseNumber} · ${formatCurrency(total)}`}
             </button>
             {isAdmin && (
               <p className="mt-2 text-xs text-muted">
-                Al registrar el cobro se envía un comprobante por correo a los
-                residentes de esa casa.
+                Al registrar el cobro se envía un comprobante por correo. El
+                saldo público se actualiza cuando Tesorería valida el ingreso.
               </p>
             )}
             {message && <p className="mt-2 text-sm text-muted">{message}</p>}

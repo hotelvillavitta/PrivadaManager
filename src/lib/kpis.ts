@@ -13,6 +13,11 @@ function isUnpaid(status: string) {
   return status === "ADEUDO" || status === "PENDIENTE";
 }
 
+function owedOf(f: { status: string; amount: number; amountPaid?: number }) {
+  if (!isUnpaid(f.status)) return 0;
+  return Math.max(0, f.amount - (f.amountPaid ?? 0));
+}
+
 export type CollectionKpis = {
   rangeLabel: string;
   collectionRate: number;
@@ -27,6 +32,8 @@ export type CollectionKpis = {
   avgDebt: number;
   byMonth: {
     key: number;
+    year: number;
+    month: number;
     label: string;
     paid: number;
     unpaid: number;
@@ -49,14 +56,9 @@ export type CollectionKpis = {
 };
 
 export async function getCollectionKpis(): Promise<CollectionKpis> {
-  // Últimos ~36 meses (suficiente para KPIs; evita cargar todo el historial).
-  const now = new Date();
-  let fromYear = now.getFullYear() - 3;
-  let fromMonth = now.getMonth() + 1;
-  if (fromYear < 2021 || (fromYear === 2021 && fromMonth < 8)) {
-    fromYear = 2021;
-    fromMonth = 8;
-  }
+  // Desde el inicio formal de cobranza (AGO21) para el progreso por año.
+  const fromYear = 2021;
+  const fromMonth = 8;
 
   const [fees, residents] = await Promise.all([
     prisma.monthlyFee.findMany({
@@ -72,6 +74,7 @@ export async function getCollectionKpis(): Promise<CollectionKpis> {
         year: true,
         month: true,
         amount: true,
+        amountPaid: true,
         status: true,
       },
     }),
@@ -92,8 +95,8 @@ export async function getCollectionKpis(): Promise<CollectionKpis> {
   const collectionRate = totalCount === 0 ? 0 : (paidCount / totalCount) * 100;
 
   const unpaidFees = fees.filter((f) => isUnpaid(f.status));
-  const totalDebt = unpaidFees.reduce((sum, f) => sum + f.amount, 0);
-  const pendingFees = unpaidFees.length;
+  const totalDebt = unpaidFees.reduce((sum, f) => sum + owedOf(f), 0);
+  const pendingFees = unpaidFees.filter((f) => owedOf(f) > 0).length;
 
   const monthMap = new Map<
     number,
@@ -123,8 +126,11 @@ export async function getCollectionKpis(): Promise<CollectionKpis> {
     };
     house.totalMonths += 1;
     if (isUnpaid(f.status)) {
-      house.unpaidMonths += 1;
-      house.amount += f.amount;
+      const owed = owedOf(f);
+      if (owed > 0) {
+        house.unpaidMonths += 1;
+        house.amount += owed;
+      }
     }
     byHouse.set(f.houseNumber, house);
   }
@@ -135,6 +141,8 @@ export async function getCollectionKpis(): Promise<CollectionKpis> {
       const billed = m.paid + m.unpaid;
       return {
         key,
+        year: m.year,
+        month: m.month,
         label: periodLabel(m.year, m.month),
         paid: m.paid,
         unpaid: m.unpaid,

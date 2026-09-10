@@ -46,6 +46,12 @@ enum IssueStatus {
   CERRADO
 }
 
+/// Ingresos de cobranza quedan PENDING hasta validarlos en Tesorería.
+enum FinanceLedgerStatus {
+  PENDING
+  APPROVED
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -153,6 +159,8 @@ model MonthlyFee {
   month          Int
   concept        String    @default("MANTENIMIENTO")
   amount         Float     @default(200)
+  /// Monto ya abonado (permite pagos parciales).
+  amountPaid     Float     @default(0)
   /// True si el pago incluyó recargo (después del día 10). No es adeudo.
   withSurcharge  Boolean   @default(false)
   status         FeeStatus @default(PENDIENTE)
@@ -215,17 +223,23 @@ model Fine {
 }
 
 model FinanceEntry {
-  id          String   @id @default(cuid())
+  id          String              @id @default(cuid())
   type        String
   category    String
   description String
   amount      Float
-  date        DateTime @default(now())
-  createdAt   DateTime @default(now())
+  date        DateTime            @default(now())
+  /// PENDING = cobro recibido, aún no cuenta en el saldo público.
+  status      FinanceLedgerStatus @default(APPROVED)
+  approvedAt  DateTime?
+  createdAt   DateTime            @default(now())
 
   monthlyFee    MonthlyFee?
   palapaPayment PalapaPayment?
   fine          Fine?
+
+  @@index([status, type, date])
+  @@index([type, date])
 }
 
 model Notification {

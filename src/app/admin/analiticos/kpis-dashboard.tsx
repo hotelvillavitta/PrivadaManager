@@ -5,6 +5,7 @@ import {
   Users,
 } from "lucide-react";
 import type { CollectionKpis } from "@/lib/kpis";
+import { CollectionProgressByYear } from "./collection-progress";
 
 /** Montos cortos para que quepan en tarjetas de móvil. */
 function formatKpiMoney(value: number) {
@@ -81,6 +82,13 @@ export function KpisDashboard({ data }: { data: CollectionKpis }) {
           hint="Por casa con adeudo"
         />
       </div>
+
+      <ChartCard title="Progreso de Cobro por Mes">
+        <p className="mb-3 text-xs text-muted sm:text-sm">
+          Avance porcentual de pagos recibidos por año y mes.
+        </p>
+        <CollectionProgressByYear months={data.byMonth} />
+      </ChartCard>
 
       <div className="grid min-w-0 gap-3 landscape:max-md:grid-cols-2 sm:gap-4 xl:grid-cols-[1.4fr_0.9fr]">
         <ChartCard title="Cobro por mes">

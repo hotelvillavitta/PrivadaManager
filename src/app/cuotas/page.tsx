@@ -43,6 +43,7 @@ export default async function CuotasPage() {
         year: f.year,
         month: f.month,
         amount: f.amount,
+        amountPaid: f.amountPaid,
         concept: f.concept,
         status: f.status,
         withSurcharge: f.withSurcharge,

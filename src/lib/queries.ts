@@ -127,6 +127,7 @@ type FeeLike = {
   year: number;
   month: number;
   amount: number;
+  amountPaid?: number;
 };
 
 type FineLike = {
@@ -135,6 +136,11 @@ type FineLike = {
   billingMonth: number;
 };
 
+function feeOwed(f: FeeLike) {
+  if (f.status === "PAGADO") return 0;
+  return Math.max(0, f.amount - (f.amountPaid ?? 0));
+}
+
 /** Resume cuotas/multas ya cargadas (evita segunda query). */
 export function summarizeFees(fees: FeeLike[], pendingFines: FineLike[]) {
   const { year: cy, month: cm } = calendarPartsInTijuana();
@@ -142,16 +148,12 @@ export function summarizeFees(fees: FeeLike[], pendingFines: FineLike[]) {
 
   const paid = fees.filter((f) => f.status === "PAGADO").length;
   const debt = fees.filter(
-    (f) =>
-      f.status === "ADEUDO" ||
-      (f.status === "PENDIENTE" && f.year * 12 + f.month <= currentKey),
+    (f) => feeOwed(f) > 0 && f.year * 12 + f.month <= currentKey,
   ).length;
 
   const dueFeesAmount = fees
-    .filter(
-      (f) => f.status !== "PAGADO" && f.year * 12 + f.month <= currentKey,
-    )
-    .reduce((sum, f) => sum + f.amount, 0);
+    .filter((f) => feeOwed(f) > 0 && f.year * 12 + f.month <= currentKey)
+    .reduce((sum, f) => sum + feeOwed(f), 0);
 
   const futureFinesAmount = pendingFines
     .filter((f) => f.billingYear * 12 + f.billingMonth > currentKey)
@@ -197,8 +199,57 @@ export async function houseHasPendingFees(
   return pending > 0;
 }
 
-export async function getFinanceEntries(take = 200) {
+export async function getFinanceSummary() {
+  const { year: cy, month: cm } = calendarPartsInTijuana();
+  const monthStart = new Date(cy, cm - 1, 1);
+  const monthEnd = new Date(cy, cm, 1);
+
+  const [approved, pendingCount] = await Promise.all([
+    prisma.financeEntry.findMany({
+      where: { status: "APPROVED" },
+      select: { type: true, amount: true, date: true },
+    }),
+    prisma.financeEntry.count({
+      where: { status: "PENDING", type: "INGRESO" },
+    }),
+  ]);
+
+  let ingresosTotales = 0;
+  let ingresosMes = 0;
+  let gastosTotales = 0;
+  let gastosMes = 0;
+  let pagosRegistrados = 0;
+  let gastosRegistrados = 0;
+
+  for (const e of approved) {
+    const inMonth = e.date >= monthStart && e.date < monthEnd;
+    if (e.type === "INGRESO") {
+      ingresosTotales += e.amount;
+      pagosRegistrados += 1;
+      if (inMonth) ingresosMes += e.amount;
+    } else {
+      gastosTotales += e.amount;
+      gastosRegistrados += 1;
+      if (inMonth) gastosMes += e.amount;
+    }
+  }
+
+  return {
+    liquidez: ingresosTotales - gastosTotales,
+    ingresosMes,
+    ingresosTotales,
+    gastosMes,
+    gastosTotales,
+    pagosRegistrados,
+    gastosRegistrados,
+    balanceNetoMes: ingresosMes - gastosMes,
+    pendingApprovals: pendingCount,
+  };
+}
+
+export async function getPendingFinanceEntries(take = 100) {
   return prisma.financeEntry.findMany({
+    where: { status: "PENDING", type: "INGRESO" },
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
     take,
     include: {
@@ -211,88 +262,19 @@ export async function getFinanceEntries(take = 200) {
   });
 }
 
-export async function getFinanceSummary() {
-  const { year: cy, month: cm } = calendarPartsInTijuana();
-  const monthStart = new Date(cy, cm - 1, 1);
-  const monthEnd = new Date(cy, cm, 1);
-
-  const [
-    cuotaAgg,
-    cuotaMesAgg,
-    palapaAgg,
-    palapaMesAgg,
-    manualLedger,
-  ] = await Promise.all([
-    prisma.monthlyFee.aggregate({
-      where: { status: "PAGADO", concept: "MANTENIMIENTO" },
-      _sum: { amount: true },
-      _count: { _all: true },
-    }),
-    prisma.monthlyFee.aggregate({
-      where: {
-        status: "PAGADO",
-        concept: "MANTENIMIENTO",
-        year: cy,
-        month: cm,
+export async function getFinanceEntries(take = 200) {
+  return prisma.financeEntry.findMany({
+    where: { status: "APPROVED" },
+    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+    take,
+    include: {
+      monthlyFee: {
+        select: { id: true, houseNumber: true, year: true, month: true },
       },
-      _sum: { amount: true },
-    }),
-    prisma.palapaPayment.aggregate({
-      _sum: { amount: true },
-      _count: { _all: true },
-    }),
-    prisma.palapaPayment.aggregate({
-      where: { paidAt: { gte: monthStart, lt: monthEnd } },
-      _sum: { amount: true },
-    }),
-    prisma.financeEntry.findMany({
-      where: {
-        AND: [
-          { monthlyFee: { is: null } },
-          { palapaPayment: { is: null } },
-          { fine: { is: null } },
-        ],
-      },
-      select: { type: true, amount: true, date: true },
-    }),
-  ]);
-
-  const cuotaIngresos = cuotaAgg._sum.amount ?? 0;
-  const palapaIngresos = palapaAgg._sum.amount ?? 0;
-  const ingresosMesCuotas = cuotaMesAgg._sum.amount ?? 0;
-  const ingresosMesPalapa = palapaMesAgg._sum.amount ?? 0;
-
-  let ingresosManual = 0;
-  let ingresosMesManual = 0;
-  let gastosTotales = 0;
-  let gastosMes = 0;
-  let gastosRegistrados = 0;
-
-  for (const e of manualLedger) {
-    const inMonth = e.date >= monthStart && e.date < monthEnd;
-    if (e.type === "INGRESO") {
-      ingresosManual += e.amount;
-      if (inMonth) ingresosMesManual += e.amount;
-    } else {
-      gastosTotales += e.amount;
-      gastosRegistrados += 1;
-      if (inMonth) gastosMes += e.amount;
-    }
-  }
-
-  const ingresosTotales = cuotaIngresos + palapaIngresos + ingresosManual;
-  const ingresosMes = ingresosMesCuotas + ingresosMesPalapa + ingresosMesManual;
-
-  return {
-    liquidez: ingresosTotales - gastosTotales,
-    ingresosMes,
-    ingresosTotales,
-    gastosMes,
-    gastosTotales,
-    pagosRegistrados: cuotaAgg._count._all + palapaAgg._count._all,
-    gastosRegistrados,
-    balanceNetoMes: ingresosMes - gastosMes,
-  };
+      palapaPayment: { select: { id: true, houseNumber: true } },
+      fine: { select: { id: true, houseNumber: true } },
+    },
+  });
 }
 
 export async function getUnreadCount(userId: string) {

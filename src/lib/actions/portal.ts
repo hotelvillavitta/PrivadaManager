@@ -536,6 +536,8 @@ async function upsertPaidConcept(opts: {
   description: string;
   paidAt: Date;
   withSurcharge?: boolean;
+  /** Si es parcial, suma a amountPaid sin exigir liquidar todo. */
+  partial?: boolean;
 }) {
   const {
     houseNumber,
@@ -546,6 +548,7 @@ async function upsertPaidConcept(opts: {
     description,
     paidAt,
     withSurcharge = false,
+    partial = false,
   } = opts;
 
   const existing = await prisma.monthlyFee.findUnique({
@@ -565,30 +568,28 @@ async function upsertPaidConcept(opts: {
     } as const;
   }
 
-  let financeEntryId = existing?.financeEntryId ?? null;
-  if (financeEntryId) {
-    await prisma.financeEntry.update({
-      where: { id: financeEntryId },
-      data: {
-        type: "INGRESO",
-        category: "Cuotas",
-        description,
-        amount,
-        date: paidAt,
-      },
-    });
-  } else {
-    const entry = await prisma.financeEntry.create({
-      data: {
-        type: "INGRESO",
-        category: "Cuotas",
-        description,
-        amount,
-        date: paidAt,
-      },
-    });
-    financeEntryId = entry.id;
-  }
+  const prevPaid = existing?.amountPaid ?? 0;
+  const targetAmount = existing?.amount ?? amount;
+  const nextPaid = partial
+    ? Math.min(targetAmount, prevPaid + amount)
+    : Math.max(targetAmount, amount);
+  const fullyPaid = partial
+    ? nextPaid >= targetAmount
+    : true;
+  const feeAmount = partial ? targetAmount : amount;
+  const entryAmount = partial ? amount : feeAmount;
+
+  // Un ingreso PENDING por cobro: no afecta el saldo público hasta Tesorería.
+  const entry = await prisma.financeEntry.create({
+    data: {
+      type: "INGRESO",
+      category: "Cuotas",
+      description,
+      amount: entryAmount,
+      date: paidAt,
+      status: "PENDING",
+    },
+  });
 
   const fee = await prisma.monthlyFee.upsert({
     where: {
@@ -604,28 +605,42 @@ async function upsertPaidConcept(opts: {
       year,
       month,
       concept,
-      status: "PAGADO",
-      amount,
+      status: fullyPaid ? "PAGADO" : "ADEUDO",
+      amount: feeAmount,
+      amountPaid: nextPaid,
       withSurcharge,
-      paidAt,
-      financeEntryId,
+      paidAt: fullyPaid ? paidAt : null,
+      ...(fullyPaid ? { financeEntryId: entry.id } : {}),
     },
     update: {
-      status: "PAGADO",
-      amount,
-      withSurcharge,
-      paidAt,
-      financeEntryId,
+      status: fullyPaid
+        ? "PAGADO"
+        : existing?.status === "PENDIENTE"
+          ? "ADEUDO"
+          : (existing?.status ?? "ADEUDO"),
+      amount: feeAmount,
+      amountPaid: nextPaid,
+      withSurcharge: withSurcharge || existing?.withSurcharge || false,
+      paidAt: fullyPaid ? paidAt : (existing?.paidAt ?? null),
+      ...(fullyPaid ? { financeEntryId: entry.id } : {}),
     },
   });
 
-  return { ok: true as const, feeId: fee.id, amount };
+  return {
+    ok: true as const,
+    feeId: fee.id,
+    amount: entryAmount,
+    entryId: entry.id,
+  };
 }
 
-/** Cobranza: mantenimiento (+ recargo opcional) y/o usos independientes de palapa. */
+/** Cobranza: mantenimiento (+ recargo opcional) y/o usos independientes de palapa.
+ *  También soporta abonos FIFO sobre el adeudo total (`mode=abono`).
+ */
 export async function registerCobranza(formData: FormData) {
   await requireAdmin();
   const houseNumber = String(formData.get("houseNumber") ?? "").trim();
+  const mode = String(formData.get("mode") ?? "periodo");
   const year = Number(formData.get("year"));
   const month = Number(formData.get("month"));
   const includeMaintenance = formData.get("includeMaintenance") === "on";
@@ -636,8 +651,124 @@ export async function registerCobranza(formData: FormData) {
   );
   const lateAmount = Number(formData.get("lateAmount") ?? FEE_LATE_SURCHARGE);
   const palapaAmount = Number(formData.get("palapaAmount") ?? FEE_PALAPA_AMOUNT);
+  const abonoAmount = Number(formData.get("abonoAmount") ?? 0);
 
-  if (!houseNumber || !year || !month || month < 1 || month > 12) {
+  if (!houseNumber) {
+    return { error: "Selecciona casa." };
+  }
+
+  // —— Abono a cuenta (FIFO sobre meses adeudados) ——
+  if (mode === "abono") {
+    if (Number.isNaN(abonoAmount) || abonoAmount <= 0) {
+      return { error: "Indica un monto de abono válido." };
+    }
+    const unpaid = await prisma.monthlyFee.findMany({
+      where: {
+        houseNumber,
+        concept: FEE_CONCEPT.MANTENIMIENTO,
+        status: { in: ["ADEUDO", "PENDIENTE"] },
+      },
+      orderBy: [{ year: "asc" }, { month: "asc" }],
+    });
+    const owedTotal = unpaid.reduce(
+      (s, f) => s + Math.max(0, f.amount - f.amountPaid),
+      0,
+    );
+    if (owedTotal <= 0) {
+      return { error: "Esta casa no tiene adeudo de mantenimiento." };
+    }
+    if (abonoAmount > owedTotal + 0.01) {
+      return {
+        error: `El abono no puede superar el adeudo total (${formatCurrency(owedTotal)}).`,
+      };
+    }
+
+    const paidAt = new Date();
+    let remaining = abonoAmount;
+    const applied: string[] = [];
+
+    for (const fee of unpaid) {
+      if (remaining <= 0) break;
+      const owed = Math.max(0, fee.amount - fee.amountPaid);
+      if (owed <= 0) continue;
+      const pay = Math.min(remaining, owed);
+      const nextPaid = fee.amountPaid + pay;
+      const fullyPaid = nextPaid >= fee.amount;
+      await prisma.monthlyFee.update({
+        where: { id: fee.id },
+        data: {
+          amountPaid: nextPaid,
+          status: fullyPaid ? "PAGADO" : "ADEUDO",
+          paidAt: fullyPaid ? paidAt : fee.paidAt,
+          withSurcharge: fee.withSurcharge,
+        },
+      });
+      applied.push(`${feeLabel(fee.year, fee.month)} $${pay}`);
+      remaining -= pay;
+    }
+
+    await prisma.financeEntry.create({
+      data: {
+        type: "INGRESO",
+        category: "Cuotas",
+        description: `Casa ${houseNumber} · Abono · ${applied.join(", ")}`,
+        amount: abonoAmount,
+        date: paidAt,
+        status: "PENDING",
+      },
+    });
+
+    const residents = await prisma.user.findMany({
+      where: { houseNumber, role: "COLONO" },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+      },
+    });
+    if (residents.length) {
+      await prisma.notification.createMany({
+        data: residents.map((r) => ({
+          userId: r.id,
+          title: "Abono registrado",
+          body: `Casa ${houseNumber} · Abono ${formatCurrency(abonoAmount)} aplicado a adeudo.`,
+        })),
+      });
+      const privada = await getPrivada();
+      after(() => {
+        void Promise.all(
+          residents.map((r) =>
+            sendPaymentReceiptEmail({
+              residentName: fullName(r),
+              residentEmail: r.email,
+              houseNumber,
+              periodLabel: "Abono",
+              lines: [{ label: "Abono a adeudo", amount: abonoAmount }],
+              total: abonoAmount,
+              paidAt,
+              privadaName: privada.name,
+              privadaAddress: privada.address,
+              privadaEmail: privada.email,
+              privadaPhone: privada.phone,
+            }),
+          ),
+        ).catch((err) => console.error("[abono] email failed", err));
+      });
+    }
+
+    revalidatePath("/admin/cobranza");
+    revalidatePath("/admin/cobranza/matriz");
+    revalidatePath("/admin/finanzas");
+    revalidatePath("/cuotas");
+    return {
+      ok: true,
+      amount: abonoAmount,
+      concepts: [`Abono $${abonoAmount}`],
+    };
+  }
+
+  if (!year || !month || month < 1 || month > 12) {
     return { error: "Selecciona casa, año y mes." };
   }
   if (!includeMaintenance && !includePalapa) {
@@ -671,7 +802,7 @@ export async function registerCobranza(formData: FormData) {
     if (priorUnpaid.length) {
       const labels = priorUnpaid.map((f) => feeLabel(f.year, f.month)).join(", ");
       return {
-        error: `No se puede cobrar ${feeLabel(year, month)} mientras haya adeudos anteriores (${labels}). Cobra primero el mes más antiguo.`,
+        error: `No se puede cobrar ${feeLabel(year, month)} mientras haya adeudos anteriores (${labels}). Cobra primero el mes más antiguo o registra un abono.`,
       };
     }
   }
@@ -704,6 +835,26 @@ export async function registerCobranza(formData: FormData) {
     if (applyLate) descParts.push(`recargo $${lateAmount}`);
     const description = `Casa ${houseNumber} · ${label} · ${descParts.join(" + ")}`;
 
+    const existingFee = await prisma.monthlyFee.findUnique({
+      where: {
+        houseNumber_year_month_concept: {
+          houseNumber,
+          year,
+          month,
+          concept: FEE_CONCEPT.MANTENIMIENTO,
+        },
+      },
+    });
+
+    // Si el monto cobrado es menor al saldo del periodo → abono parcial del mes.
+    const remainingOwed = existingFee
+      ? Math.max(0, existingFee.amount - existingFee.amountPaid)
+      : maintTotal;
+    const partial =
+      existingFee != null &&
+      existingFee.status !== "PAGADO" &&
+      maintTotal + 0.01 < remainingOwed;
+
     const res = await upsertPaidConcept({
       houseNumber,
       year,
@@ -713,6 +864,7 @@ export async function registerCobranza(formData: FormData) {
       description,
       paidAt,
       withSurcharge: applyLate && lateAmount > 0,
+      partial,
     });
     if ("error" in res) return res;
     total += res.amount;
@@ -737,7 +889,6 @@ export async function registerCobranza(formData: FormData) {
         amount: lateAmount,
       });
     }
-    // Si el admin ajustó el monto y no cuadra con base+multas, una sola línea.
     if (receiptLines.length === 0) {
       receiptLines.push({
         label: applyLate
@@ -747,7 +898,8 @@ export async function registerCobranza(formData: FormData) {
       });
     }
 
-    if (pendingFines.length) {
+    // Solo marcar multas pagadas si el periodo quedó liquidado (no abono parcial).
+    if (pendingFines.length && !partial) {
       await prisma.fine.updateMany({
         where: {
           id: { in: pendingFines.map((f) => f.id) },
@@ -761,8 +913,6 @@ export async function registerCobranza(formData: FormData) {
   }
 
   if (includePalapa) {
-    // Cada uso de palapa es un pago independiente: no se limita por mes y
-    // no se registra en MonthlyFee (historial de cuotas de mantenimiento).
     await prisma.financeEntry.create({
       data: {
         type: "INGRESO",
@@ -770,6 +920,7 @@ export async function registerCobranza(formData: FormData) {
         description: `Casa ${houseNumber} · Uso de palapa · ${label}`,
         amount: palapaAmount,
         date: paidAt,
+        status: "PENDING",
         palapaPayment: {
           create: {
             houseNumber,
@@ -801,7 +952,7 @@ export async function registerCobranza(formData: FormData) {
       data: residents.map((r) => ({
         userId: r.id,
         title: "Pago registrado",
-        body: `Casa ${houseNumber} · ${label}: ${parts.join(", ")} (total $${total}).`,
+        body: `Casa ${houseNumber} · ${label}: ${parts.join(", ")} (total $${total}). Pendiente de validar en Tesorería.`,
       })),
     });
 
@@ -829,6 +980,7 @@ export async function registerCobranza(formData: FormData) {
 
   revalidatePath("/admin/cobranza");
   revalidatePath("/admin/cobranza/matriz");
+  revalidatePath("/admin/finanzas");
   revalidatePath("/cuotas");
   return { ok: true, amount: total, concepts: parts };
 }
@@ -886,10 +1038,96 @@ export async function createFinanceEntry(formData: FormData) {
       description: fullDescription,
       amount,
       date,
+      // Gastos e ingresos manuales de tesorería entran ya publicados.
+      status: "APPROVED",
+      approvedAt: new Date(),
     },
   });
 
   revalidatePath("/finanzas");
+  revalidatePath("/admin/finanzas");
+  return { ok: true };
+}
+
+/** Edita un ingreso pendiente de validar en Tesorería. */
+export async function updatePendingFinanceEntry(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "").trim();
+  const category = String(formData.get("category") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const amount = Number(formData.get("amount") ?? 0);
+  const dateRaw = String(formData.get("date") ?? "").trim();
+
+  if (!id || !category || !description || !amount || amount <= 0) {
+    return { error: "Completa categoría, descripción y monto." };
+  }
+
+  const entry = await prisma.financeEntry.findUnique({ where: { id } });
+  if (!entry || entry.status !== "PENDING") {
+    return { error: "Solo se pueden editar ingresos pendientes." };
+  }
+
+  await prisma.financeEntry.update({
+    where: { id },
+    data: {
+      category,
+      description,
+      amount,
+      ...(dateRaw ? { date: parseEntryDate(dateRaw) } : {}),
+    },
+  });
+  revalidatePath("/admin/finanzas");
+  revalidatePath("/finanzas");
+  return { ok: true };
+}
+
+/** Publica un ingreso pendiente: ya cuenta en el saldo visible. */
+export async function approveFinanceEntry(id: string) {
+  await requireAdmin();
+  if (!id) return { error: "Movimiento inválido." };
+  const entry = await prisma.financeEntry.findUnique({ where: { id } });
+  if (!entry) return { error: "No encontrado." };
+  if (entry.status !== "PENDING") {
+    return { error: "Este movimiento ya está publicado." };
+  }
+
+  await prisma.financeEntry.update({
+    where: { id },
+    data: { status: "APPROVED", approvedAt: new Date() },
+  });
+  revalidatePath("/admin/finanzas");
+  revalidatePath("/finanzas");
+  return { ok: true };
+}
+
+/** Descarta un ingreso pendiente (no revierte el cobro operativo de cuotas). */
+export async function rejectPendingFinanceEntry(id: string) {
+  await requireAdmin();
+  if (!id) return { error: "Movimiento inválido." };
+  const entry = await prisma.financeEntry.findUnique({
+    where: { id },
+    include: {
+      monthlyFee: { select: { id: true } },
+      palapaPayment: { select: { id: true } },
+    },
+  });
+  if (!entry || entry.status !== "PENDING") {
+    return { error: "Solo se pueden descartar pendientes." };
+  }
+  // Desligar antes de borrar si aplica.
+  if (entry.monthlyFee) {
+    await prisma.monthlyFee.update({
+      where: { id: entry.monthlyFee.id },
+      data: { financeEntryId: null },
+    });
+  }
+  if (entry.palapaPayment) {
+    await prisma.palapaPayment.update({
+      where: { id: entry.palapaPayment.id },
+      data: { financeEntryId: null },
+    });
+  }
+  await prisma.financeEntry.delete({ where: { id } });
   revalidatePath("/admin/finanzas");
   return { ok: true };
 }

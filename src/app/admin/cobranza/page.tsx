@@ -89,6 +89,7 @@ export default async function AdminCobranzaPage({
           year: f.year,
           month: f.month,
           amount: f.amount,
+          amountPaid: f.amountPaid,
           concept: f.concept,
           status: f.status,
           withSurcharge: f.withSurcharge,

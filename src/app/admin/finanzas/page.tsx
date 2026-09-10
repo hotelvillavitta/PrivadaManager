@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import {
   getFinanceEntries,
   getFinanceSummary,
-  getHouseNumbers,
+  getPendingFinanceEntries,
   getPrivada,
 } from "@/lib/queries";
 import { AdminBackLink } from "../admin-back-link";
@@ -14,11 +14,11 @@ export default async function AdminFinanzasPage() {
   if (!session?.user) redirect("/login");
   if (session.user.role !== "ADMIN") redirect("/");
 
-  const [summary, privada, entries, houses] = await Promise.all([
+  const [summary, privada, entries, pendingEntries] = await Promise.all([
     getFinanceSummary(),
     getPrivada(),
     getFinanceEntries(250),
-    getHouseNumbers(),
+    getPendingFinanceEntries(100),
   ]);
 
   return (
@@ -30,7 +30,6 @@ export default async function AdminFinanzasPage() {
         isAdmin
         privadaName={privada.name}
         summary={summary}
-        houses={houses}
         entries={entries.map((e) => ({
           id: e.id,
           type: e.type,
@@ -39,6 +38,17 @@ export default async function AdminFinanzasPage() {
           amount: e.amount,
           date: e.date.toISOString(),
           linked: Boolean(e.monthlyFee || e.palapaPayment || e.fine),
+          status: "APPROVED" as const,
+        }))}
+        pendingEntries={pendingEntries.map((e) => ({
+          id: e.id,
+          type: e.type,
+          category: e.category,
+          description: e.description,
+          amount: e.amount,
+          date: e.date.toISOString(),
+          linked: Boolean(e.monthlyFee || e.palapaPayment || e.fine),
+          status: "PENDING" as const,
         }))}
       />
     </div>

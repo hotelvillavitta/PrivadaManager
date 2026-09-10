@@ -163,6 +163,7 @@ export async function getPaymentMatrix(opts?: {
       year: true,
       month: true,
       amount: true,
+      amountPaid: true,
       status: true,
       withSurcharge: true,
       paidAt: true,
@@ -195,7 +196,10 @@ export async function getPaymentMatrix(opts?: {
         month: p.month,
         label: p.label,
         status: fee.status as MatrixCellStatus,
-        amount: fee.amount,
+        amount:
+          fee.status === "PAGADO"
+            ? fee.amount
+            : Math.max(0, fee.amount - fee.amountPaid),
         withSurcharge: fee.withSurcharge,
         paidAt: fee.paidAt?.toISOString() ?? null,
         feeId: fee.id,
