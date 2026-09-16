@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Building2,
   CalendarDays,
+  CircleDollarSign,
   ClipboardList,
   Home,
   LogOut,
@@ -36,8 +37,7 @@ const baseLinks = [
   { href: "/reportes", label: "Reportes", icon: ClipboardList },
   { href: "/directorio", label: "Directorio", icon: Building2 },
   { href: "/cuotas", label: "Cuotas", icon: Wallet },
-  // Finanzas (resumen de ingresos) oculto de la UI principal por ahora.
-  // Tesorería sigue disponible en /admin/finanzas.
+  { href: "/finanzas", label: "Finanzas", icon: CircleDollarSign },
 ];
 
 const mobilePrimaryHrefs = new Set([
