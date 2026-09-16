@@ -714,7 +714,7 @@ export function CuotasClient({
         {!isAdmin && (
           <p className="rounded-2xl border border-border bg-surface px-4 py-3 text-sm text-muted">
             Tu historial lo actualiza el comité. Cuando registren un pago,
-            aparecerá aquí, en Finanzas, y recibirás el comprobante por correo.
+            aparecerá aquí y recibirás el comprobante por correo.
           </p>
         )}
 
