@@ -199,17 +199,11 @@ export default async function AdminPage() {
             <h1 className="font-display text-3xl leading-tight text-primary-dark sm:text-4xl lg:text-5xl">
               Administración
             </h1>
-            <p className="mt-2 text-base font-medium text-primary-dark/80 sm:text-lg">
-              Todo lo necesario para gestionar tu privada.
-            </p>
             <p className="mt-1.5 text-sm leading-relaxed text-muted sm:text-base">
               Controla residentes, cuotas, reservaciones, reportes y más, en un
               solo lugar.
             </p>
           </div>
-          <p className="hidden max-w-[14rem] text-right font-display text-lg leading-snug text-primary/70 italic sm:block lg:text-xl">
-            “Una mejor comunidad, todos los días.”
-          </p>
         </div>
       </section>
 

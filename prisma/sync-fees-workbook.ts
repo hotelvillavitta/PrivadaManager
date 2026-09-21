@@ -14,7 +14,7 @@ import { FEE_CONCEPT } from "../src/lib/utils";
 const prisma = new PrismaClient();
 
 const DEFAULT_XLSX =
-  "/Users/jcmac15/Downloads/concentrado-cuotas-grenach--2026-09-09.xlsx";
+  "/Users/jcmac15/Downloads/concentrado-cuotas-grenach--2026-09-21-2.xlsx";
 
 async function main() {
   const apply = process.argv.includes("--apply");
@@ -67,12 +67,14 @@ async function main() {
             month: fee.month,
             concept: FEE_CONCEPT.MANTENIMIENTO,
             amount: fee.amount,
+            amountPaid: fee.status === "PAGADO" ? fee.amount : 0,
             status: fee.status,
             withSurcharge: fee.withSurcharge,
             paidAt: fee.paidAt,
           },
           update: {
             amount: fee.amount,
+            amountPaid: fee.status === "PAGADO" ? fee.amount : 0,
             status: fee.status,
             withSurcharge: fee.withSurcharge,
             paidAt: fee.paidAt,
