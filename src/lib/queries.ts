@@ -295,23 +295,78 @@ export async function getRecentNotifications(userId: string, take = 5) {
   return getNotifications(userId, take);
 }
 
-/** Contadores ligeros para el hub /admin. */
+/** Contadores y KPIs ligeros para el hub /admin. */
 export async function getAdminHubCounts() {
-  const [residentCount, pendingReservations, pendingFines, openIssues] =
-    await Promise.all([
-      prisma.user.count({ where: { role: "COLONO" } }),
-      prisma.reservation.count({ where: { status: "PENDING" } }),
-      prisma.fine.count({ where: { status: "PENDIENTE" } }),
-      prisma.issueReport.count({
-        where: { status: { in: ["ABIERTO", "EN_REVISION"] } },
-      }),
-    ]);
+  const { year: cy, month: cm } = calendarPartsInTijuana();
 
-  return {
+  const [
     residentCount,
+    houseRows,
     pendingReservations,
     pendingFines,
     openIssues,
+    unpaidFeesCount,
+    monthPaidAgg,
+    monthBilledAgg,
+    pendingTreasury,
+  ] = await Promise.all([
+    prisma.user.count({ where: { role: "COLONO" } }),
+    prisma.user.findMany({
+      where: { houseNumber: { not: null }, role: "COLONO" },
+      select: { houseNumber: true },
+      distinct: ["houseNumber"],
+    }),
+    prisma.reservation.count({ where: { status: "PENDING" } }),
+    prisma.fine.count({ where: { status: "PENDIENTE" } }),
+    prisma.issueReport.count({
+      where: { status: { in: ["ABIERTO", "EN_REVISION"] } },
+    }),
+    prisma.monthlyFee.count({
+      where: {
+        concept: "MANTENIMIENTO",
+        status: { in: ["ADEUDO", "PENDIENTE"] },
+        OR: [{ year: { lt: cy } }, { year: cy, month: { lte: cm } }],
+      },
+    }),
+    prisma.monthlyFee.aggregate({
+      where: {
+        concept: "MANTENIMIENTO",
+        status: "PAGADO",
+        year: cy,
+        month: cm,
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
+    prisma.monthlyFee.aggregate({
+      where: {
+        concept: "MANTENIMIENTO",
+        year: cy,
+        month: cm,
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
+    prisma.financeEntry.count({
+      where: { status: "PENDING", type: "INGRESO" },
+    }),
+  ]);
+
+  const collectedMonth = monthPaidAgg._sum.amount ?? 0;
+  const billedMonth = monthBilledAgg._sum.amount ?? 0;
+
+  return {
+    residentCount,
+    houseCount: houseRows.length,
+    pendingReservations,
+    pendingFines,
+    openIssues,
+    unpaidFeesCount,
+    collectedMonth,
+    billedMonth,
+    collectionRateMonth:
+      billedMonth <= 0 ? 0 : Math.min(100, (collectedMonth / billedMonth) * 100),
+    pendingTreasury,
   };
 }
 
