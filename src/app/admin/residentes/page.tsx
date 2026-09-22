@@ -10,7 +10,7 @@ export default async function AdminResidentesPage() {
   if (!session?.user) redirect("/login");
   if (session.user.role !== "ADMIN") redirect("/");
 
-  const residentsRaw = await getResidentsAdmin();
+  const residentsRaw = await getResidentsAdmin(session.user.email);
   const residents = [...residentsRaw].sort((a, b) => {
     const na = Number(a.houseNumber);
     const nb = Number(b.houseNumber);

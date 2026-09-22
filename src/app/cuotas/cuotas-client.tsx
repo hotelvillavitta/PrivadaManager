@@ -321,7 +321,7 @@ export function CuotasClient({
                     </p>
                   ) : (
                     <p className="mt-2 text-sm text-muted">
-                      Sin residentes COLONO registrados en esta casa.
+                      Sin residentes registrados en esta casa.
                     </p>
                   )}
                 </div>

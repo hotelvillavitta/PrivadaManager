@@ -84,7 +84,7 @@ export async function getPaymentMatrix(opts?: {
       _max: { year: true, month: true },
     }),
     prisma.user.findMany({
-      where: { houseNumber: { not: null }, role: "COLONO" },
+      where: { houseNumber: { not: null } },
       select: { houseNumber: true, firstName: true, lastName: true },
       orderBy: [{ houseNumber: "asc" }, { lastName: "asc" }],
     }),

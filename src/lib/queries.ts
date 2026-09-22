@@ -1,6 +1,10 @@
 import { cache } from "react";
 import { prisma } from "@/lib/db";
 import {
+  MASTER_ADMIN_EMAIL,
+  isMasterAdminEmail,
+} from "@/lib/master-admin";
+import {
   calendarPartsInTijuana,
   overdueMaintenanceWhere,
 } from "@/lib/utils";
@@ -373,9 +377,13 @@ export async function getAdminHubCounts() {
   };
 }
 
-export async function getResidentsAdmin() {
+export async function getResidentsAdmin(viewerEmail?: string | null) {
+  const hideMaster = !isMasterAdminEmail(viewerEmail);
   return prisma.user.findMany({
-    where: { role: { in: ["COLONO", "ADMIN"] } },
+    where: {
+      role: { in: ["COLONO", "ADMIN"] },
+      ...(hideMaster ? { NOT: { email: MASTER_ADMIN_EMAIL } } : {}),
+    },
     orderBy: [{ role: "asc" }, { houseNumber: "asc" }],
     select: {
       id: true,
@@ -498,11 +506,12 @@ export async function getHouseNumbers() {
 /** Casas con nombres de residentes, para confirmar cobros sin errores. */
 export async function getHousesWithResidents() {
   const users = await prisma.user.findMany({
-    where: { houseNumber: { not: null }, role: "COLONO" },
+    where: { houseNumber: { not: null } },
     select: {
       houseNumber: true,
       firstName: true,
       lastName: true,
+      role: true,
     },
     orderBy: [{ houseNumber: "asc" }, { lastName: "asc" }],
   });
@@ -511,7 +520,8 @@ export async function getHousesWithResidents() {
   for (const u of users) {
     if (!u.houseNumber) continue;
     const list = map.get(u.houseNumber) ?? [];
-    list.push(`${u.firstName} ${u.lastName}`.trim());
+    const name = `${u.firstName} ${u.lastName}`.trim();
+    list.push(u.role === "ADMIN" ? `${name} (Comité)` : name);
     map.set(u.houseNumber, list);
   }
 

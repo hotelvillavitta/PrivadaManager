@@ -30,6 +30,10 @@ import {
 } from "@/lib/notify/payment-receipt";
 import { sendFineNoticeEmail } from "@/lib/notify/fine-notice";
 import { getFineCauseById } from "@/lib/fines/catalog";
+import {
+  MASTER_ADMIN_EMAIL,
+  isMasterAdminEmail,
+} from "@/lib/master-admin";
 
 export async function toggleNewsReaction(newsId: string, emoji: string) {
   const user = await requireUser();
@@ -402,7 +406,7 @@ export async function deleteNewsPost(id: string) {
 }
 
 export async function createResident(formData: FormData) {
-  await requireAdmin();
+  const actor = await requireAdmin();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const firstName = String(formData.get("firstName") ?? "").trim();
   const lastName = String(formData.get("lastName") ?? "").trim();
@@ -413,6 +417,9 @@ export async function createResident(formData: FormData) {
 
   if (!email || !firstName || !lastName) {
     return { error: "Nombre y correo son obligatorios." };
+  }
+  if (isMasterAdminEmail(email) && !isMasterAdminEmail(actor.email)) {
+    return { error: "No puedes crear esa cuenta." };
   }
   if (role !== "COLONO" && role !== "ADMIN") {
     return { error: "Rol inválido." };
@@ -445,15 +452,26 @@ export async function createResident(formData: FormData) {
 }
 
 export async function generateResidentPassword(userId: string) {
-  await requireAdmin();
+  const actor = await requireAdmin();
   if (!userId) return { error: "Residente inválido." };
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  });
+  if (!target) return { error: "Residente no encontrado." };
+  if (
+    isMasterAdminEmail(target.email) &&
+    !isMasterAdminEmail(actor.email)
+  ) {
+    return { error: "No puedes modificar esa cuenta." };
+  }
   const issued = await issueTemporaryPassword(userId);
   revalidatePath("/admin");
   return issued;
 }
 
 export async function updateResident(formData: FormData) {
-  await requireAdmin();
+  const actor = await requireAdmin();
   const id = String(formData.get("id") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const firstName = String(formData.get("firstName") ?? "").trim();
@@ -468,6 +486,30 @@ export async function updateResident(formData: FormData) {
   }
   if (role !== "COLONO" && role !== "ADMIN") {
     return { error: "Rol inválido." };
+  }
+
+  const target = await prisma.user.findUnique({
+    where: { id },
+    select: { email: true },
+  });
+  if (!target) return { error: "Residente no encontrado." };
+  if (
+    isMasterAdminEmail(target.email) &&
+    !isMasterAdminEmail(actor.email)
+  ) {
+    return { error: "No puedes modificar esa cuenta." };
+  }
+  if (isMasterAdminEmail(email) && !isMasterAdminEmail(actor.email)) {
+    return { error: "No puedes usar ese usuario." };
+  }
+  // El maestro no debe perder su identidad ni quedar sin privilegios.
+  if (isMasterAdminEmail(target.email)) {
+    if (email !== MASTER_ADMIN_EMAIL) {
+      return { error: "No se puede cambiar el usuario del admin maestro." };
+    }
+    if (role !== "ADMIN") {
+      return { error: "El admin maestro debe conservar el rol Admin." };
+    }
   }
 
   const other = await prisma.user.findFirst({
@@ -499,8 +541,17 @@ export async function deleteResident(id: string) {
   if (id === admin.id) {
     return { error: "No puedes eliminar tu propia cuenta." };
   }
+  const target = await prisma.user.findUnique({
+    where: { id },
+    select: { email: true },
+  });
+  if (!target) return { error: "Residente no encontrado." };
+  if (isMasterAdminEmail(target.email)) {
+    return { error: "No se puede eliminar al admin maestro." };
+  }
   await prisma.user.delete({ where: { id } });
   revalidatePath("/admin");
+  revalidatePath("/admin/residentes");
   revalidatePath("/cuotas");
   return { ok: true };
 }
