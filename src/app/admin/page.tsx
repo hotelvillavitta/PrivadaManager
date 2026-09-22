@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { getAdminHubCounts } from "@/lib/queries";
-import { formatCurrency } from "@/lib/utils";
+import { feeLabel, formatCurrency } from "@/lib/utils";
 
 type ModuleItem = {
   href: string;
@@ -133,14 +133,16 @@ export default async function AdminPage() {
 
   const data = await getAdminHubCounts();
 
+  const monthLabel = feeLabel(data.unpaidFeesYear, data.unpaidFeesMonth);
+
   const attention = [
     {
-      href: "/admin/cobranza",
+      href: "/admin/cobranza/matriz",
       title:
         data.unpaidFeesCount > 0
-          ? `${data.unpaidFeesCount} cuotas pendientes`
-          : "Sin cuotas pendientes",
-      description: "Residentes con saldo pendiente",
+          ? `${data.unpaidFeesCount} cuotas pendientes este mes`
+          : "Sin cuotas pendientes este mes",
+      description: `Pendientes de ${monthLabel}`,
       tone: "danger" as const,
       icon: AlertTriangle,
       show: data.unpaidFeesCount > 0,

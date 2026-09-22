@@ -325,7 +325,8 @@ export async function getAdminHubCounts() {
       where: {
         concept: "MANTENIMIENTO",
         status: { in: ["ADEUDO", "PENDIENTE"] },
-        OR: [{ year: { lt: cy } }, { year: cy, month: { lte: cm } }],
+        year: cy,
+        month: cm,
       },
     }),
     prisma.monthlyFee.aggregate({
@@ -362,6 +363,8 @@ export async function getAdminHubCounts() {
     pendingFines,
     openIssues,
     unpaidFeesCount,
+    unpaidFeesMonth: cm,
+    unpaidFeesYear: cy,
     collectedMonth,
     billedMonth,
     collectionRateMonth:
