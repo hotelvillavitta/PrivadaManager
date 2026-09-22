@@ -31,13 +31,28 @@ type NavUser = {
 } | null;
 
 const baseLinks = [
-  { href: "/", label: "Inicio", icon: Home },
-  { href: "/noticias", label: "Noticias", icon: Newspaper },
-  { href: "/reservaciones", label: "Reservaciones", icon: CalendarDays },
-  { href: "/reportes", label: "Reportes", icon: ClipboardList },
-  { href: "/directorio", label: "Directorio", icon: Building2 },
-  { href: "/cuotas", label: "Cuotas", icon: Wallet },
-  { href: "/finanzas", label: "Finanzas", icon: CircleDollarSign },
+  { href: "/", label: "Inicio", shortLabel: "Inicio", icon: Home },
+  { href: "/noticias", label: "Noticias", shortLabel: "Noticias", icon: Newspaper },
+  {
+    href: "/reservaciones",
+    label: "Reservaciones",
+    shortLabel: "Reservas",
+    icon: CalendarDays,
+  },
+  { href: "/reportes", label: "Reportes", shortLabel: "Reportes", icon: ClipboardList },
+  {
+    href: "/directorio",
+    label: "Directorio",
+    shortLabel: "Directorio",
+    icon: Building2,
+  },
+  { href: "/cuotas", label: "Cuotas", shortLabel: "Cuotas", icon: Wallet },
+  {
+    href: "/finanzas",
+    label: "Finanzas",
+    shortLabel: "Finanzas",
+    icon: CircleDollarSign,
+  },
 ];
 
 const mobilePrimaryHrefs = new Set([
@@ -86,12 +101,12 @@ export function Navbar({
   return (
     <>
       <header className="sticky top-0 z-50 border-b border-border bg-surface/95 pt-[env(safe-area-inset-top)] shadow-sm backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3 lg:px-6">
+        <div className="mx-auto flex max-w-[100vw] items-center justify-between gap-2 px-3 py-2.5 sm:gap-2.5 sm:px-4 sm:py-3 lg:px-5">
           <Link
             href="/"
-            className="flex shrink-0 items-center gap-2.5 sm:gap-3"
+            className="flex shrink-0 items-center gap-2 sm:gap-2.5"
           >
-            <span className="relative block h-11 w-11 shrink-0 overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-border sm:h-12 sm:w-12">
+            <span className="relative block h-10 w-10 shrink-0 overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-border sm:h-11 sm:w-11">
               <BrandLogo
                 variant="mark"
                 src={logoUrl}
@@ -100,19 +115,20 @@ export function Navbar({
                 priority
               />
             </span>
-            <div className="hidden min-w-0 leading-tight sm:block lg:max-w-[9.5rem] xl:max-w-[11rem] 2xl:max-w-none">
-              <p className="truncate font-display text-lg font-semibold tracking-tight text-primary-dark sm:text-xl">
+            {/* El nombre de marca cede espacio a la nav en pantallas con barra completa. */}
+            <div className="hidden min-w-0 leading-tight min-[1600px]:block">
+              <p className="truncate font-display text-lg font-semibold tracking-tight text-primary-dark">
                 {privadaName}
               </p>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-accent sm:text-[11px]">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-accent">
                 App Residencial
               </p>
             </div>
           </Link>
 
-          <nav className="hidden min-w-0 flex-1 items-center justify-center px-2 2xl:flex">
-            <div className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-2xl border border-border bg-background/80 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {links.map(({ href, label, icon: Icon }) => {
+          <nav className="hidden min-w-0 flex-1 items-center justify-center px-1 2xl:flex">
+            <div className="flex items-center gap-0.5 rounded-2xl border border-border bg-background/80 p-0.5">
+              {links.map(({ href, label, shortLabel, icon: Icon }) => {
                 const active =
                   href === "/" ? pathname === "/" : pathname.startsWith(href);
                 return (
@@ -120,20 +136,20 @@ export function Navbar({
                     key={href}
                     href={href}
                     title={label}
-                    className={`flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-2 text-sm transition 2xl:px-3 ${
+                    className={`flex items-center gap-1 rounded-xl px-2 py-1.5 text-[13px] leading-none transition ${
                       active
                         ? "bg-primary font-semibold text-white shadow-sm"
                         : "font-medium text-muted hover:bg-surface hover:text-primary-dark"
                     }`}
                   >
                     <span
-                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ${
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md ${
                         active ? "bg-white/15" : "bg-primary-soft text-primary"
                       }`}
                     >
-                      <Icon className="h-3.5 w-3.5" strokeWidth={2.25} />
+                      <Icon className="h-3 w-3" strokeWidth={2.25} />
                     </span>
-                    <span className="whitespace-nowrap">{label}</span>
+                    <span className="whitespace-nowrap">{shortLabel}</span>
                   </Link>
                 );
               })}
@@ -142,7 +158,7 @@ export function Navbar({
 
           {/* Escritorio intermedio: iconos + menú “Más” para no aplastar el logo */}
           <nav className="hidden min-w-0 flex-1 items-center justify-center gap-1 px-1 xl:flex 2xl:hidden">
-            {links.slice(0, 5).map(({ href, label, icon: Icon }) => {
+            {links.map(({ href, label, icon: Icon }) => {
               const active =
                 href === "/" ? pathname === "/" : pathname.startsWith(href);
               return (
@@ -161,24 +177,14 @@ export function Navbar({
                 </Link>
               );
             })}
-            <button
-              type="button"
-              className="flex h-10 shrink-0 items-center gap-1 rounded-xl bg-background px-2.5 text-xs font-semibold text-primary ring-1 ring-border hover:bg-primary-soft"
-              onClick={() => setOpen((v) => !v)}
-              aria-label="Más secciones"
-              aria-expanded={open}
-            >
-              <Menu className="h-4 w-4" />
-              Más
-            </button>
           </nav>
 
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
             {isAdmin && (
               <Link
                 href="/admin"
                 title="Administración"
-                className={`inline-flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-sm font-semibold transition sm:px-3 ${
+                className={`inline-flex h-9 items-center gap-1.5 rounded-xl px-2.5 text-sm font-semibold transition sm:h-10 sm:px-3 ${
                   pathname.startsWith("/admin")
                     ? "bg-primary text-white shadow-sm"
                     : "bg-primary-soft text-primary ring-1 ring-primary/20 hover:bg-primary hover:text-white"
@@ -191,7 +197,7 @@ export function Navbar({
             {user ? (
               <>
                 <NotificationBell enabled={Boolean(user)} />
-                <div className="hidden text-right sm:block">
+                <div className="hidden text-right min-[1400px]:block">
                   <p className="text-sm font-semibold uppercase tracking-wide text-primary-dark">
                     {user.firstName}
                   </p>
