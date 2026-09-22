@@ -75,14 +75,15 @@ export default function LoginPage() {
           >
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium">
-                Correo electrónico
+                {mode === "login" ? "Correo o usuario" : "Correo electrónico"}
               </span>
               <input
-                type="email"
+                type={mode === "login" ? "text" : "email"}
                 name="email"
                 required
                 className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                autoComplete="email"
+                autoComplete={mode === "login" ? "username" : "email"}
+                placeholder={mode === "login" ? "correo@ejemplo.com o admin" : undefined}
               />
             </label>
             {mode === "login" && (

@@ -19,7 +19,9 @@
     "db:sync:finance": "tsx prisma/sync-finance-from-fees.ts",
     "db:sync:finance:apply": "tsx prisma/sync-finance-from-fees.ts --apply",
     "db:import:gastos": "tsx prisma/import-gastos-pdf.ts",
-    "db:import:gastos:apply": "tsx prisma/import-gastos-pdf.ts --apply --replace"
+    "db:import:gastos:apply": "tsx prisma/import-gastos-pdf.ts --apply --replace",
+    "db:import:usuarios": "tsx prisma/import-usuarios-pdf.ts",
+    "db:import:usuarios:apply": "tsx prisma/import-usuarios-pdf.ts --apply"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

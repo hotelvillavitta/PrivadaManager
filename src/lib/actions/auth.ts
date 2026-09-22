@@ -14,7 +14,7 @@ export async function loginAction(formData: FormData) {
   const password = String(formData.get("password") ?? "");
 
   if (!email || !password) {
-    return { error: "Ingresa correo y contraseña." };
+    return { error: "Ingresa usuario/correo y contraseña." };
   }
 
   try {
@@ -26,7 +26,7 @@ export async function loginAction(formData: FormData) {
     return { ok: true };
   } catch (error) {
     if (error instanceof AuthError) {
-      return { error: "Correo o contraseña incorrectos." };
+      return { error: "Usuario/correo o contraseña incorrectos." };
     }
     throw error;
   }
