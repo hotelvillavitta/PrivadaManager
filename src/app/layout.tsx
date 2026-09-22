@@ -79,7 +79,7 @@ export default async function RootLayout({
   return (
     <html
       lang="es"
-      className={`${display.variable} ${body.variable} h-full antialiased`}
+      className={`${display.variable} ${body.variable} antialiased`}
     >
       <body
         className="flex min-h-dvh flex-col bg-transparent font-sans"

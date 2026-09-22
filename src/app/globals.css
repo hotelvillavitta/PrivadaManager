@@ -55,15 +55,28 @@ html {
   min-height: 100%;
   min-height: 100dvh;
   -webkit-tap-highlight-color: transparent;
+  /* Color base; el difuminado va en ::before fijo para no repetirse al scroll. */
+  background-color: #efe8e0;
+}
+
+/* Fondo atmosférico anclado al viewport: no se estira ni se azuleja en páginas largas. */
+html::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
   background-color: #efe8e0;
   background-image:
     radial-gradient(120% 70% at 8% -10%, #ead9e6 0%, transparent 58%),
     radial-gradient(90% 55% at 100% 0%, #e8d3b8 0%, transparent 52%),
     linear-gradient(165deg, #f3e8f0 0%, #f4efe8 46%, #eadccb 100%);
-  background-attachment: scroll;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 body {
+  position: relative;
   min-height: 100%;
   min-height: 100dvh;
   background: transparent !important;
