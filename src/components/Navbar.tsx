@@ -60,12 +60,13 @@ export function Navbar({
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  const links =
-    user?.role === "ADMIN"
-      ? [...baseLinks, { href: "/admin", label: "Admin", icon: Shield }]
-      : baseLinks;
-
-  const moreLinks = links.filter(({ href }) => !mobilePrimaryHrefs.has(href));
+  const isAdmin = user?.role === "ADMIN";
+  /** Admin va aparte (botón destacado) para que no se corte en la píldora. */
+  const links = baseLinks;
+  const moreLinks = [
+    ...links.filter(({ href }) => !mobilePrimaryHrefs.has(href)),
+    ...(isAdmin ? [{ href: "/admin", label: "Admin", icon: Shield }] : []),
+  ];
 
   useEffect(() => {
     setOpen(false);
@@ -173,6 +174,20 @@ export function Navbar({
           </nav>
 
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            {isAdmin && (
+              <Link
+                href="/admin"
+                title="Administración"
+                className={`inline-flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-sm font-semibold transition sm:px-3 ${
+                  pathname.startsWith("/admin")
+                    ? "bg-primary text-white shadow-sm"
+                    : "bg-primary-soft text-primary ring-1 ring-primary/20 hover:bg-primary hover:text-white"
+                }`}
+              >
+                <Shield className="h-4 w-4 shrink-0" strokeWidth={2.25} />
+                <span className="hidden sm:inline">Admin</span>
+              </Link>
+            )}
             {user ? (
               <>
                 <NotificationBell enabled={Boolean(user)} />
