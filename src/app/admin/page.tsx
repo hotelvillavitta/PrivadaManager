@@ -213,8 +213,8 @@ export default async function AdminPage() {
           <KpiCard
             href="/admin/residentes"
             icon={<Users className="h-5 w-5" />}
-            title={`${data.houseCount || data.residentCount} Residentes`}
-            subtitle="Casas registradas"
+            title={`${data.houseCount || data.residentCount} Casas`}
+            subtitle={`${data.residentCount} cuentas con residencia`}
           />
           <KpiCard
             href="/admin/cobranza"

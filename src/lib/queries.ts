@@ -310,9 +310,9 @@ export async function getAdminHubCounts() {
     monthBilledAgg,
     pendingTreasury,
   ] = await Promise.all([
-    prisma.user.count({ where: { role: "COLONO" } }),
+    prisma.user.count({ where: { houseNumber: { not: null } } }),
     prisma.user.findMany({
-      where: { houseNumber: { not: null }, role: "COLONO" },
+      where: { houseNumber: { not: null } },
       select: { houseNumber: true },
       distinct: ["houseNumber"],
     }),
