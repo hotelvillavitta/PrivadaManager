@@ -15,7 +15,11 @@
     "db:import:apply": "tsx prisma/import-grenache.ts --apply",
     "db:import:fees": "tsx prisma/import-grenache.ts --apply --fees-only",
     "db:sync:fees": "tsx prisma/sync-fees-workbook.ts",
-    "db:sync:fees:apply": "tsx prisma/sync-fees-workbook.ts --apply"
+    "db:sync:fees:apply": "tsx prisma/sync-fees-workbook.ts --apply",
+    "db:sync:finance": "tsx prisma/sync-finance-from-fees.ts",
+    "db:sync:finance:apply": "tsx prisma/sync-finance-from-fees.ts --apply",
+    "db:import:gastos": "tsx prisma/import-gastos-pdf.ts",
+    "db:import:gastos:apply": "tsx prisma/import-gastos-pdf.ts --apply --replace"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
