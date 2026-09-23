@@ -14,7 +14,7 @@ type HouseOption = {
 function minBookableDate() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() + 7);
+  d.setDate(d.getDate() + 1);
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
@@ -78,7 +78,8 @@ export function AdminCreateReservation({
           </h2>
           <p className="mt-0.5 text-sm text-muted">
             Para vecinos sin acceso a la app o que necesiten ayuda. Se aplican
-            las mismas reglas de adeudo/convenio y anticipación (1 semana).
+            adeudo/convenio; como admin puedes reservar desde mañana (sin la
+            semana de anticipación de los residentes).
           </p>
         </div>
       </div>

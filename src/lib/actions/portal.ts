@@ -330,13 +330,13 @@ export async function createReservationAsAdmin(formData: FormData) {
   }
 
   const requested = new Date(`${date}T12:00:00`);
+  // Admin: basta con 1 día de anticipación (puede reservar incluso un día antes).
   const minDate = new Date();
   minDate.setHours(0, 0, 0, 0);
-  minDate.setDate(minDate.getDate() + 7);
+  minDate.setDate(minDate.getDate() + 1);
   if (Number.isNaN(requested.getTime()) || requested < minDate) {
     return {
-      error:
-        "Las reservaciones deben solicitarse con al menos 1 semana de anticipación.",
+      error: "La fecha debe ser al menos a partir de mañana.",
     };
   }
 
