@@ -503,6 +503,20 @@ export async function getHouseNumbers() {
     .filter((h): h is string => Boolean(h));
 }
 
+export async function getHouseAccount(houseNumber: string) {
+  if (!houseNumber) {
+    return { houseNumber: "", hasConvenio: false, convenioNotes: null as string | null };
+  }
+  const row = await prisma.houseAccount.findUnique({
+    where: { houseNumber },
+  });
+  return {
+    houseNumber,
+    hasConvenio: row?.hasConvenio ?? false,
+    convenioNotes: row?.convenioNotes ?? null,
+  };
+}
+
 /** Casas con nombres de residentes, para confirmar cobros sin errores. */
 export async function getHousesWithResidents() {
   const users = await prisma.user.findMany({

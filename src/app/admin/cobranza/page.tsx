@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import {
   getFeesForHouse,
   getFinesForHouse,
+  getHouseAccount,
   getHouseNumbers,
   getHousesWithResidents,
   getPalapaPaymentsForHouse,
@@ -35,10 +36,11 @@ export default async function AdminCobranzaPage({
   const initialYear = Number(params.anio);
   const initialMonth = Number(params.mes);
 
-  const [fees, palapaPayments, fines] = await Promise.all([
+  const [fees, palapaPayments, fines, houseAccount] = await Promise.all([
     getFeesForHouse(houseNumber),
     getPalapaPaymentsForHouse(houseNumber),
     getFinesForHouse(houseNumber),
+    getHouseAccount(houseNumber),
   ]);
 
   const summary = summarizeFees(
@@ -71,6 +73,8 @@ export default async function AdminCobranzaPage({
         houseDirectory={houseDirectory}
         accessCode={null}
         gateCode={null}
+        hasConvenio={houseAccount.hasConvenio}
+        convenioNotes={houseAccount.convenioNotes}
         initialChargeYear={
           Number.isFinite(initialYear) && initialYear > 2000
             ? initialYear

@@ -558,6 +558,36 @@ export async function deleteResident(id: string) {
   return { ok: true };
 }
 
+/** Activa o desactiva el convenio de pago de una casa. */
+export async function setHouseConvenio(formData: FormData) {
+  await requireAdmin();
+  const houseNumber = String(formData.get("houseNumber") ?? "").trim();
+  const hasConvenio = formData.get("hasConvenio") === "on";
+  const convenioNotes =
+    String(formData.get("convenioNotes") ?? "").trim() || null;
+
+  if (!houseNumber) return { error: "Selecciona una casa." };
+
+  await prisma.houseAccount.upsert({
+    where: { houseNumber },
+    create: {
+      houseNumber,
+      hasConvenio,
+      convenioNotes,
+      convenioUpdatedAt: new Date(),
+    },
+    update: {
+      hasConvenio,
+      convenioNotes,
+      convenioUpdatedAt: new Date(),
+    },
+  });
+
+  revalidatePath("/admin/cobranza");
+  revalidatePath("/cuotas");
+  return { ok: true, hasConvenio };
+}
+
 export async function markNotificationsRead(_formData?: FormData) {
   void _formData;
   const user = await requireUser();
@@ -835,25 +865,34 @@ export async function registerCobranza(formData: FormData) {
 
     const periods = feePeriodRange(year, month, FEE_ANNUAL_MONTHS);
     const end = periods[periods.length - 1]!;
-
-    const priorUnpaid = await prisma.monthlyFee.findMany({
-      where: {
-        houseNumber,
-        concept: FEE_CONCEPT.MANTENIMIENTO,
-        status: { in: ["ADEUDO", "PENDIENTE"] },
-        OR: [
-          { year: { lt: year } },
-          { year, month: { lt: month } },
-        ],
-      },
-      orderBy: [{ year: "asc" }, { month: "asc" }],
-      take: 6,
+    const account = await prisma.houseAccount.findUnique({
+      where: { houseNumber },
+      select: { hasConvenio: true },
     });
-    if (priorUnpaid.length) {
-      const labels = priorUnpaid.map((f) => feeLabel(f.year, f.month)).join(", ");
-      return {
-        error: `Hay adeudos anteriores (${labels}). Límpialos con cobro o abono antes del pago anual.`,
-      };
+    const hasConvenio = account?.hasConvenio === true;
+
+    if (!hasConvenio) {
+      const priorUnpaid = await prisma.monthlyFee.findMany({
+        where: {
+          houseNumber,
+          concept: FEE_CONCEPT.MANTENIMIENTO,
+          status: { in: ["ADEUDO", "PENDIENTE"] },
+          OR: [
+            { year: { lt: year } },
+            { year, month: { lt: month } },
+          ],
+        },
+        orderBy: [{ year: "asc" }, { month: "asc" }],
+        take: 6,
+      });
+      if (priorUnpaid.length) {
+        const labels = priorUnpaid
+          .map((f) => feeLabel(f.year, f.month))
+          .join(", ");
+        return {
+          error: `Hay adeudos anteriores (${labels}). Límpialos con cobro o abono, o activa un convenio en esta casa.`,
+        };
+      }
     }
 
     const existingFees = await prisma.monthlyFee.findMany({
@@ -1044,26 +1083,37 @@ export async function registerCobranza(formData: FormData) {
     return { error: "Monto de palapa inválido." };
   }
 
-  // No cobrar mantenimiento de un mes posterior si hay adeudos anteriores.
+  // No cobrar mantenimiento de un mes posterior si hay adeudos anteriores,
+  // salvo que la casa tenga convenio de pago activo.
   if (includeMaintenance) {
-    const priorUnpaid = await prisma.monthlyFee.findMany({
-      where: {
-        houseNumber,
-        concept: FEE_CONCEPT.MANTENIMIENTO,
-        status: { in: ["ADEUDO", "PENDIENTE"] },
-        OR: [
-          { year: { lt: year } },
-          { year, month: { lt: month } },
-        ],
-      },
-      orderBy: [{ year: "asc" }, { month: "asc" }],
-      take: 6,
+    const account = await prisma.houseAccount.findUnique({
+      where: { houseNumber },
+      select: { hasConvenio: true },
     });
-    if (priorUnpaid.length) {
-      const labels = priorUnpaid.map((f) => feeLabel(f.year, f.month)).join(", ");
-      return {
-        error: `No se puede cobrar ${feeLabel(year, month)} mientras haya adeudos anteriores (${labels}). Cobra primero el mes más antiguo o registra un abono.`,
-      };
+    const hasConvenio = account?.hasConvenio === true;
+
+    if (!hasConvenio) {
+      const priorUnpaid = await prisma.monthlyFee.findMany({
+        where: {
+          houseNumber,
+          concept: FEE_CONCEPT.MANTENIMIENTO,
+          status: { in: ["ADEUDO", "PENDIENTE"] },
+          OR: [
+            { year: { lt: year } },
+            { year, month: { lt: month } },
+          ],
+        },
+        orderBy: [{ year: "asc" }, { month: "asc" }],
+        take: 6,
+      });
+      if (priorUnpaid.length) {
+        const labels = priorUnpaid
+          .map((f) => feeLabel(f.year, f.month))
+          .join(", ");
+        return {
+          error: `No se puede cobrar ${feeLabel(year, month)} mientras haya adeudos anteriores (${labels}). Cobra primero el mes más antiguo, registra un abono, o activa un convenio.`,
+        };
+      }
     }
   }
 

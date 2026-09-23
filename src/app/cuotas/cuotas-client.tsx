@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { PageHero } from "@/components/PageHero";
 import { toast } from "@/components/Toast";
-import { registerCobranza } from "@/lib/actions/portal";
+import { registerCobranza, setHouseConvenio } from "@/lib/actions/portal";
 import {
   FEE_ANNUAL_MONTHS,
   FEE_BASE_AMOUNT,
@@ -84,6 +84,8 @@ export function CuotasClient({
   houseBasePath = "/cuotas",
   initialChargeYear,
   initialChargeMonth,
+  hasConvenio = false,
+  convenioNotes = null,
 }: {
   houseNumber: string;
   houses?: string[];
@@ -104,6 +106,8 @@ export function CuotasClient({
   houseBasePath?: string;
   initialChargeYear?: number;
   initialChargeMonth?: number;
+  hasConvenio?: boolean;
+  convenioNotes?: string | null;
 }) {
   const router = useRouter();
   const currentYear = new Date().getFullYear();
@@ -330,6 +334,7 @@ export function CuotasClient({
     )
     .sort((a, b) => a.year * 12 + a.month - (b.year * 12 + b.month));
   const blockedByPriorDebt =
+    !hasConvenio &&
     priorUnpaidFees.length > 0 &&
     (anualMode || (includeMaintenance && !maintenancePaid));
 
@@ -433,6 +438,11 @@ export function CuotasClient({
                       Sin residentes registrados en esta casa.
                     </p>
                   )}
+                  {hasConvenio && (
+                    <p className="mt-2 inline-flex rounded-full bg-info-soft px-2.5 py-1 text-[11px] font-bold tracking-wide text-info uppercase">
+                      Convenio activo
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -515,6 +525,69 @@ export function CuotasClient({
                   </ul>
                 )}
               </div>
+            </div>
+
+            <div className="border-t border-border px-4 py-4 sm:px-6">
+              <form
+                className="space-y-3"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const fd = new FormData(e.currentTarget);
+                  startTransition(async () => {
+                    const res = await setHouseConvenio(fd);
+                    if (res && "error" in res && res.error) {
+                      toast(res.error, "error");
+                      return;
+                    }
+                    toast(
+                      fd.get("hasConvenio") === "on"
+                        ? "Convenio activado para esta casa."
+                        : "Convenio desactivado.",
+                      "success",
+                    );
+                    router.refresh();
+                  });
+                }}
+              >
+                <input type="hidden" name="houseNumber" value={houseNumber} />
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    name="hasConvenio"
+                    defaultChecked={hasConvenio}
+                    key={`convenio-${houseNumber}-${hasConvenio}`}
+                    className="mt-1"
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold text-primary-dark">
+                      Casa con convenio de pago
+                    </span>
+                    <span className="text-xs text-muted">
+                      Permite cobrar meses atrasados, el mes actual o adelantados
+                      sin exigir liquidar primero el adeudo más antiguo.
+                    </span>
+                  </span>
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1.5 block font-medium text-primary-dark">
+                    Notas del convenio (opcional)
+                  </span>
+                  <input
+                    name="convenioNotes"
+                    defaultValue={convenioNotes ?? ""}
+                    key={`notes-${houseNumber}-${convenioNotes ?? ""}`}
+                    placeholder="Ej. Acuerdo de 6 meses / contacto…"
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={pending}
+                  className="rounded-xl border border-primary/30 bg-primary-soft px-4 py-2 text-sm font-semibold text-primary disabled:opacity-60"
+                >
+                  {pending ? "Guardando…" : "Guardar convenio"}
+                </button>
+              </form>
             </div>
           </section>
         ) : (
@@ -805,7 +878,8 @@ export function CuotasClient({
                     {priorUnpaidFees
                       .map((f) => feeLabel(f.year, f.month))
                       .join(", ")}
-                    . Límpialos antes del pago anual.
+                    . Límpialos o activa un{" "}
+                    <strong>convenio</strong> en esta casa.
                   </p>
                 )}
 
@@ -891,7 +965,19 @@ export function CuotasClient({
                 {priorUnpaidFees
                   .map((f) => feeLabel(f.year, f.month))
                   .join(", ")}
-                . Cobra primero el mes más antiguo.
+                . Cobra el mes más antiguo, usa un abono, o activa un{" "}
+                <strong>convenio</strong>.
+              </p>
+            )}
+
+            {hasConvenio && priorUnpaidFees.length > 0 && !blockedByPriorDebt && (
+              <p className="mb-4 rounded-xl border border-info/30 bg-info-soft px-4 py-3 text-sm text-foreground">
+                Convenio activo: puedes cobrar este periodo aunque existan
+                adeudos anteriores (
+                {priorUnpaidFees
+                  .map((f) => feeLabel(f.year, f.month))
+                  .join(", ")}
+                ).
               </p>
             )}
 

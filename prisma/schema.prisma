@@ -176,6 +176,18 @@ model MonthlyFee {
   @@index([status, paidAt])
 }
 
+/// Datos de cuenta por casa (convenios de pago, etc.).
+model HouseAccount {
+  houseNumber       String   @id
+  /// Si true, se puede cobrar cualquier mes (atrasado, actual o adelantado)
+  /// sin exigir liquidar primero los adeudos más antiguos.
+  hasConvenio       Boolean  @default(false)
+  convenioNotes     String?
+  convenioUpdatedAt DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
 /// Cargo independiente por cada uso de palapa. No es una cuota mensual:
 /// una casa puede registrar varios pagos durante el mismo mes.
 model PalapaPayment {
