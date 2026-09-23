@@ -10,6 +10,7 @@ import {
   getPalapaPaymentsForHouse,
   summarizeFees,
 } from "@/lib/queries";
+import { syncOverdueMaintenanceSurcharges } from "@/lib/fees/overdue";
 import { AdminBackLink } from "../admin-back-link";
 import { CuotasClient } from "@/app/cuotas/cuotas-client";
 
@@ -21,6 +22,8 @@ export default async function AdminCobranzaPage({
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (session.user.role !== "ADMIN") redirect("/");
+
+  await syncOverdueMaintenanceSurcharges();
 
   const params = await searchParams;
   const [houses, houseDirectory] = await Promise.all([

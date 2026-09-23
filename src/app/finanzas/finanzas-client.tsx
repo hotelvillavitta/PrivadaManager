@@ -277,7 +277,7 @@ export function FinanzasClient({
                             onClick={() => {
                               if (
                                 !confirm(
-                                  "¿Descartar este pendiente? El cobro operativo de cuotas no se revierte.",
+                                  "¿Descartar este pendiente y revertir el cobro vinculado (cuotas/palapa)?",
                                 )
                               )
                                 return;
@@ -287,7 +287,7 @@ export function FinanzasClient({
                                 );
                                 if (res.error) toast(res.error, "error");
                                 else {
-                                  toast("Pendiente descartado.");
+                                  toast("Pendiente descartado y cobro revertido.");
                                   router.refresh();
                                 }
                               });
@@ -638,12 +638,8 @@ export function FinanzasClient({
                           {formatCurrency(e.amount)}
                         </td>
                         <td className="py-2.5 pl-2">
-                          {e.linked ? (
-                            <span className="text-[11px] text-muted">
-                              Ligado
-                            </span>
-                          ) : (
-                            <div className="flex gap-1">
+                          <div className="flex gap-1">
+                            {!e.linked && (
                               <button
                                 type="button"
                                 title="Editar"
@@ -652,28 +648,38 @@ export function FinanzasClient({
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                               </button>
-                              <button
-                                type="button"
-                                title="Eliminar"
-                                disabled={pending}
-                                onClick={() => {
-                                  if (!confirm("¿Eliminar este movimiento?"))
-                                    return;
-                                  startTransition(async () => {
-                                    const res = await deleteFinanceEntry(e.id);
-                                    if (res.error) toast(res.error, "error");
-                                    else {
-                                      toast("Movimiento eliminado.");
-                                      router.refresh();
-                                    }
-                                  });
-                                }}
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-danger-soft hover:text-danger"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          )}
+                            )}
+                            <button
+                              type="button"
+                              title={
+                                e.linked
+                                  ? "Eliminar y revertir cobro ligado"
+                                  : "Eliminar"
+                              }
+                              disabled={pending}
+                              onClick={() => {
+                                const msg = e.linked
+                                  ? "¿Eliminar este movimiento y revertir el cobro ligado (cuota/palapa/multa)?"
+                                  : "¿Eliminar este movimiento?";
+                                if (!confirm(msg)) return;
+                                startTransition(async () => {
+                                  const res = await deleteFinanceEntry(e.id);
+                                  if (res.error) toast(res.error, "error");
+                                  else {
+                                    toast(
+                                      e.linked
+                                        ? "Movimiento eliminado y cobro revertido."
+                                        : "Movimiento eliminado.",
+                                    );
+                                    router.refresh();
+                                  }
+                                });
+                              }}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-danger-soft hover:text-danger"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

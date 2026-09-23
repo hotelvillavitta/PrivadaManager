@@ -209,6 +209,50 @@ export function calculateFeeAmount(
     : FEE_BASE_AMOUNT;
 }
 
+/**
+ * Monto que debe figurar en una cuota NO pagada.
+ * Si ya pasó el día 10 y el registro aún no incluye el recargo, lo suma
+ * (conserva extras como multas ya incorporadas al amount).
+ */
+export function unpaidMaintenanceDueAmount(
+  fee: {
+    year: number;
+    month: number;
+    amount: number;
+    status: string;
+    withSurcharge?: boolean;
+  },
+  asOf: Date = new Date(),
+) {
+  if (fee.status === "PAGADO") return fee.amount;
+  if (!isFeePaymentLate(fee.year, fee.month, asOf)) return fee.amount;
+  if (fee.withSurcharge) {
+    return Math.max(fee.amount, FEE_BASE_AMOUNT + FEE_LATE_SURCHARGE);
+  }
+  // Importaciones / aperturas a $200 sin recargo: faltan $50.
+  if (fee.amount < FEE_BASE_AMOUNT + FEE_LATE_SURCHARGE) {
+    return Math.round((fee.amount + FEE_LATE_SURCHARGE) * 100) / 100;
+  }
+  return fee.amount;
+}
+
+/** Saldo pendiente de una cuota (considera recargo exigible tras el día 10). */
+export function feeOwedAmount(
+  fee: {
+    year: number;
+    month: number;
+    amount: number;
+    status: string;
+    amountPaid?: number;
+    withSurcharge?: boolean;
+  },
+  asOf: Date = new Date(),
+) {
+  if (fee.status === "PAGADO") return 0;
+  const due = unpaidMaintenanceDueAmount(fee, asOf);
+  return Math.max(0, due - (fee.amountPaid ?? 0));
+}
+
 export const NEWS_CATEGORY_LABEL: Record<string, string> = {
   IMPORTANTE: "Importante",
   REGLAMENTO: "Reglamento",

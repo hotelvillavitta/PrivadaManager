@@ -4,9 +4,13 @@ import { prisma } from "@/lib/db";
 import {
   FEE_BASE_AMOUNT,
   FEE_CONCEPT,
+  FEE_LATE_SURCHARGE,
+  calculateFeeAmount,
   calendarPartsInTijuana,
   feeLabel,
+  feeOwedAmount,
 } from "@/lib/utils";
+import { syncOverdueMaintenanceSurcharges } from "@/lib/fees/overdue";
 import {
   MATRIX_START,
   unpaidForPeriods,
@@ -69,6 +73,7 @@ export async function getPaymentMatrix(opts?: {
   toYear?: number;
   toMonth?: number;
 }): Promise<PaymentMatrix> {
+  await syncOverdueMaintenanceSurcharges();
   const now = calendarPartsInTijuana();
   const startKey = periodKey(MATRIX_START.year, MATRIX_START.month);
 
@@ -180,27 +185,32 @@ export async function getPaymentMatrix(opts?: {
       const fee = feeMap.get(`${houseNumber}|${p.year}|${p.month}`);
       if (!fee) {
         const future = p.key > currentKey;
+        const due = future ? 0 : calculateFeeAmount(p.year, p.month);
         return {
           year: p.year,
           month: p.month,
           label: p.label,
           status: future ? "FUTURO" : ("SIN_REGISTRO" as MatrixCellStatus),
-          amount: future ? 0 : FEE_BASE_AMOUNT,
-          withSurcharge: false,
+          amount: due,
+          withSurcharge: !future && due > FEE_BASE_AMOUNT,
           paidAt: null,
           feeId: null,
         };
       }
+      const unpaidOwed =
+        fee.status === "PAGADO"
+          ? fee.amount
+          : feeOwedAmount(fee);
       return {
         year: p.year,
         month: p.month,
         label: p.label,
         status: fee.status as MatrixCellStatus,
-        amount:
+        amount: unpaidOwed,
+        withSurcharge:
           fee.status === "PAGADO"
-            ? fee.amount
-            : Math.max(0, fee.amount - fee.amountPaid),
-        withSurcharge: fee.withSurcharge,
+            ? fee.withSurcharge
+            : unpaidOwed >= FEE_BASE_AMOUNT + FEE_LATE_SURCHARGE,
         paidAt: fee.paidAt?.toISOString() ?? null,
         feeId: fee.id,
       };

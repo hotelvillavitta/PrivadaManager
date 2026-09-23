@@ -15,11 +15,12 @@ import {
   KeyRound,
   Receipt,
   Search,
+  Trash2,
   X,
 } from "lucide-react";
 import { PageHero } from "@/components/PageHero";
 import { toast } from "@/components/Toast";
-import { registerCobranza, setHouseConvenio } from "@/lib/actions/portal";
+import { registerCobranza, setHouseConvenio, voidMonthlyFeePayment, voidPalapaPayment } from "@/lib/actions/portal";
 import {
   FEE_ANNUAL_MONTHS,
   FEE_BASE_AMOUNT,
@@ -33,6 +34,7 @@ import {
   calendarPartsInTijuana,
   feeHasSurcharge,
   feeLabel,
+  feeOwedAmount,
   feePeriodRange,
   formatCurrency,
   isFeePaymentLate,
@@ -254,7 +256,7 @@ export function CuotasClient({
         )
         .map((f) => ({
           ...f,
-          owed: Math.max(0, f.amount - (f.amountPaid ?? 0)),
+          owed: feeOwedAmount(f),
         }))
         .filter((f) => f.owed > 0)
         .sort((a, b) => a.year * 12 + a.month - (b.year * 12 + b.month)),
@@ -315,8 +317,10 @@ export function CuotasClient({
         f.concept === FEE_CONCEPT.MANTENIMIENTO,
     );
     if (fee?.status === "PAGADO") return 0;
-    if (fee) return Math.max(0, fee.amount - (fee.amountPaid ?? 0));
-    return maintenanceAmount;
+    if (fee) return feeOwedAmount(fee);
+    return isFeePaymentLate(year, month)
+      ? FEE_BASE_AMOUNT + FEE_LATE_SURCHARGE
+      : maintenanceAmount;
   }
 
   const currentAfterAbono = remainingAfterAbono(calendarYear, calendarMonth);
@@ -360,9 +364,14 @@ export function CuotasClient({
           f.concept === FEE_CONCEPT.MANTENIMIENTO,
       );
       if (fee && fee.status !== "PAGADO") {
-        return sum + Math.max(0, fee.amount - (fee.amountPaid ?? 0));
+        return sum + feeOwedAmount(fee);
       }
-      return sum + maintenanceAmount;
+      return (
+        sum +
+        (isFeePaymentLate(p.year, p.month)
+          ? FEE_BASE_AMOUNT + FEE_LATE_SURCHARGE
+          : maintenanceAmount)
+      );
     }, 0);
   }, [annualToCover, fees, maintenanceAmount]);
   const annualRangeLabel = `${feeLabel(chargeYear, chargeMonth)}–${feeLabel(annualEnd.year, annualEnd.month)}`;
@@ -1379,14 +1388,14 @@ export function CuotasClient({
               return (
               <div
                 key={m.id}
-                className={`flex items-center justify-between rounded-xl px-4 py-3 ${tone}`}
+                className={`flex items-center justify-between gap-2 rounded-xl px-4 py-3 ${tone}`}
               >
-                <span className="inline-flex flex-col">
+                <span className="inline-flex min-w-0 flex-col">
                   <span className="inline-flex items-center gap-2 font-semibold">
                     {m.status === "PAGADO" ? (
-                      <Check className="h-4 w-4" />
+                      <Check className="h-4 w-4 shrink-0" />
                     ) : (
-                      <X className="h-4 w-4" />
+                      <X className="h-4 w-4 shrink-0" />
                     )}
                     {feeLabel(m.year, m.month)}
                   </span>
@@ -1395,8 +1404,41 @@ export function CuotasClient({
                     {formatCurrency(m.amount)}
                   </span>
                 </span>
-                <span className="max-w-[7.5rem] text-right text-[11px] font-bold tracking-wide uppercase">
-                  {label}
+                <span className="flex shrink-0 items-center gap-1">
+                  <span className="max-w-[7.5rem] text-right text-[11px] font-bold tracking-wide uppercase">
+                    {label}
+                  </span>
+                  {isAdmin && m.status === "PAGADO" && (
+                    <button
+                      type="button"
+                      title="Anular cobro"
+                      disabled={pending}
+                      onClick={() => {
+                        if (
+                          !confirm(
+                            `¿Anular el cobro de ${feeLabel(m.year, m.month)}? Si fue parte de un abono o pago anual, se revierten todos los meses del mismo movimiento.`,
+                          )
+                        ) {
+                          return;
+                        }
+                        startTransition(async () => {
+                          const res = await voidMonthlyFeePayment(m.id);
+                          if (res.error) toast(res.error, "error");
+                          else {
+                            toast(
+                              res.months && res.months > 1
+                                ? `Se anularon ${res.months} meses del mismo cobro.`
+                                : "Cobro anulado.",
+                            );
+                            router.refresh();
+                          }
+                        });
+                      }}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-background/50 text-danger hover:bg-danger-soft"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </span>
               </div>
               );
@@ -1434,15 +1476,46 @@ export function CuotasClient({
                     <p className="font-semibold text-primary-dark">
                       Uso de palapa
                     </p>
-                    <p className="text-sm text-muted">
+                    <p className="text-xs text-muted">
                       {new Date(payment.paidAt).toLocaleDateString("es-MX", {
-                        dateStyle: "long",
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
                       })}
                     </p>
                   </div>
-                  <p className="shrink-0 font-semibold text-success">
-                    {formatCurrency(payment.amount)}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold tabular-nums text-success">
+                      {formatCurrency(payment.amount)}
+                    </p>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        title="Anular pago de palapa"
+                        disabled={pending}
+                        onClick={() => {
+                          if (
+                            !confirm(
+                              "¿Anular este pago de palapa y su ingreso en tesorería?",
+                            )
+                          ) {
+                            return;
+                          }
+                          startTransition(async () => {
+                            const res = await voidPalapaPayment(payment.id);
+                            if (res.error) toast(res.error, "error");
+                            else {
+                              toast("Pago de palapa anulado.");
+                              router.refresh();
+                            }
+                          });
+                        }}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-danger-soft hover:text-danger"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

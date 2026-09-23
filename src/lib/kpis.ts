@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { MONTH_LABELS } from "@/lib/utils";
+import { feeOwedAmount, MONTH_LABELS } from "@/lib/utils";
 
 function periodKey(year: number, month: number) {
   return year * 12 + month;
@@ -13,9 +13,16 @@ function isUnpaid(status: string) {
   return status === "ADEUDO" || status === "PENDIENTE";
 }
 
-function owedOf(f: { status: string; amount: number; amountPaid?: number }) {
+function owedOf(f: {
+  status: string;
+  year: number;
+  month: number;
+  amount: number;
+  amountPaid?: number;
+  withSurcharge?: boolean;
+}) {
   if (!isUnpaid(f.status)) return 0;
-  return Math.max(0, f.amount - (f.amountPaid ?? 0));
+  return feeOwedAmount(f);
 }
 
 export type CollectionKpis = {
@@ -76,6 +83,7 @@ export async function getCollectionKpis(): Promise<CollectionKpis> {
         amount: true,
         amountPaid: true,
         status: true,
+        withSurcharge: true,
       },
     }),
     prisma.user.findMany({

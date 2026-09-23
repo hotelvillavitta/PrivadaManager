@@ -15,7 +15,9 @@ import {
   FEE_CONCEPT_LABEL,
   FEE_LATE_SURCHARGE,
   FEE_PALAPA_AMOUNT,
+  calculateFeeAmount,
   feeLabel,
+  feeOwedAmount,
   formatCurrency,
   fullName,
   isFeePaymentLate,
@@ -23,7 +25,9 @@ import {
   feePeriodRange,
   nextFeePeriod,
   pickFineBillingPeriod,
+  unpaidMaintenanceDueAmount,
 } from "@/lib/utils";
+import { syncOverdueMaintenanceSurcharges } from "@/lib/fees/overdue";
 import { getPrivada } from "@/lib/queries";
 import { issueTemporaryPassword } from "@/lib/issue-password";
 import {
@@ -722,6 +726,8 @@ async function upsertPaidConcept(opts: {
  */
 export async function registerCobranza(formData: FormData) {
   await requireAdmin();
+  // Cuotas vencidas (pasado día 10) deben incluir recargo en el monto.
+  await syncOverdueMaintenanceSurcharges();
   const houseNumber = String(formData.get("houseNumber") ?? "").trim();
   const mode = String(formData.get("mode") ?? "periodo");
   const year = Number(formData.get("year"));
@@ -769,10 +775,7 @@ export async function registerCobranza(formData: FormData) {
       },
       orderBy: [{ year: "asc" }, { month: "asc" }],
     });
-    const owedTotal = unpaid.reduce(
-      (s, f) => s + Math.max(0, f.amount - f.amountPaid),
-      0,
-    );
+    const owedTotal = unpaid.reduce((s, f) => s + feeOwedAmount(f), 0);
 
     if (abonoAmount > 0) {
       if (owedTotal <= 0) {
@@ -794,7 +797,7 @@ export async function registerCobranza(formData: FormData) {
     let remaining = abonoAmount;
     for (const fee of unpaid) {
       if (remaining <= 0) break;
-      const owed = Math.max(0, fee.amount - fee.amountPaid);
+      const owed = feeOwedAmount(fee);
       if (owed <= 0) continue;
       const pay = Math.min(remaining, owed);
       const nextPaid = fee.amountPaid + pay;
@@ -840,7 +843,11 @@ export async function registerCobranza(formData: FormData) {
         continue;
       }
 
-      const feeAmount = existing?.amount ?? monthBase;
+      const feeAmount = existing
+        ? unpaidMaintenanceDueAmount(existing)
+        : isFeePaymentLate(extra.year, extra.month)
+          ? FEE_BASE_AMOUNT + FEE_LATE_SURCHARGE
+          : monthBase;
       const prevPaid = existing?.amountPaid ?? 0;
       const pay = Math.round((feeAmount - prevPaid) * 100) / 100;
       if (pay <= 0.01) {
@@ -856,6 +863,10 @@ export async function registerCobranza(formData: FormData) {
         }
         continue;
       }
+
+      const withSurcharge =
+        feeAmount >= FEE_BASE_AMOUNT + FEE_LATE_SURCHARGE - 0.01 &&
+        isFeePaymentLate(extra.year, extra.month);
 
       await prisma.monthlyFee.upsert({
         where: {
@@ -874,14 +885,14 @@ export async function registerCobranza(formData: FormData) {
           amount: feeAmount,
           amountPaid: feeAmount,
           status: "PAGADO",
-          withSurcharge: false,
+          withSurcharge,
           paidAt,
         },
         update: {
           amount: feeAmount,
           amountPaid: feeAmount,
           status: "PAGADO",
-          withSurcharge: false,
+          withSurcharge,
           paidAt,
         },
       });
@@ -1275,7 +1286,7 @@ export async function registerCobranza(formData: FormData) {
 
     // Si el monto cobrado es menor al saldo del periodo → abono parcial del mes.
     const remainingOwed = existingFee
-      ? Math.max(0, existingFee.amount - existingFee.amountPaid)
+      ? feeOwedAmount(existingFee)
       : maintTotal;
     const partial =
       existingFee != null &&
@@ -1527,38 +1538,6 @@ export async function approveFinanceEntry(id: string) {
   return { ok: true };
 }
 
-/** Descarta un ingreso pendiente (no revierte el cobro operativo de cuotas). */
-export async function rejectPendingFinanceEntry(id: string) {
-  await requireAdmin();
-  if (!id) return { error: "Movimiento inválido." };
-  const entry = await prisma.financeEntry.findUnique({
-    where: { id },
-    include: {
-      monthlyFee: { select: { id: true } },
-      palapaPayment: { select: { id: true } },
-    },
-  });
-  if (!entry || entry.status !== "PENDING") {
-    return { error: "Solo se pueden descartar pendientes." };
-  }
-  // Desligar antes de borrar si aplica.
-  if (entry.monthlyFee) {
-    await prisma.monthlyFee.update({
-      where: { id: entry.monthlyFee.id },
-      data: { financeEntryId: null },
-    });
-  }
-  if (entry.palapaPayment) {
-    await prisma.palapaPayment.update({
-      where: { id: entry.palapaPayment.id },
-      data: { financeEntryId: null },
-    });
-  }
-  await prisma.financeEntry.delete({ where: { id } });
-  revalidatePath("/admin/finanzas");
-  return { ok: true };
-}
-
 export async function updateFinanceEntry(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get("id") ?? "").trim();
@@ -1590,27 +1569,259 @@ export async function updateFinanceEntry(formData: FormData) {
   return { ok: true };
 }
 
+/** Revierte un lote de cuotas pagadas en el mismo instante (cobro simple, abono o anual). */
+async function revertPaidFeeBatch(
+  fees: {
+    id: string;
+    houseNumber: string;
+    year: number;
+    month: number;
+    financeEntryId: string | null;
+    paidAt: Date | null;
+  }[],
+) {
+  if (fees.length === 0) return { reverted: 0, deleted: 0 };
+
+  const { year: cy, month: cm } = calendarPartsInTijuana();
+  const currentKey = cy * 12 + cm;
+  let reverted = 0;
+  let deleted = 0;
+
+  for (const fee of fees) {
+    const feeKey = fee.year * 12 + fee.month;
+    if (feeKey > currentKey) {
+      await prisma.monthlyFee.delete({ where: { id: fee.id } });
+      deleted += 1;
+      continue;
+    }
+
+    const due = calculateFeeAmount(fee.year, fee.month);
+    await prisma.monthlyFee.update({
+      where: { id: fee.id },
+      data: {
+        status: "ADEUDO",
+        amount: due,
+        amountPaid: 0,
+        withSurcharge: due > FEE_BASE_AMOUNT,
+        paidAt: null,
+        financeEntryId: null,
+      },
+    });
+    reverted += 1;
+
+    // Reabrir multas del periodo cobradas en el mismo movimiento.
+    if (fee.paidAt) {
+      await prisma.fine.updateMany({
+        where: {
+          houseNumber: fee.houseNumber,
+          billingYear: fee.year,
+          billingMonth: fee.month,
+          status: "PAGADO",
+          paidAt: fee.paidAt,
+        },
+        data: { status: "PENDIENTE", paidAt: null, financeEntryId: null },
+      });
+    }
+  }
+
+  return { reverted, deleted };
+}
+
+async function findFeePaymentBatch(seed: {
+  id: string;
+  houseNumber: string;
+  paidAt: Date | null;
+}) {
+  if (!seed.paidAt) {
+    const one = await prisma.monthlyFee.findUnique({ where: { id: seed.id } });
+    return one ? [one] : [];
+  }
+  return prisma.monthlyFee.findMany({
+    where: {
+      houseNumber: seed.houseNumber,
+      concept: FEE_CONCEPT.MANTENIMIENTO,
+      status: "PAGADO",
+      paidAt: seed.paidAt,
+    },
+    orderBy: [{ year: "asc" }, { month: "asc" }],
+  });
+}
+
+/**
+ * Anula un cobro de cuota (y el lote del mismo paidAt: abono/anual).
+ * También elimina el ingreso de tesorería ligado si existe.
+ */
+export async function voidMonthlyFeePayment(feeId: string) {
+  await requireAdmin();
+  if (!feeId) return { error: "Cuota inválida." };
+
+  const fee = await prisma.monthlyFee.findUnique({ where: { id: feeId } });
+  if (!fee) return { error: "Cuota no encontrada." };
+  if (fee.status !== "PAGADO") {
+    return { error: "Solo se pueden anular cuotas ya pagadas." };
+  }
+
+  const batch = await findFeePaymentBatch(fee);
+  const financeIds = [
+    ...new Set(
+      batch
+        .map((f) => f.financeEntryId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+
+  await revertPaidFeeBatch(batch);
+
+  for (const financeId of financeIds) {
+    await prisma.financeEntry.delete({ where: { id: financeId } }).catch(() => {
+      /* ya borrado */
+    });
+  }
+
+  // Si el lote no tenía vínculo 1:1 (pago anual), buscar ingreso PENDING/APPROVED
+  // del mismo día y casa por descripción.
+  if (financeIds.length === 0 && fee.paidAt) {
+    const dayStart = new Date(fee.paidAt);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(fee.paidAt);
+    dayEnd.setHours(23, 59, 59, 999);
+    const orphans = await prisma.financeEntry.findMany({
+      where: {
+        type: "INGRESO",
+        category: "Cuotas",
+        description: { contains: `Casa ${fee.houseNumber}` },
+        date: { gte: dayStart, lte: dayEnd },
+        monthlyFee: null,
+        palapaPayment: null,
+        fine: null,
+      },
+      take: 5,
+    });
+    for (const o of orphans) {
+      // Solo borrar si parece el cobro reciente (misma franja horaria ±2 min)
+      const delta = Math.abs(o.date.getTime() - fee.paidAt.getTime());
+      if (delta <= 120_000 || o.createdAt.getTime() - fee.paidAt.getTime() <= 120_000) {
+        await prisma.financeEntry.delete({ where: { id: o.id } }).catch(() => {});
+      }
+    }
+  }
+
+  revalidatePath("/admin/cobranza");
+  revalidatePath("/admin/cobranza/matriz");
+  revalidatePath("/admin/finanzas");
+  revalidatePath("/finanzas");
+  revalidatePath("/cuotas");
+  return {
+    ok: true as const,
+    months: batch.length,
+  };
+}
+
+export async function voidPalapaPayment(paymentId: string) {
+  await requireAdmin();
+  if (!paymentId) return { error: "Pago de palapa inválido." };
+  const payment = await prisma.palapaPayment.findUnique({
+    where: { id: paymentId },
+  });
+  if (!payment) return { error: "Pago no encontrado." };
+
+  const financeId = payment.financeEntryId;
+  await prisma.palapaPayment.delete({ where: { id: paymentId } });
+  if (financeId) {
+    await prisma.financeEntry.delete({ where: { id: financeId } }).catch(() => {});
+  }
+
+  revalidatePath("/admin/cobranza");
+  revalidatePath("/admin/finanzas");
+  revalidatePath("/finanzas");
+  revalidatePath("/cuotas");
+  return { ok: true as const };
+}
+
 export async function deleteFinanceEntry(id: string) {
   await requireAdmin();
   if (!id) return { error: "Movimiento inválido." };
   const entry = await prisma.financeEntry.findUnique({
     where: { id },
     include: {
-      monthlyFee: { select: { id: true } },
-      palapaPayment: { select: { id: true } },
-      fine: { select: { id: true } },
+      monthlyFee: true,
+      palapaPayment: true,
+      fine: true,
     },
   });
   if (!entry) return { error: "Movimiento no encontrado." };
-  if (entry.monthlyFee || entry.palapaPayment || entry.fine) {
-    return {
-      error:
-        "No se puede eliminar un movimiento ligado a una cuota, palapa o multa.",
-    };
+
+  if (entry.monthlyFee) {
+    const batch = await findFeePaymentBatch(entry.monthlyFee);
+    await revertPaidFeeBatch(batch);
   }
+
+  if (entry.palapaPayment) {
+    await prisma.palapaPayment.delete({
+      where: { id: entry.palapaPayment.id },
+    });
+  }
+
+  if (entry.fine) {
+    await prisma.fine.update({
+      where: { id: entry.fine.id },
+      data: {
+        status: "PENDIENTE",
+        paidAt: null,
+        financeEntryId: null,
+      },
+    });
+  }
+
   await prisma.financeEntry.delete({ where: { id } });
   revalidatePath("/finanzas");
   revalidatePath("/admin/finanzas");
+  revalidatePath("/cuotas");
+  revalidatePath("/admin/cobranza");
+  revalidatePath("/admin/cobranza/matriz");
+  return { ok: true };
+}
+
+/** Descarta un ingreso pendiente y revierte el cobro operativo ligado. */
+export async function rejectPendingFinanceEntry(id: string) {
+  await requireAdmin();
+  if (!id) return { error: "Movimiento inválido." };
+  const entry = await prisma.financeEntry.findUnique({
+    where: { id },
+    include: {
+      monthlyFee: true,
+      palapaPayment: true,
+      fine: true,
+    },
+  });
+  if (!entry || entry.status !== "PENDING") {
+    return { error: "Solo se pueden descartar pendientes." };
+  }
+
+  if (entry.monthlyFee) {
+    const batch = await findFeePaymentBatch(entry.monthlyFee);
+    await revertPaidFeeBatch(batch);
+  }
+  if (entry.palapaPayment) {
+    await prisma.palapaPayment.delete({
+      where: { id: entry.palapaPayment.id },
+    });
+  }
+  if (entry.fine) {
+    await prisma.fine.update({
+      where: { id: entry.fine.id },
+      data: {
+        status: "PENDIENTE",
+        paidAt: null,
+        financeEntryId: null,
+      },
+    });
+  }
+
+  await prisma.financeEntry.delete({ where: { id } });
+  revalidatePath("/admin/finanzas");
+  revalidatePath("/finanzas");
+  revalidatePath("/admin/cobranza");
   revalidatePath("/cuotas");
   return { ok: true };
 }
@@ -1722,8 +1933,13 @@ export async function issueFine(formData: FormData) {
             year: billing.year,
             month: billing.month,
             concept: FEE_CONCEPT.MANTENIMIENTO,
-            amount: FEE_BASE_AMOUNT + amount,
+            amount: calculateFeeAmount(billing.year, billing.month, issuedAt) + amount,
             status: "PENDIENTE",
+            withSurcharge: isFeePaymentLate(
+              billing.year,
+              billing.month,
+              issuedAt,
+            ),
           },
         });
       } else if (fee.status !== "PAGADO") {

@@ -5,6 +5,8 @@ import {
   FEE_LATE_SURCHARGE,
   MONTH_LABELS,
   feeLabel,
+  isFeePaymentLate,
+  unpaidMaintenanceDueAmount,
 } from "@/lib/utils";
 
 const MONTH_CODES: Record<string, number> = {
@@ -125,13 +127,24 @@ function parseMatrixCell(
   if (debtMatch) {
     const amount = Number(debtMatch[1].replace(/,/g, ""));
     if (!Number.isFinite(amount)) return null;
-    return {
-      houseNumber,
+    // Residex a veces deja "Adeudo $200" aunque ya pasó el día 10.
+    // Normalizamos al monto exigible (base + recargo si aplica).
+    const normalized = unpaidMaintenanceDueAmount({
       year,
       month,
       amount,
       status: "ADEUDO",
       withSurcharge: false,
+    });
+    return {
+      houseNumber,
+      year,
+      month,
+      amount: normalized,
+      status: "ADEUDO",
+      withSurcharge:
+        isFeePaymentLate(year, month) &&
+        normalized >= FEE_BASE_AMOUNT + FEE_LATE_SURCHARGE - 0.01,
       paidAt: null,
       source: "matrix",
     };

@@ -1,4 +1,4 @@
-import { FEE_BASE_AMOUNT } from "@/lib/utils";
+import { FEE_BASE_AMOUNT, FEE_LATE_SURCHARGE, isFeePaymentLate } from "@/lib/utils";
 
 export type MatrixCellStatus =
   | "PAGADO"
@@ -62,7 +62,13 @@ export function unpaidForPeriods(
     const cell = cells.find((c) => c.year === p.year && c.month === p.month);
     if (!cell || !isUnpaidStatus(cell.status)) continue;
     unpaidCount += 1;
-    unpaidAmount += cell.amount > 0 ? cell.amount : FEE_BASE_AMOUNT;
+    if (cell.amount > 0) {
+      unpaidAmount += cell.amount;
+    } else {
+      unpaidAmount += isFeePaymentLate(p.year, p.month)
+        ? FEE_BASE_AMOUNT + FEE_LATE_SURCHARGE
+        : FEE_BASE_AMOUNT;
+    }
   }
   return { unpaidCount, unpaidAmount };
 }

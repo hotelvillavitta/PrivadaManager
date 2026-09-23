@@ -6,6 +6,7 @@ import {
 } from "@/lib/master-admin";
 import {
   calendarPartsInTijuana,
+  feeOwedAmount,
   overdueMaintenanceWhere,
 } from "@/lib/utils";
 import {
@@ -132,6 +133,7 @@ type FeeLike = {
   month: number;
   amount: number;
   amountPaid?: number;
+  withSurcharge?: boolean;
 };
 
 type FineLike = {
@@ -141,8 +143,7 @@ type FineLike = {
 };
 
 function feeOwed(f: FeeLike) {
-  if (f.status === "PAGADO") return 0;
-  return Math.max(0, f.amount - (f.amountPaid ?? 0));
+  return feeOwedAmount(f);
 }
 
 /** Resume cuotas/multas ya cargadas (evita segunda query). */
