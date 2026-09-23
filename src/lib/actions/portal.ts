@@ -167,13 +167,20 @@ export async function createReservation(formData: FormData) {
     return { error: "Tu cuenta no tiene casa asignada. Contacta al comité." };
   }
 
-  const pendingFees = await prisma.monthlyFee.count({
-    where: overdueMaintenanceWhere(user.houseNumber),
-  });
-  if (pendingFees > 0) {
+  const [pendingFees, account] = await Promise.all([
+    prisma.monthlyFee.count({
+      where: overdueMaintenanceWhere(user.houseNumber),
+    }),
+    prisma.houseAccount.findUnique({
+      where: { houseNumber: user.houseNumber },
+      select: { hasConvenio: true },
+    }),
+  ]);
+  const hasConvenio = account?.hasConvenio === true;
+  if (pendingFees > 0 && !hasConvenio) {
     return {
       error:
-        "Tienes cuotas pendientes del mes en curso o anteriores. Regularízalas para poder reservar (meses futuros no bloquean).",
+        "Tienes cuotas pendientes del mes en curso o anteriores. Regularízalas o solicita un convenio de pago al comité para poder reservar.",
     };
   }
 
@@ -210,6 +217,9 @@ export async function createReservation(formData: FormData) {
   });
 
   const house = user.houseNumber;
+  const paymentNotice =
+    "Para confirmar tu reservación debes contactar a la casa #12 y realizar el pago del uso de palapa.";
+
   const admins = await prisma.user.findMany({
     where: { role: "ADMIN" },
     select: { id: true },
@@ -219,17 +229,32 @@ export async function createReservation(formData: FormData) {
       data: admins.map((a) => ({
         userId: a.id,
         title: "Nueva solicitud de palapa",
-        body: `Casa ${house} · ${eventName} · ${date} · ${guests} personas`,
+        body: `Casa ${house} · ${eventName} · ${date} · ${guests} personas${
+          pendingFees > 0 && hasConvenio ? " · Con convenio de pago" : ""
+        }`,
         reservationId: reservation.id,
       })),
     });
   }
 
+  await prisma.notification.create({
+    data: {
+      userId: user.id,
+      title: "Importante: confirma tu reservación con el pago",
+      body: `${paymentNotice} Solicitud: ${eventName} · ${date}.`,
+      reservationId: reservation.id,
+    },
+  });
+
   revalidatePath("/reservaciones");
   revalidatePath("/notificaciones");
   revalidatePath("/admin");
   revalidatePath("/admin/reservaciones");
-  return { ok: true, reservationId: reservation.id };
+  return {
+    ok: true,
+    reservationId: reservation.id,
+    paymentNotice,
+  };
 }
 
 export async function updateReservationStatus(

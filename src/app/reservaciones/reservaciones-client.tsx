@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Home,
   ListChecks,
   Send,
   Users,
@@ -20,6 +21,9 @@ import {
   createReservation,
   updateReservationStatus,
 } from "@/lib/actions/portal";
+
+/** Casa que recibe el pago del uso de palapa. */
+const PALAPA_PAYMENT_HOUSE = "12";
 
 type Reservation = {
   id: string;
@@ -56,6 +60,7 @@ export function ReservacionesClient({
   currentUserId,
   houseNumber,
   hasPendingFees,
+  hasConvenio = false,
   focusReservationId,
   capacityMax = 50,
   capacityNote = "Capacidad máxima del salón",
@@ -67,6 +72,7 @@ export function ReservacionesClient({
   currentUserId: string;
   houseNumber: string | null;
   hasPendingFees: boolean;
+  hasConvenio?: boolean;
   focusReservationId: string | null;
   capacityMax?: number;
   capacityNote?: string | null;
@@ -81,6 +87,7 @@ export function ReservacionesClient({
   const [cursor, setCursor] = useState(() => new Date());
   const [selected, setSelected] = useState(todayKey);
   const [message, setMessage] = useState("");
+  const [paymentNoticeOpen, setPaymentNoticeOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [focusId, setFocusId] = useState<string | null>(focusReservationId);
   const [rejecting, setRejecting] = useState(false);
@@ -88,6 +95,9 @@ export function ReservacionesClient({
   const today = todayKey();
   const minBookable = minReservationDate();
   const bookingDate = selected >= minBookable ? selected : minBookable;
+  /** Con convenio activo se puede reservar aunque haya adeudo. */
+  const blockedByDebt = hasPendingFees && !hasConvenio;
+  const canBook = !blockedByDebt;
 
   function goToNewReservation(dateKey?: string) {
     const next = dateKey && dateKey >= minBookable ? dateKey : minBookable;
@@ -176,7 +186,7 @@ export function ReservacionesClient({
   const focused = focusId
     ? reservations.find((r) => r.id === focusId) ?? null
     : null;
-  const canSubmit = !hasPendingFees && !pending;
+  const canSubmit = canBook && !pending;
 
   function statusAgendaLabel(status: Reservation["status"]) {
     if (status === "APPROVED") return "Aprobada";
@@ -196,6 +206,51 @@ export function ReservacionesClient({
 
   return (
     <div className="pb-16">
+      {paymentNoticeOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="palapa-payment-title"
+        >
+          <div className="relative w-full max-w-lg overflow-hidden rounded-3xl border-2 border-accent bg-surface shadow-2xl">
+            <div className="bg-accent px-5 py-4 text-white">
+              <p className="text-xs font-bold tracking-[0.2em] uppercase opacity-90">
+                Paso obligatorio
+              </p>
+              <h2
+                id="palapa-payment-title"
+                className="mt-1 font-display text-2xl leading-tight sm:text-3xl"
+              >
+                Confirma tu reservación con el pago
+              </h2>
+            </div>
+            <div className="space-y-4 px-5 py-6 sm:px-6">
+              <div className="flex gap-3 rounded-2xl border border-accent/40 bg-accent/10 px-4 py-4">
+                <Home className="mt-0.5 h-8 w-8 shrink-0 text-accent" />
+                <div>
+                  <p className="text-base font-semibold text-primary-dark sm:text-lg">
+                    Para confirmar tu reservación debes ponerte en contacto con
+                    la <span className="text-accent">casa #{PALAPA_PAYMENT_HOUSE}</span>{" "}
+                    y realizar el pago del uso de palapa.
+                  </p>
+                  <p className="mt-2 text-sm text-muted">
+                    Sin ese pago, el comité no podrá validar tu solicitud. También
+                    verás este aviso en tus notificaciones.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPaymentNoticeOpen(false)}
+                className="w-full rounded-xl bg-accent py-3.5 text-sm font-bold text-white hover:opacity-95"
+              >
+                Entendido — contactaré a la casa #{PALAPA_PAYMENT_HOUSE}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <PageHero
         eyebrow="Área común"
         title="Reservaciones Palapa"
@@ -581,7 +636,7 @@ export function ReservacionesClient({
                           setSelected(cell.key!);
                           if (
                             status === "available" &&
-                            !hasPendingFees &&
+                            !blockedByDebt &&
                             cell.key! >= minBookable
                           ) {
                             goToNewReservation(cell.key!);
@@ -746,6 +801,7 @@ export function ReservacionesClient({
                       setMessage(
                         "Solicitud enviada. El comité responderá en un plazo de 24 horas.",
                       );
+                      setPaymentNoticeOpen(true);
                       toast("Solicitud de palapa enviada.");
                       setTab("calendar");
                       router.refresh();
@@ -781,16 +837,16 @@ export function ReservacionesClient({
                   <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
                   <p>
                     Si adeudas la cuota del <strong>mes en curso</strong> o de{" "}
-                    <strong>meses anteriores</strong>, no podrás reservar. Las
-                    cuotas de meses futuros (p. ej. octubre) no bloquean la
-                    solicitud.
+                    <strong>meses anteriores</strong>, no podrás reservar{" "}
+                    <strong>salvo que tengas un convenio de pago activo</strong>.
+                    Las cuotas de meses futuros no bloquean la solicitud.
                   </p>
                 </div>
 
-                {hasPendingFees ? (
+                {blockedByDebt ? (
                   <div className="rounded-xl border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">
                     Tienes cuotas de mantenimiento pendientes (mes actual o
-                    atrasos). Regulariza en{" "}
+                    atrasos) y no hay convenio activo. Regulariza en{" "}
                     <button
                       type="button"
                       onClick={() => router.push("/cuotas")}
@@ -798,7 +854,13 @@ export function ReservacionesClient({
                     >
                       Cuotas
                     </button>{" "}
-                    para poder enviar una solicitud.
+                    o solicita un convenio al comité.
+                  </div>
+                ) : hasPendingFees && hasConvenio ? (
+                  <div className="rounded-xl border border-primary/30 bg-primary-soft px-4 py-3 text-sm text-primary-dark">
+                    Tienes adeudo, pero tu casa tiene{" "}
+                    <strong>convenio de pago activo</strong>: puedes solicitar
+                    la palapa.
                   </div>
                 ) : (
                   <div className="rounded-xl border border-success/30 bg-success-soft px-4 py-3 text-sm text-success">
@@ -818,7 +880,7 @@ export function ReservacionesClient({
                     min={minBookable}
                     value={bookingDate}
                     onChange={(e) => setSelected(e.target.value)}
-                    disabled={hasPendingFees}
+                    disabled={blockedByDebt}
                     className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary disabled:opacity-60"
                   />
                 </label>
@@ -831,7 +893,7 @@ export function ReservacionesClient({
                     name="eventName"
                     required
                     rows={3}
-                    disabled={hasPendingFees}
+                    disabled={blockedByDebt}
                     className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary disabled:opacity-60"
                     placeholder="Ej. Cumpleaños, reunión familiar, evento vecinal, etc."
                   />
@@ -851,7 +913,7 @@ export function ReservacionesClient({
                     max={capacityMax}
                     required
                     defaultValue={Math.min(20, capacityMax)}
-                    disabled={hasPendingFees}
+                    disabled={blockedByDebt}
                     className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary disabled:opacity-60"
                   />
                   <span className="mt-1 block text-xs text-muted">
@@ -865,7 +927,7 @@ export function ReservacionesClient({
                   <textarea
                     name="notes"
                     rows={2}
-                    disabled={hasPendingFees}
+                    disabled={blockedByDebt}
                     className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary disabled:opacity-60"
                     placeholder="Horario estimado, requerimientos, etc."
                   />
@@ -877,7 +939,7 @@ export function ReservacionesClient({
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-semibold text-white hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Send className="h-4 w-4" />
-                  {hasPendingFees
+                  {blockedByDebt
                     ? "No disponible por cuotas pendientes"
                     : "Enviar Solicitud"}
                 </button>

@@ -1,6 +1,11 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { getPrivada, getReservations, houseHasPendingFees } from "@/lib/queries";
+import {
+  getHouseAccount,
+  getPrivada,
+  getReservations,
+  houseHasPendingFees,
+} from "@/lib/queries";
 import { ReservacionesClient } from "./reservaciones-client";
 
 export default async function ReservacionesPage({
@@ -12,18 +17,23 @@ export default async function ReservacionesPage({
   if (!session?.user) redirect("/login");
 
   const params = await searchParams;
-  const [reservations, hasPendingFees, privada] = await Promise.all([
+  const houseNumber = session.user.houseNumber;
+  const [reservations, hasPendingFees, privada, account] = await Promise.all([
     getReservations(),
-    houseHasPendingFees(session.user.houseNumber),
+    houseHasPendingFees(houseNumber),
     getPrivada(),
+    houseNumber
+      ? getHouseAccount(houseNumber)
+      : Promise.resolve({ hasConvenio: false }),
   ]);
 
   return (
     <ReservacionesClient
       isAdmin={false}
       currentUserId={session.user.id}
-      houseNumber={session.user.houseNumber}
+      houseNumber={houseNumber}
       hasPendingFees={hasPendingFees}
+      hasConvenio={account.hasConvenio}
       focusReservationId={params.solicitud ?? null}
       capacityMax={privada.capacityMax}
       capacityNote={privada.capacityNote}
