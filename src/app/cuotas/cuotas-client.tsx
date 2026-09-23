@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowUpRight,
@@ -8,6 +14,7 @@ import {
   Home,
   KeyRound,
   Receipt,
+  Search,
   X,
 } from "lucide-react";
 import { PageHero } from "@/components/PageHero";
@@ -136,6 +143,59 @@ export function CuotasClient({
       },
     [houseOptions, houseNumber],
   );
+
+  const [houseQuery, setHouseQuery] = useState("");
+  const [houseMenuOpen, setHouseMenuOpen] = useState(false);
+  const houseSearchRef = useRef<HTMLDivElement>(null);
+
+  const filteredHouses = useMemo(() => {
+    const q = houseQuery
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/\p{M}/gu, "");
+    if (!q) return houseOptions.slice(0, 12);
+    return houseOptions
+      .filter((h) => {
+        const house = h.houseNumber.toLowerCase();
+        const names = h.residents
+          .join(" ")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/\p{M}/gu, "");
+        return (
+          house.includes(q) ||
+          names.includes(q) ||
+          `casa ${house}`.includes(q)
+        );
+      })
+      .slice(0, 12);
+  }, [houseOptions, houseQuery]);
+
+  useEffect(() => {
+    setHouseQuery("");
+    setHouseMenuOpen(false);
+  }, [houseNumber]);
+
+  useEffect(() => {
+    if (!houseMenuOpen) return;
+    function onPointerDown(e: PointerEvent) {
+      if (!houseSearchRef.current?.contains(e.target as Node)) {
+        setHouseMenuOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [houseMenuOpen]);
+
+  function selectHouse(next: string) {
+    setHouseMenuOpen(false);
+    setHouseQuery("");
+    if (next === houseNumber) return;
+    router.push(`${houseBasePath}?casa=${encodeURIComponent(next)}`, {
+      scroll: false,
+    });
+  }
 
   const [historyYear, setHistoryYear] = useState(years[0] ?? currentYear);
   const [chargeYear, setChargeYear] = useState(
@@ -327,28 +387,85 @@ export function CuotasClient({
                 </div>
               </div>
 
-              <label className="flex w-full flex-col gap-2 sm:min-w-[220px]">
-                <span className="text-sm font-semibold text-primary-dark">
-                  Cambiar casa
-                </span>
-                <select
-                  value={houseNumber}
-                  onChange={(e) =>
-                    router.push(`${houseBasePath}?casa=${e.target.value}`, {
-                      scroll: false,
-                    })
-                  }
-                  className="min-h-12 w-full rounded-xl border-2 border-primary/30 bg-background px-4 py-3 text-base font-semibold text-primary-dark outline-none focus:border-primary"
-                  aria-label="Seleccionar casa a cobrar"
+              <div
+                ref={houseSearchRef}
+                className="relative flex w-full flex-col gap-2 sm:min-w-[280px] sm:max-w-sm"
+              >
+                <label
+                  htmlFor="cobranza-house-search"
+                  className="text-sm font-semibold text-primary-dark"
                 >
-                  {houseOptions.map((h) => (
-                    <option key={h.houseNumber} value={h.houseNumber}>
-                      Casa {h.houseNumber}
-                      {h.residents[0] ? ` — ${h.residents[0]}` : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  Buscar casa o residente
+                </label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-muted" />
+                  <input
+                    id="cobranza-house-search"
+                    type="search"
+                    autoComplete="off"
+                    value={houseQuery}
+                    onChange={(e) => {
+                      setHouseQuery(e.target.value);
+                      setHouseMenuOpen(true);
+                    }}
+                    onFocus={() => setHouseMenuOpen(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") {
+                        setHouseMenuOpen(false);
+                        return;
+                      }
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        const first = filteredHouses[0];
+                        if (first) selectHouse(first.houseNumber);
+                      }
+                    }}
+                    placeholder="Ej. 21 o Karla"
+                    className="min-h-12 w-full rounded-xl border-2 border-primary/30 bg-background py-3 pr-4 pl-10 text-base font-medium text-primary-dark outline-none placeholder:font-normal placeholder:text-muted focus:border-primary"
+                    aria-label="Buscar casa por número o nombre"
+                    aria-expanded={houseMenuOpen}
+                    aria-controls="cobranza-house-results"
+                    role="combobox"
+                  />
+                </div>
+                {houseMenuOpen && (
+                  <ul
+                    id="cobranza-house-results"
+                    role="listbox"
+                    className="absolute top-[calc(100%+0.35rem)] right-0 left-0 z-30 max-h-64 overflow-y-auto rounded-xl border border-border bg-surface py-1 shadow-[0_16px_40px_-20px_rgba(47,29,45,0.45)]"
+                  >
+                    {filteredHouses.length === 0 ? (
+                      <li className="px-4 py-3 text-sm text-muted">
+                        Sin coincidencias
+                      </li>
+                    ) : (
+                      filteredHouses.map((h) => {
+                        const active = h.houseNumber === houseNumber;
+                        return (
+                          <li key={h.houseNumber} role="option" aria-selected={active}>
+                            <button
+                              type="button"
+                              onClick={() => selectHouse(h.houseNumber)}
+                              className={`flex w-full flex-col items-start gap-0.5 px-4 py-2.5 text-left transition hover:bg-primary-soft ${
+                                active ? "bg-primary-soft/70" : ""
+                              }`}
+                            >
+                              <span className="text-sm font-semibold text-primary-dark">
+                                Casa {h.houseNumber}
+                              </span>
+                              <span className="text-xs text-muted">
+                                {h.residents.length > 0
+                                  ? h.residents.join(" · ")
+                                  : "Sin residente registrado"}
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })
+                    )}
+                  </ul>
+                )}
+              </div>
             </div>
           </section>
         ) : (
