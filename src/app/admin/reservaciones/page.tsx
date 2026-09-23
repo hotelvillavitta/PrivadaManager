@@ -2,8 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHero } from "@/components/PageHero";
 import { auth } from "@/lib/auth";
-import { getPendingReservationsAdmin } from "@/lib/queries";
+import {
+  getHousesWithResidents,
+  getPendingReservationsAdmin,
+  getPrivada,
+} from "@/lib/queries";
 import { AdminBackLink } from "../admin-back-link";
+import { AdminCreateReservation } from "./admin-create-reservation";
 import { PendingReservationsAdmin } from "./pending-reservations-admin";
 
 export default async function AdminReservacionesPage() {
@@ -11,14 +16,18 @@ export default async function AdminReservacionesPage() {
   if (!session?.user) redirect("/login");
   if (session.user.role !== "ADMIN") redirect("/");
 
-  const pending = await getPendingReservationsAdmin();
+  const [pending, houses, privada] = await Promise.all([
+    getPendingReservationsAdmin(),
+    getHousesWithResidents(),
+    getPrivada(),
+  ]);
 
   return (
     <div className="pb-16">
       <PageHero
         eyebrow="Administración"
         title="Reservaciones de palapa"
-        description="Aprueba o rechaza solicitudes. El calendario público es solo consulta y reserva personal."
+        description="Registra solicitudes a nombre de residentes, y aprueba o rechaza las pendientes."
       />
       <div className="mx-auto max-w-4xl space-y-4 px-4 lg:px-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -30,6 +39,13 @@ export default async function AdminReservacionesPage() {
             Ver calendario →
           </Link>
         </div>
+
+        <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-6">
+          <AdminCreateReservation
+            houses={houses}
+            capacityMax={privada.capacityMax}
+          />
+        </section>
 
         <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-6">
           <h2 className="mb-4 font-display text-2xl text-primary-dark">

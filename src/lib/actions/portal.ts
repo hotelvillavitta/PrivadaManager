@@ -257,6 +257,148 @@ export async function createReservation(formData: FormData) {
   };
 }
 
+/**
+ * Admin reserva la palapa a nombre de una casa (residentes sin app o con dificultad).
+ * Aplica las mismas reglas de adeudo/convenio y anticipación.
+ */
+export async function createReservationAsAdmin(formData: FormData) {
+  const admin = await requireAdmin();
+  const houseNumber = String(formData.get("houseNumber") ?? "").trim();
+  const date = String(formData.get("date") ?? "").trim();
+  const eventName = String(formData.get("eventName") ?? "").trim();
+  const guests = Number(formData.get("guests") ?? 0);
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+  const approveNow = formData.get("approveNow") === "on";
+
+  if (!houseNumber) return { error: "Selecciona la casa." };
+  if (!date || !eventName || !guests) {
+    return { error: "Completa fecha, motivo e invitados." };
+  }
+
+  const privada = await getPrivada();
+  const capacityMax = privada.capacityMax || 50;
+  if (guests < 1 || guests > capacityMax) {
+    return { error: `La capacidad máxima es de ${capacityMax} personas.` };
+  }
+
+  const candidates = await prisma.user.findMany({
+    where: { houseNumber },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      houseNumber: true,
+      role: true,
+    },
+  });
+  const resident =
+    candidates.find((u) => u.role === "COLONO") ?? candidates[0] ?? null;
+  if (!resident) {
+    return {
+      error:
+        "Esa casa no tiene usuario registrado. Crea al residente en Usuarios antes de reservar a su nombre.",
+    };
+  }
+
+  const [pendingFees, account] = await Promise.all([
+    prisma.monthlyFee.count({
+      where: overdueMaintenanceWhere(houseNumber),
+    }),
+    prisma.houseAccount.findUnique({
+      where: { houseNumber },
+      select: { hasConvenio: true },
+    }),
+  ]);
+  const hasConvenio = account?.hasConvenio === true;
+  if (pendingFees > 0 && !hasConvenio) {
+    return {
+      error:
+        "La casa tiene adeudos sin convenio activo. No se puede reservar hasta regularizar o activar un convenio.",
+    };
+  }
+
+  const conflict = await prisma.reservation.findFirst({
+    where: {
+      date,
+      status: { in: ["PENDING", "APPROVED"] },
+    },
+  });
+  if (conflict) {
+    return { error: "Esa fecha ya tiene una reservación o solicitud." };
+  }
+
+  const requested = new Date(`${date}T12:00:00`);
+  const minDate = new Date();
+  minDate.setHours(0, 0, 0, 0);
+  minDate.setDate(minDate.getDate() + 7);
+  if (Number.isNaN(requested.getTime()) || requested < minDate) {
+    return {
+      error:
+        "Las reservaciones deben solicitarse con al menos 1 semana de anticipación.",
+    };
+  }
+
+  const status = approveNow ? "APPROVED" : "PENDING";
+  const reservation = await prisma.reservation.create({
+    data: {
+      date,
+      eventName,
+      guests,
+      notes: notes
+        ? `${notes}\n\n(Registrada por comité: ${fullName(admin)})`
+        : `Registrada por comité: ${fullName(admin)}`,
+      userId: resident.id,
+      status,
+    },
+  });
+
+  const paymentNotice =
+    "Para confirmar tu reservación debes contactar a la casa #12 y realizar el pago del uso de palapa.";
+
+  await prisma.notification.create({
+    data: {
+      userId: resident.id,
+      title: approveNow
+        ? "Reservación registrada por el comité"
+        : "Importante: confirma tu reservación con el pago",
+      body: approveNow
+        ? `El comité registró tu uso de palapa (${eventName} · ${date}). ${paymentNotice}`
+        : `El comité registró una solicitud a tu nombre (${eventName} · ${date}). ${paymentNotice}`,
+      reservationId: reservation.id,
+    },
+  });
+
+  const otherAdmins = await prisma.user.findMany({
+    where: { role: "ADMIN", id: { not: admin.id } },
+    select: { id: true },
+  });
+  if (otherAdmins.length) {
+    await prisma.notification.createMany({
+      data: otherAdmins.map((a) => ({
+        userId: a.id,
+        title: "Reservación registrada por comité",
+        body: `Casa ${houseNumber} · ${eventName} · ${date} · ${guests} personas · ${status}${
+          pendingFees > 0 && hasConvenio ? " · Con convenio" : ""
+        }`,
+        reservationId: reservation.id,
+      })),
+    });
+  }
+
+  revalidatePath("/reservaciones");
+  revalidatePath("/notificaciones");
+  revalidatePath("/admin");
+  revalidatePath("/admin/reservaciones");
+  return {
+    ok: true as const,
+    reservationId: reservation.id,
+    status,
+    paymentNotice,
+  };
+}
+
 export async function updateReservationStatus(
   id: string,
   status: ReservationStatus,
