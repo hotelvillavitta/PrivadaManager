@@ -270,4 +270,14 @@ export type SessionUser = {
   houseNumber: string | null;
   accessCode: string | null;
   gateCode: string | null;
+  occupancyType: "PROPIETARIO" | "INQUILINO";
 };
+
+/** True si el usuario puede ver el resumen financiero público. */
+export function canAccessFinanzas(user: {
+  role: string;
+  occupancyType?: string | null;
+}) {
+  if (user.role === "ADMIN") return true;
+  return user.occupancyType !== "INQUILINO";
+}

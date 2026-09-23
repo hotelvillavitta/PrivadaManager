@@ -23,7 +23,7 @@ export default async function AdminResidentesPage() {
       <PageHero
         eyebrow="Administración"
         title="Residentes y casas"
-        description="Listado ordenado por casa. Alta de usuarios, claves de acceso y contraseñas iniciales."
+        description="Por casa: contacto principal visible; secundarios al expandir. Alta con propietario/inquilino y claves de acceso."
       />
       <div className="mx-auto max-w-4xl space-y-4 px-4 lg:px-6">
         <AdminBackLink />
@@ -39,6 +39,8 @@ export default async function AdminResidentesPage() {
               accessCode: u.accessCode,
               gateCode: u.gateCode,
               role: u.role,
+              occupancyType: u.occupancyType,
+              isPrimary: u.isPrimary,
             }))}
           />
         </section>

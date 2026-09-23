@@ -395,6 +395,8 @@ export async function getResidentsAdmin(viewerEmail?: string | null) {
       accessCode: true,
       gateCode: true,
       role: true,
+      occupancyType: true,
+      isPrimary: true,
       createdAt: true,
     },
   });

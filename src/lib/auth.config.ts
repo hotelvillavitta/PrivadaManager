@@ -24,6 +24,7 @@ export const authConfig = {
         token.houseNumber = user.houseNumber;
         token.accessCode = user.accessCode;
         token.gateCode = user.gateCode;
+        token.occupancyType = user.occupancyType;
       }
       return token;
     },
@@ -36,6 +37,8 @@ export const authConfig = {
       session.user.houseNumber = (token.houseNumber as string | null) ?? null;
       session.user.accessCode = (token.accessCode as string | null) ?? null;
       session.user.gateCode = (token.gateCode as string | null) ?? null;
+      session.user.occupancyType =
+        (token.occupancyType as "PROPIETARIO" | "INQUILINO") ?? "PROPIETARIO";
       return session;
     },
   },

@@ -1,4 +1,4 @@
-import type { Role } from "@prisma/client";
+import type { OccupancyType, Role } from "@prisma/client";
 import type { DefaultSession } from "next-auth";
 
 declare module "next-auth" {
@@ -9,6 +9,7 @@ declare module "next-auth" {
     houseNumber: string | null;
     accessCode: string | null;
     gateCode: string | null;
+    occupancyType: OccupancyType;
   }
 
   interface Session {
@@ -21,6 +22,7 @@ declare module "next-auth" {
       houseNumber: string | null;
       accessCode: string | null;
       gateCode: string | null;
+      occupancyType: OccupancyType;
     } & DefaultSession["user"];
   }
 }
@@ -34,5 +36,6 @@ declare module "@auth/core/jwt" {
     houseNumber?: string | null;
     accessCode?: string | null;
     gateCode?: string | null;
+    occupancyType?: OccupancyType;
   }
 }

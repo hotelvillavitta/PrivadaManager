@@ -28,6 +28,7 @@ type NavUser = {
   lastName: string;
   role: "COLONO" | "ADMIN";
   email: string;
+  occupancyType?: "PROPIETARIO" | "INQUILINO";
 } | null;
 
 const baseLinks = [
@@ -76,8 +77,12 @@ export function Navbar({
   const [pending, startTransition] = useTransition();
 
   const isAdmin = user?.role === "ADMIN";
+  const showFinanzas =
+    isAdmin || user?.occupancyType !== "INQUILINO";
   /** Admin va aparte (botón destacado) para que no se corte en la píldora. */
-  const links = baseLinks;
+  const links = showFinanzas
+    ? baseLinks
+    : baseLinks.filter((l) => l.href !== "/finanzas");
   const moreLinks = [
     ...links.filter(({ href }) => !mobilePrimaryHrefs.has(href)),
     ...(isAdmin ? [{ href: "/admin", label: "Admin", icon: Shield }] : []),

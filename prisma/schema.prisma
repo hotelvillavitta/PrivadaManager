@@ -12,6 +12,12 @@ enum Role {
   ADMIN
 }
 
+/// Relación del residente con la vivienda (afecta permisos en la app).
+enum OccupancyType {
+  PROPIETARIO
+  INQUILINO
+}
+
 enum NewsCategory {
   IMPORTANTE
   REGLAMENTO
@@ -60,6 +66,10 @@ model User {
   lastName     String
   role         Role     @default(COLONO)
   houseNumber  String?
+  /// Propietario o inquilino (los inquilinos no ven Finanzas).
+  occupancyType OccupancyType @default(PROPIETARIO)
+  /// Contacto principal de la casa en el listado admin.
+  isPrimary     Boolean @default(false)
   /// Clave de acceso peatonal (mostrar al colono).
   accessCode   String?
   /// Clave de acceso de portón.

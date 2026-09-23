@@ -4,6 +4,7 @@ import { Providers } from "@/components/Providers";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 import { getPrivada, privadaThemeStyle } from "@/lib/queries";
 import "./globals.css";
 
@@ -76,6 +77,26 @@ export default async function RootLayout({
   const [session, privada] = await Promise.all([auth(), getPrivada()]);
   const themeStyle = privadaThemeStyle(privada);
 
+  const occupancyRow = session?.user?.id
+    ? await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { occupancyType: true },
+      })
+    : null;
+
+  const navUser = session?.user
+    ? {
+        firstName: session.user.firstName,
+        lastName: session.user.lastName,
+        role: session.user.role,
+        email: session.user.email,
+        occupancyType:
+          occupancyRow?.occupancyType ??
+          session.user.occupancyType ??
+          "PROPIETARIO",
+      }
+    : null;
+
   return (
     <html
       lang="es"
@@ -87,7 +108,7 @@ export default async function RootLayout({
       >
         <Providers>
           <Navbar
-            user={session?.user ?? null}
+            user={navUser}
             privadaName={privada.name}
             logoUrl={privada.logoUrl}
           />

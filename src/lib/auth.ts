@@ -34,6 +34,7 @@ const nextAuth = NextAuth({
           houseNumber: user.houseNumber,
           accessCode: user.accessCode,
           gateCode: user.gateCode,
+          occupancyType: user.occupancyType,
         };
       },
     }),

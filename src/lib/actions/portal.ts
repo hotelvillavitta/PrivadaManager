@@ -578,6 +578,58 @@ export async function deleteNewsPost(id: string) {
   return { ok: true };
 }
 
+async function syncHousePrimary(opts: {
+  userId: string;
+  houseNumber: string | null;
+  wantPrimary: boolean;
+}) {
+  const { userId, houseNumber, wantPrimary } = opts;
+  if (!houseNumber) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { isPrimary: false },
+    });
+    return;
+  }
+
+  if (wantPrimary) {
+    await prisma.$transaction([
+      prisma.user.updateMany({
+        where: { houseNumber, NOT: { id: userId } },
+        data: { isPrimary: false },
+      }),
+      prisma.user.update({
+        where: { id: userId },
+        data: { isPrimary: true },
+      }),
+    ]);
+    return;
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { isPrimary: false },
+  });
+
+  const stillHasPrimary = await prisma.user.findFirst({
+    where: { houseNumber, isPrimary: true },
+    select: { id: true },
+  });
+  if (stillHasPrimary) return;
+
+  const fallback = await prisma.user.findFirst({
+    where: { houseNumber },
+    orderBy: [{ occupancyType: "asc" }, { createdAt: "asc" }],
+    select: { id: true },
+  });
+  if (fallback) {
+    await prisma.user.update({
+      where: { id: fallback.id },
+      data: { isPrimary: true },
+    });
+  }
+}
+
 export async function createResident(formData: FormData) {
   const actor = await requireAdmin();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
@@ -587,6 +639,10 @@ export async function createResident(formData: FormData) {
   const accessCode = String(formData.get("accessCode") ?? "").trim() || null;
   const gateCode = String(formData.get("gateCode") ?? "").trim() || null;
   const role = String(formData.get("role") ?? "COLONO") as "COLONO" | "ADMIN";
+  const occupancyRaw = String(formData.get("occupancyType") ?? "PROPIETARIO");
+  const occupancyType =
+    occupancyRaw === "INQUILINO" ? "INQUILINO" : "PROPIETARIO";
+  let wantPrimary = formData.get("isPrimary") === "on";
 
   if (!email || !firstName || !lastName) {
     return { error: "Nombre y correo son obligatorios." };
@@ -601,6 +657,13 @@ export async function createResident(formData: FormData) {
   const exists = await prisma.user.findUnique({ where: { email } });
   if (exists) return { error: "Ese correo ya está registrado." };
 
+  if (houseNumber) {
+    const others = await prisma.user.count({ where: { houseNumber } });
+    if (others === 0) wantPrimary = true;
+  } else {
+    wantPrimary = false;
+  }
+
   const user = await prisma.user.create({
     data: {
       email,
@@ -611,8 +674,16 @@ export async function createResident(formData: FormData) {
       accessCode,
       gateCode,
       role,
+      occupancyType,
+      isPrimary: false,
       mustChangePassword: true,
     },
+  });
+
+  await syncHousePrimary({
+    userId: user.id,
+    houseNumber,
+    wantPrimary,
   });
 
   const issued = await issueTemporaryPassword(user.id);
@@ -653,6 +724,10 @@ export async function updateResident(formData: FormData) {
   const accessCode = String(formData.get("accessCode") ?? "").trim() || null;
   const gateCode = String(formData.get("gateCode") ?? "").trim() || null;
   const role = String(formData.get("role") ?? "COLONO") as "COLONO" | "ADMIN";
+  const occupancyRaw = String(formData.get("occupancyType") ?? "PROPIETARIO");
+  const occupancyType =
+    occupancyRaw === "INQUILINO" ? "INQUILINO" : "PROPIETARIO";
+  let wantPrimary = formData.get("isPrimary") === "on";
 
   if (!id || !email || !firstName || !lastName) {
     return { error: "Datos incompletos." };
@@ -663,7 +738,7 @@ export async function updateResident(formData: FormData) {
 
   const target = await prisma.user.findUnique({
     where: { id },
-    select: { email: true },
+    select: { email: true, houseNumber: true },
   });
   if (!target) return { error: "Residente no encontrado." };
   if (
@@ -690,6 +765,15 @@ export async function updateResident(formData: FormData) {
   });
   if (other) return { error: "Ese correo ya está en uso." };
 
+  if (houseNumber) {
+    const others = await prisma.user.count({
+      where: { houseNumber, NOT: { id } },
+    });
+    if (others === 0) wantPrimary = true;
+  } else {
+    wantPrimary = false;
+  }
+
   await prisma.user.update({
     where: { id },
     data: {
@@ -700,8 +784,33 @@ export async function updateResident(formData: FormData) {
       accessCode,
       gateCode,
       role,
+      occupancyType,
     },
   });
+
+  // Si cambió de casa, reparar primaria de la casa anterior.
+  if (target.houseNumber && target.houseNumber !== houseNumber) {
+    const oldPrimary = await prisma.user.findFirst({
+      where: { houseNumber: target.houseNumber, isPrimary: true },
+      select: { id: true },
+    });
+    if (!oldPrimary) {
+      const fallback = await prisma.user.findFirst({
+        where: { houseNumber: target.houseNumber },
+        orderBy: [{ occupancyType: "asc" }, { createdAt: "asc" }],
+        select: { id: true },
+      });
+      if (fallback) {
+        await prisma.user.update({
+          where: { id: fallback.id },
+          data: { isPrimary: true },
+        });
+      }
+    }
+  }
+
+  await syncHousePrimary({ userId: id, houseNumber, wantPrimary });
+
   revalidatePath("/admin");
   revalidatePath("/admin/residentes");
   revalidatePath("/cuotas");
