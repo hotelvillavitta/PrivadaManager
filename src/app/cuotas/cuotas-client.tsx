@@ -895,18 +895,16 @@ export function CuotasClient({
                   <div className="overflow-hidden rounded-xl border border-border">
                     <div className="border-b border-border bg-primary-soft/40 px-4 py-2.5">
                       <p className="text-xs font-bold tracking-wide text-primary uppercase">
-                        Meses que cubre el abono
+                        Vista previa — al registrar se aplicará así
                       </p>
                       <p className="mt-0.5 text-xs text-muted">
                         {abonoPreview.lines.filter((l) => l.fullyPaid).length}{" "}
-                        liquidado
-                        {abonoPreview.lines.filter((l) => l.fullyPaid)
-                          .length === 1
-                          ? ""
-                          : "s"}
+                        se liquidan
                         {abonoPreview.lines.some((l) => !l.fullyPaid)
                           ? ` · ${abonoPreview.lines.filter((l) => !l.fullyPaid).length} parcial`
                           : ""}
+                        {" · "}
+                        aún no están cobrados
                       </p>
                     </div>
                     <ul className="divide-y divide-border">
@@ -920,10 +918,10 @@ export function CuotasClient({
                               {feeLabel(line.year, line.month)}
                             </p>
                             <p className="text-xs text-muted">
-                              Adeudo {formatCurrency(line.owed)}
+                              Adeudo actual {formatCurrency(line.owed)}
                               {line.fullyPaid
-                                ? " · queda en $0.00"
-                                : ` · queda ${formatCurrency(line.after)}`}
+                                ? " → quedará en $0.00"
+                                : ` → quedará ${formatCurrency(line.after)}`}
                             </p>
                           </div>
                           <div className="text-right">
@@ -935,7 +933,7 @@ export function CuotasClient({
                                 line.fullyPaid ? "text-success" : "text-warning"
                               }`}
                             >
-                              {line.fullyPaid ? "Pagado" : "Parcial"}
+                              {line.fullyPaid ? "Se liquida" : "Parcial"}
                             </p>
                           </div>
                         </li>
