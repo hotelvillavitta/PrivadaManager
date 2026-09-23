@@ -30,12 +30,14 @@ import {
   FEE_PALAPA_AMOUNT,
   FEE_STATUS_LABEL,
   MONTH_LABELS,
+  calendarPartsInTijuana,
   feeHasSurcharge,
   feeLabel,
   feePeriodRange,
   formatCurrency,
   isFeePaymentLate,
   isFeePeriodBefore,
+  nextFeePeriod,
 } from "@/lib/utils";
 
 type Fee = {
@@ -217,6 +219,8 @@ export function CuotasClient({
     "periodo",
   );
   const [abonoAmount, setAbonoAmount] = useState(0);
+  const [includeAbonoCurrent, setIncludeAbonoCurrent] = useState(false);
+  const [includeAbonoNext, setIncludeAbonoNext] = useState(false);
   const [maintenanceAmount, setMaintenanceAmount] = useState(FEE_BASE_AMOUNT);
   const [lateAmount, setLateAmount] = useState(FEE_LATE_SURCHARGE);
   const [palapaAmount, setPalapaAmount] = useState(FEE_PALAPA_AMOUNT);
@@ -233,6 +237,8 @@ export function CuotasClient({
 
   useEffect(() => {
     setChargeMode("periodo");
+    setIncludeAbonoCurrent(false);
+    setIncludeAbonoNext(false);
   }, [houseNumber]);
 
   const pendingFinesTotal = fines
@@ -256,6 +262,15 @@ export function CuotasClient({
   );
   const feesDebt = unpaidFees.reduce((s, f) => s + f.owed, 0);
   const totalDebt = feesDebt + pendingFinesTotal;
+
+  const { year: calendarYear, month: calendarMonth } = useMemo(
+    () => calendarPartsInTijuana(),
+    [],
+  );
+  const nextCalendar = useMemo(
+    () => nextFeePeriod(calendarYear, calendarMonth),
+    [calendarYear, calendarMonth],
+  );
 
   /** Simulación FIFO del abono: qué meses cubre y cuánto queda en cada uno. */
   const abonoPreview = useMemo(() => {
@@ -287,6 +302,34 @@ export function CuotasClient({
     const leftoverDebt = Math.max(0, feesDebt - covered);
     return { lines, covered, leftoverDebt, unused: remaining };
   }, [abonoAmount, unpaidFees, feesDebt]);
+
+  function remainingAfterAbono(year: number, month: number) {
+    const previewLine = abonoPreview.lines.find(
+      (l) => l.year === year && l.month === month,
+    );
+    if (previewLine) return previewLine.after;
+    const fee = fees.find(
+      (f) =>
+        f.year === year &&
+        f.month === month &&
+        f.concept === FEE_CONCEPT.MANTENIMIENTO,
+    );
+    if (fee?.status === "PAGADO") return 0;
+    if (fee) return Math.max(0, fee.amount - (fee.amountPaid ?? 0));
+    return maintenanceAmount;
+  }
+
+  const currentAfterAbono = remainingAfterAbono(calendarYear, calendarMonth);
+  const nextAfterAbono = remainingAfterAbono(
+    nextCalendar.year,
+    nextCalendar.month,
+  );
+  const currentExtra =
+    includeAbonoCurrent && currentAfterAbono > 0.01 ? currentAfterAbono : 0;
+  const nextExtra =
+    includeAbonoNext && nextAfterAbono > 0.01 ? nextAfterAbono : 0;
+  const abonoCombinedTotal =
+    Math.round((abonoPreview.covered + currentExtra + nextExtra) * 100) / 100;
 
   useEffect(() => {
     if (feesDebt > 0) setAbonoAmount(feesDebt);
@@ -410,7 +453,7 @@ export function CuotasClient({
     .join(" + ");
 
   const canCharge = abonoMode
-    ? !pending && abonoAmount > 0 && feesDebt > 0
+    ? !pending && abonoCombinedTotal > 0
     : anualMode
       ? !pending &&
         !blockedByPriorDebt &&
@@ -788,8 +831,8 @@ export function CuotasClient({
                     Registrar abono a cuenta
                   </span>
                   <span className="text-xs text-muted">
-                    Verás exactamente qué meses liquida o deja parciales. Queda
-                    pendiente de validar en Tesorería.
+                    Desglosa meses del adeudo y, si quieres, suma el mes en curso
+                    o el siguiente en el mismo comprobante.
                   </span>
                 </span>
               </label>
@@ -824,30 +867,35 @@ export function CuotasClient({
               <div className="mb-4 space-y-3">
                 <label className="block text-sm">
                   <span className="mb-1.5 block font-medium text-primary-dark">
-                    Monto del abono *
+                    Monto del abono a adeudo *
                   </span>
                   <input
                     name="abonoAmount"
                     type="number"
                     step="0.01"
-                    min="0.01"
+                    min="0"
                     max={feesDebt}
-                    required
+                    required={feesDebt > 0}
                     value={abonoAmount || ""}
                     onChange={(e) => setAbonoAmount(Number(e.target.value))}
                     className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
                   />
                 </label>
+                <input
+                  type="hidden"
+                  name="maintenanceAmount"
+                  value={maintenanceAmount}
+                />
                 <p className="text-xs text-muted">
-                  Máximo {formatCurrency(feesDebt)}. Se aplica del mes más
-                  antiguo al más reciente.
+                  Máximo {formatCurrency(feesDebt)} de adeudo. Se aplica del mes
+                  más antiguo al más reciente.
                 </p>
 
                 {abonoPreview.lines.length > 0 ? (
                   <div className="overflow-hidden rounded-xl border border-border">
                     <div className="border-b border-border bg-primary-soft/40 px-4 py-2.5">
                       <p className="text-xs font-bold tracking-wide text-primary uppercase">
-                        Meses que cubre este abono
+                        Meses que cubre el abono
                       </p>
                       <p className="mt-0.5 text-xs text-muted">
                         {abonoPreview.lines.filter((l) => l.fullyPaid).length}{" "}
@@ -895,7 +943,7 @@ export function CuotasClient({
                     </ul>
                     {abonoPreview.leftoverDebt > 0.01 && (
                       <div className="border-t border-border bg-warning-soft/40 px-4 py-2.5 text-xs text-foreground">
-                        Tras este abono aún quedará adeudo de cuotas:{" "}
+                        Tras el abono aún quedará adeudo de cuotas:{" "}
                         <strong>
                           {formatCurrency(abonoPreview.leftoverDebt)}
                         </strong>
@@ -904,22 +952,96 @@ export function CuotasClient({
                   </div>
                 ) : (
                   <p className="rounded-xl border border-border bg-background px-4 py-3 text-sm text-muted">
-                    Indica un monto para ver qué meses se cubren.
+                    Indica un monto de abono, o solo incluye mes en curso /
+                    siguiente abajo.
                   </p>
                 )}
 
-                <div className="rounded-xl bg-background px-4 py-4">
-                  <p className="text-sm text-muted">Total a recibir</p>
-                  <p className="font-display text-3xl font-bold text-primary-dark">
-                    {formatCurrency(abonoPreview.covered || 0)}
+                <div className="space-y-2 rounded-xl border border-border bg-background px-4 py-3">
+                  <p className="text-xs font-bold tracking-wide text-primary uppercase">
+                    Incluir en el mismo cobro
                   </p>
-                  {abonoPreview.lines.length > 0 && (
-                    <p className="mt-1 text-xs text-muted">
-                      {abonoPreview.lines
-                        .map((l) => feeLabel(l.year, l.month))
-                        .join(" · ")}
-                    </p>
-                  )}
+                  <p className="text-xs text-muted">
+                    Se suman al total y aparecen en un solo comprobante por
+                    correo.
+                  </p>
+                  <label
+                    className={`flex items-start gap-3 rounded-lg px-2 py-2 ${
+                      currentAfterAbono <= 0.01
+                        ? "cursor-not-allowed opacity-60"
+                        : "cursor-pointer hover:bg-primary-soft/40"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      name="includeCurrent"
+                      checked={includeAbonoCurrent && currentAfterAbono > 0.01}
+                      disabled={currentAfterAbono <= 0.01}
+                      onChange={(e) =>
+                        setIncludeAbonoCurrent(e.target.checked)
+                      }
+                      className="mt-1"
+                    />
+                    <span className="text-sm">
+                      <span className="font-semibold text-primary-dark">
+                        Mes en curso ({feeLabel(calendarYear, calendarMonth)})
+                      </span>
+                      <span className="mt-0.5 block text-xs text-muted">
+                        {currentAfterAbono <= 0.01
+                          ? "Ya queda cubierto con el abono o está pagado."
+                          : `+ ${formatCurrency(currentAfterAbono)}`}
+                      </span>
+                    </span>
+                  </label>
+                  <label
+                    className={`flex items-start gap-3 rounded-lg px-2 py-2 ${
+                      nextAfterAbono <= 0.01
+                        ? "cursor-not-allowed opacity-60"
+                        : "cursor-pointer hover:bg-primary-soft/40"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      name="includeNext"
+                      checked={includeAbonoNext && nextAfterAbono > 0.01}
+                      disabled={nextAfterAbono <= 0.01}
+                      onChange={(e) => setIncludeAbonoNext(e.target.checked)}
+                      className="mt-1"
+                    />
+                    <span className="text-sm">
+                      <span className="font-semibold text-primary-dark">
+                        Mes siguiente (
+                        {feeLabel(nextCalendar.year, nextCalendar.month)})
+                      </span>
+                      <span className="mt-0.5 block text-xs text-muted">
+                        {nextAfterAbono <= 0.01
+                          ? "Ya queda cubierto o está pagado."
+                          : `+ ${formatCurrency(nextAfterAbono)}`}
+                      </span>
+                    </span>
+                  </label>
+                </div>
+
+                <div className="rounded-xl bg-background px-4 py-4">
+                  <p className="text-sm text-muted">Total del movimiento</p>
+                  <p className="font-display text-3xl font-bold text-primary-dark">
+                    {formatCurrency(abonoCombinedTotal)}
+                  </p>
+                  <ul className="mt-2 space-y-1 text-xs text-muted">
+                    {abonoPreview.covered > 0 && (
+                      <li>
+                        Abono a adeudo: {formatCurrency(abonoPreview.covered)}
+                      </li>
+                    )}
+                    {currentExtra > 0 && (
+                      <li>
+                        Mes en curso: {formatCurrency(currentExtra)}
+                      </li>
+                    )}
+                    {nextExtra > 0 && (
+                      <li>Mes siguiente: {formatCurrency(nextExtra)}</li>
+                    )}
+                  </ul>
                 </div>
               </div>
             ) : anualMode ? (
@@ -1164,8 +1286,8 @@ export function CuotasClient({
             >
               {abonoMode
                 ? pending
-                  ? "Registrando abono…"
-                  : `Registrar abono · ${formatCurrency(abonoAmount || 0)}`
+                  ? "Registrando cobro…"
+                  : `Registrar cobro · ${formatCurrency(abonoCombinedTotal)}`
                 : anualMode
                   ? blockedByPriorDebt
                     ? "Hay adeudos anteriores — límpialos primero"

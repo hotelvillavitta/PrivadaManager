@@ -740,11 +740,27 @@ export async function registerCobranza(formData: FormData) {
     return { error: "Selecciona casa." };
   }
 
-  // —— Abono a cuenta (FIFO sobre meses adeudados) ——
+  // —— Abono a cuenta (FIFO) + opcional mes en curso / siguiente ——
   if (mode === "abono") {
-    if (Number.isNaN(abonoAmount) || abonoAmount <= 0) {
+    const includeCurrent = formData.get("includeCurrent") === "on";
+    const includeNext = formData.get("includeNext") === "on";
+    const monthlyAmount = Number(
+      formData.get("maintenanceAmount") ?? FEE_BASE_AMOUNT,
+    );
+    const monthBase =
+      Number.isFinite(monthlyAmount) && monthlyAmount > 0
+        ? monthlyAmount
+        : FEE_BASE_AMOUNT;
+
+    if (Number.isNaN(abonoAmount) || abonoAmount < 0) {
       return { error: "Indica un monto de abono válido." };
     }
+    if (abonoAmount <= 0 && !includeCurrent && !includeNext) {
+      return {
+        error: "Indica un abono o incluye el mes en curso / siguiente.",
+      };
+    }
+
     const unpaid = await prisma.monthlyFee.findMany({
       where: {
         houseNumber,
@@ -757,26 +773,32 @@ export async function registerCobranza(formData: FormData) {
       (s, f) => s + Math.max(0, f.amount - f.amountPaid),
       0,
     );
-    if (owedTotal <= 0) {
-      return { error: "Esta casa no tiene adeudo de mantenimiento." };
-    }
-    if (abonoAmount > owedTotal + 0.01) {
-      return {
-        error: `El abono no puede superar el adeudo total (${formatCurrency(owedTotal)}).`,
-      };
+
+    if (abonoAmount > 0) {
+      if (owedTotal <= 0) {
+        return { error: "Esta casa no tiene adeudo de mantenimiento para abonar." };
+      }
+      if (abonoAmount > owedTotal + 0.01) {
+        return {
+          error: `El abono no puede superar el adeudo total (${formatCurrency(owedTotal)}).`,
+        };
+      }
     }
 
     const paidAt = new Date();
-    let remaining = abonoAmount;
+    const receiptLines: PaymentReceiptLine[] = [];
     const applied: string[] = [];
+    let totalCharged = 0;
 
+    // 1) FIFO sobre adeudo
+    let remaining = abonoAmount;
     for (const fee of unpaid) {
       if (remaining <= 0) break;
       const owed = Math.max(0, fee.amount - fee.amountPaid);
       if (owed <= 0) continue;
       const pay = Math.min(remaining, owed);
       const nextPaid = fee.amountPaid + pay;
-      const fullyPaid = nextPaid >= fee.amount;
+      const fullyPaid = nextPaid >= fee.amount - 0.01;
       await prisma.monthlyFee.update({
         where: { id: fee.id },
         data: {
@@ -786,23 +808,116 @@ export async function registerCobranza(formData: FormData) {
           withSurcharge: fee.withSurcharge,
         },
       });
+      const label = `Abono ${feeLabel(fee.year, fee.month)}${fullyPaid ? " (liquidado)" : " (parcial)"}`;
+      receiptLines.push({ label, amount: pay });
       applied.push(`${feeLabel(fee.year, fee.month)} $${pay}`);
+      totalCharged += pay;
       remaining -= pay;
     }
+
+    // 2) Completar / crear mes en curso y/o siguiente
+    const { year: cy, month: cm } = calendarPartsInTijuana();
+    const extraPeriods: { year: number; month: number; tag: string }[] = [];
+    if (includeCurrent) extraPeriods.push({ year: cy, month: cm, tag: "Mes en curso" });
+    if (includeNext) {
+      const n = nextFeePeriod(cy, cm);
+      extraPeriods.push({ year: n.year, month: n.month, tag: "Mes siguiente" });
+    }
+
+    for (const extra of extraPeriods) {
+      const existing = await prisma.monthlyFee.findUnique({
+        where: {
+          houseNumber_year_month_concept: {
+            houseNumber,
+            year: extra.year,
+            month: extra.month,
+            concept: FEE_CONCEPT.MANTENIMIENTO,
+          },
+        },
+      });
+
+      if (existing?.status === "PAGADO") {
+        continue;
+      }
+
+      const feeAmount = existing?.amount ?? monthBase;
+      const prevPaid = existing?.amountPaid ?? 0;
+      const pay = Math.round((feeAmount - prevPaid) * 100) / 100;
+      if (pay <= 0.01) {
+        if (existing) {
+          await prisma.monthlyFee.update({
+            where: { id: existing.id },
+            data: {
+              status: "PAGADO",
+              amountPaid: feeAmount,
+              paidAt,
+            },
+          });
+        }
+        continue;
+      }
+
+      await prisma.monthlyFee.upsert({
+        where: {
+          houseNumber_year_month_concept: {
+            houseNumber,
+            year: extra.year,
+            month: extra.month,
+            concept: FEE_CONCEPT.MANTENIMIENTO,
+          },
+        },
+        create: {
+          houseNumber,
+          year: extra.year,
+          month: extra.month,
+          concept: FEE_CONCEPT.MANTENIMIENTO,
+          amount: feeAmount,
+          amountPaid: feeAmount,
+          status: "PAGADO",
+          withSurcharge: false,
+          paidAt,
+        },
+        update: {
+          amount: feeAmount,
+          amountPaid: feeAmount,
+          status: "PAGADO",
+          withSurcharge: false,
+          paidAt,
+        },
+      });
+
+      const label = `${extra.tag} ${feeLabel(extra.year, extra.month)}`;
+      receiptLines.push({ label, amount: pay });
+      applied.push(`${feeLabel(extra.year, extra.month)} $${pay}`);
+      totalCharged += pay;
+    }
+
+    if (totalCharged <= 0 || receiptLines.length === 0) {
+      return {
+        error:
+          "No hay nada que registrar: el abono no aplicó o esos meses ya estaban pagados.",
+      };
+    }
+
+    totalCharged = Math.round(totalCharged * 100) / 100;
+    const periodLabel =
+      receiptLines.length === 1
+        ? receiptLines[0]!.label
+        : `Cobro combinado (${receiptLines.length} conceptos)`;
 
     await prisma.financeEntry.create({
       data: {
         type: "INGRESO",
         category: "Cuotas",
-        description: `Casa ${houseNumber} · Abono · ${applied.join(", ")}`,
-        amount: abonoAmount,
+        description: `Casa ${houseNumber} · ${periodLabel} · ${applied.join(", ")}`,
+        amount: totalCharged,
         date: paidAt,
         status: "PENDING",
       },
     });
 
     const residents = await prisma.user.findMany({
-      where: { houseNumber, role: "COLONO" },
+      where: { houseNumber, role: { in: ["COLONO", "ADMIN"] } },
       select: {
         id: true,
         email: true,
@@ -814,8 +929,8 @@ export async function registerCobranza(formData: FormData) {
       await prisma.notification.createMany({
         data: residents.map((r) => ({
           userId: r.id,
-          title: "Abono registrado",
-          body: `Casa ${houseNumber} · Abono ${formatCurrency(abonoAmount)} aplicado a adeudo.`,
+          title: "Pago registrado",
+          body: `Casa ${houseNumber} · ${formatCurrency(totalCharged)} · ${applied.join(", ")}.`,
         })),
       });
       const privada = await getPrivada();
@@ -826,9 +941,9 @@ export async function registerCobranza(formData: FormData) {
               residentName: fullName(r),
               residentEmail: r.email,
               houseNumber,
-              periodLabel: "Abono",
-              lines: [{ label: "Abono a adeudo", amount: abonoAmount }],
-              total: abonoAmount,
+              periodLabel,
+              lines: receiptLines,
+              total: totalCharged,
               paidAt,
               privadaName: privada.name,
               privadaAddress: privada.address,
@@ -846,8 +961,10 @@ export async function registerCobranza(formData: FormData) {
     revalidatePath("/cuotas");
     return {
       ok: true,
-      amount: abonoAmount,
-      concepts: [`Abono $${abonoAmount}`],
+      amount: totalCharged,
+      concepts: receiptLines.map(
+        (l) => `${l.label} ${formatCurrency(l.amount)}`,
+      ),
     };
   }
 
