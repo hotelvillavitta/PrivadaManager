@@ -21,6 +21,7 @@ import { PageHero } from "@/components/PageHero";
 import { toast } from "@/components/Toast";
 import { registerCobranza } from "@/lib/actions/portal";
 import {
+  FEE_ANNUAL_MONTHS,
   FEE_BASE_AMOUNT,
   FEE_CONCEPT,
   FEE_CONCEPT_LABEL,
@@ -31,6 +32,7 @@ import {
   MONTH_LABELS,
   feeHasSurcharge,
   feeLabel,
+  feePeriodRange,
   formatCurrency,
   isFeePaymentLate,
   isFeePeriodBefore,
@@ -207,7 +209,9 @@ export function CuotasClient({
   const [includeMaintenance, setIncludeMaintenance] = useState(true);
   const [includeLate, setIncludeLate] = useState(false);
   const [includePalapa, setIncludePalapa] = useState(false);
-  const [abonoMode, setAbonoMode] = useState(false);
+  const [chargeMode, setChargeMode] = useState<"periodo" | "abono" | "anual">(
+    "periodo",
+  );
   const [abonoAmount, setAbonoAmount] = useState(0);
   const [maintenanceAmount, setMaintenanceAmount] = useState(FEE_BASE_AMOUNT);
   const [lateAmount, setLateAmount] = useState(FEE_LATE_SURCHARGE);
@@ -215,10 +219,17 @@ export function CuotasClient({
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
 
+  const abonoMode = chargeMode === "abono";
+  const anualMode = chargeMode === "anual";
+
   useEffect(() => {
     if (initialChargeYear) setChargeYear(initialChargeYear);
     if (initialChargeMonth) setChargeMonth(initialChargeMonth);
   }, [houseNumber, initialChargeYear, initialChargeMonth]);
+
+  useEffect(() => {
+    setChargeMode("periodo");
+  }, [houseNumber]);
 
   const pendingFinesTotal = fines
     .filter((f) => f.status === "PENDIENTE")
@@ -245,6 +256,38 @@ export function CuotasClient({
   useEffect(() => {
     if (feesDebt > 0) setAbonoAmount(feesDebt);
   }, [houseNumber, feesDebt]);
+
+  const annualPeriods = useMemo(
+    () => feePeriodRange(chargeYear, chargeMonth, FEE_ANNUAL_MONTHS),
+    [chargeYear, chargeMonth],
+  );
+  const annualEnd = annualPeriods[annualPeriods.length - 1]!;
+  const annualToCover = useMemo(() => {
+    return annualPeriods.filter((p) => {
+      const fee = fees.find(
+        (f) =>
+          f.year === p.year &&
+          f.month === p.month &&
+          f.concept === FEE_CONCEPT.MANTENIMIENTO,
+      );
+      return !fee || fee.status !== "PAGADO";
+    });
+  }, [annualPeriods, fees]);
+  const annualTotal = useMemo(() => {
+    return annualToCover.reduce((sum, p) => {
+      const fee = fees.find(
+        (f) =>
+          f.year === p.year &&
+          f.month === p.month &&
+          f.concept === FEE_CONCEPT.MANTENIMIENTO,
+      );
+      if (fee && fee.status !== "PAGADO") {
+        return sum + Math.max(0, fee.amount - (fee.amountPaid ?? 0));
+      }
+      return sum + maintenanceAmount;
+    }, 0);
+  }, [annualToCover, fees, maintenanceAmount]);
+  const annualRangeLabel = `${feeLabel(chargeYear, chargeMonth)}–${feeLabel(annualEnd.year, annualEnd.month)}`;
 
   const months = fees.filter((f) => f.year === historyYear);
 
@@ -287,7 +330,8 @@ export function CuotasClient({
     )
     .sort((a, b) => a.year * 12 + a.month - (b.year * 12 + b.month));
   const blockedByPriorDebt =
-    includeMaintenance && !maintenancePaid && priorUnpaidFees.length > 0;
+    priorUnpaidFees.length > 0 &&
+    (anualMode || (includeMaintenance && !maintenancePaid));
 
   useEffect(() => {
     if (maintenancePaid) {
@@ -331,10 +375,15 @@ export function CuotasClient({
 
   const canCharge = abonoMode
     ? !pending && abonoAmount > 0 && feesDebt > 0
-    : !pending &&
-      !blockedByPriorDebt &&
-      total > 0 &&
-      ((includeMaintenance && !maintenancePaid) || includePalapa);
+    : anualMode
+      ? !pending &&
+        !blockedByPriorDebt &&
+        annualToCover.length > 0 &&
+        annualTotal > 0
+      : !pending &&
+        !blockedByPriorDebt &&
+        total > 0 &&
+        ((includeMaintenance && !maintenancePaid) || includePalapa);
 
   return (
     <div className="pb-16">
@@ -621,11 +670,13 @@ export function CuotasClient({
             )}
 
             {feesDebt > 0 && (
-              <label className="mb-4 flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-background px-4 py-3">
+              <label className="mb-3 flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-background px-4 py-3">
                 <input
                   type="checkbox"
                   checked={abonoMode}
-                  onChange={(e) => setAbonoMode(e.target.checked)}
+                  onChange={(e) =>
+                    setChargeMode(e.target.checked ? "abono" : "periodo")
+                  }
                   className="mt-1"
                 />
                 <span>
@@ -640,12 +691,30 @@ export function CuotasClient({
               </label>
             )}
 
+            {!abonoMode && (
+              <label className="mb-4 flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-background px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={anualMode}
+                  onChange={(e) =>
+                    setChargeMode(e.target.checked ? "anual" : "periodo")
+                  }
+                  className="mt-1"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-primary-dark">
+                    Pago anual ({FEE_ANNUAL_MONTHS} meses)
+                  </span>
+                  <span className="text-xs text-muted">
+                    Un solo cobro desde el mes elegido. Cada mes queda marcado
+                    como pagado (no hay que registrar mes a mes).
+                  </span>
+                </span>
+              </label>
+            )}
+
             <input type="hidden" name="houseNumber" value={houseNumber} />
-            <input
-              type="hidden"
-              name="mode"
-              value={abonoMode ? "abono" : "periodo"}
-            />
+            <input type="hidden" name="mode" value={chargeMode} />
 
             {abonoMode ? (
               <div className="mb-4 space-y-3">
@@ -674,6 +743,102 @@ export function CuotasClient({
                     {formatCurrency(abonoAmount || 0)}
                   </p>
                 </div>
+              </div>
+            ) : anualMode ? (
+              <div className="mb-4 space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="flex flex-col gap-1.5 text-sm">
+                    <span className="font-medium text-primary-dark">
+                      Mes de inicio
+                    </span>
+                    <select
+                      name="month"
+                      value={chargeMonth}
+                      onChange={(e) => setChargeMonth(Number(e.target.value))}
+                      className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                    >
+                      {MONTH_LABELS.map((label, idx) => (
+                        <option key={label} value={idx + 1}>
+                          {label} ({idx + 1})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-sm">
+                    <span className="font-medium text-primary-dark">Año</span>
+                    <input
+                      name="year"
+                      type="number"
+                      value={chargeYear}
+                      onChange={(e) => setChargeYear(Number(e.target.value))}
+                      required
+                      className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                    />
+                  </label>
+                </div>
+
+                <label className="block text-sm">
+                  <span className="mb-1.5 block font-medium text-primary-dark">
+                    Monto por mes (meses nuevos)
+                  </span>
+                  <input
+                    name="maintenanceAmount"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={maintenanceAmount}
+                    onChange={(e) =>
+                      setMaintenanceAmount(Number(e.target.value))
+                    }
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
+                  />
+                  <span className="mt-1 block text-xs text-muted">
+                    Si un mes ya tiene multa cargada, se cobra el saldo de ese
+                    mes.
+                  </span>
+                </label>
+
+                {blockedByPriorDebt && (
+                  <p className="rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-sm text-foreground">
+                    Hay adeudos anteriores a{" "}
+                    <strong>{feeLabel(chargeYear, chargeMonth)}</strong>:{" "}
+                    {priorUnpaidFees
+                      .map((f) => feeLabel(f.year, f.month))
+                      .join(", ")}
+                    . Límpialos antes del pago anual.
+                  </p>
+                )}
+
+                {annualToCover.length === 0 ? (
+                  <p className="rounded-xl border border-success/30 bg-success-soft px-4 py-3 text-sm text-success">
+                    Los {FEE_ANNUAL_MONTHS} meses desde{" "}
+                    {feeLabel(chargeYear, chargeMonth)} ya están pagados.
+                  </p>
+                ) : (
+                  <div className="rounded-xl bg-background px-4 py-4">
+                    <p className="text-sm text-muted">Cobertura</p>
+                    <p className="font-medium text-primary-dark">
+                      {annualRangeLabel} · {annualToCover.length} mes
+                      {annualToCover.length === 1 ? "" : "es"} por registrar
+                      {FEE_ANNUAL_MONTHS - annualToCover.length > 0
+                        ? ` (${FEE_ANNUAL_MONTHS - annualToCover.length} ya pagados, se omiten)`
+                        : ""}
+                    </p>
+                    <p className="mt-2 text-xs leading-relaxed text-muted">
+                      {annualToCover
+                        .map((p) => feeLabel(p.year, p.month))
+                        .join(" · ")}
+                    </p>
+                    <p className="mt-3 text-sm text-muted">Total a cobrar</p>
+                    <p className="font-display text-3xl font-bold text-primary-dark">
+                      {formatCurrency(annualTotal)}
+                    </p>
+                    <p className="mt-2 text-xs text-muted">
+                      Queda pendiente de validar en Tesorería. En el calendario
+                      esos meses aparecen como pagados de inmediato.
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
               <>
@@ -810,13 +975,21 @@ export function CuotasClient({
                 ? pending
                   ? "Registrando abono…"
                   : `Registrar abono · ${formatCurrency(abonoAmount || 0)}`
-                : blockedByPriorDebt
-                  ? "Hay adeudos anteriores — usa abono o cobra el mes más antiguo"
-                  : maintenancePaid && !includePalapa
-                    ? "Periodo ya pagado"
-                    : pending
-                      ? "Registrando…"
-                      : `Cobrar Casa ${houseNumber} · ${formatCurrency(total)}`}
+                : anualMode
+                  ? blockedByPriorDebt
+                    ? "Hay adeudos anteriores — límpialos primero"
+                    : annualToCover.length === 0
+                      ? "Rango anual ya pagado"
+                      : pending
+                        ? "Registrando pago anual…"
+                        : `Pago anual Casa ${houseNumber} · ${formatCurrency(annualTotal)}`
+                  : blockedByPriorDebt
+                    ? "Hay adeudos anteriores — usa abono o cobra el mes más antiguo"
+                    : maintenancePaid && !includePalapa
+                      ? "Periodo ya pagado"
+                      : pending
+                        ? "Registrando…"
+                        : `Cobrar Casa ${houseNumber} · ${formatCurrency(total)}`}
             </button>
             {isAdmin && (
               <p className="mt-2 text-xs text-muted">

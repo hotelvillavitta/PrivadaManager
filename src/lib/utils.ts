@@ -37,6 +37,8 @@ export const FEE_LATE_SURCHARGE = 50;
 export const FEE_GRACE_DAYS = 10;
 /** Cuota por uso de palapa (MXN). */
 export const FEE_PALAPA_AMOUNT = 200;
+/** Meses cubiertos por un pago anual de mantenimiento. */
+export const FEE_ANNUAL_MONTHS = 12;
 
 export const FEE_CONCEPT = {
   MANTENIMIENTO: "MANTENIMIENTO",
@@ -130,6 +132,24 @@ export function resolveFineBillingPeriod(asOf: Date = new Date()) {
 export function nextFeePeriod(year: number, month: number) {
   if (month === 12) return { year: year + 1, month: 1 };
   return { year, month: month + 1 };
+}
+
+/** Genera `count` periodos consecutivos desde year/month inclusive. */
+export function feePeriodRange(
+  startYear: number,
+  startMonth: number,
+  count: number,
+) {
+  const out: { year: number; month: number }[] = [];
+  let year = startYear;
+  let month = startMonth;
+  for (let i = 0; i < count; i++) {
+    out.push({ year, month });
+    const next = nextFeePeriod(year, month);
+    year = next.year;
+    month = next.month;
+  }
+  return out;
 }
 
 /**

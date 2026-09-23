@@ -9,6 +9,7 @@ import { saveUploadedDocument, fileFromFormData } from "@/lib/uploads";
 import { ISSUE_CATEGORIES } from "@/lib/issues/catalog";
 import { overdueMaintenanceWhere } from "@/lib/utils";
 import {
+  FEE_ANNUAL_MONTHS,
   FEE_BASE_AMOUNT,
   FEE_CONCEPT,
   FEE_CONCEPT_LABEL,
@@ -19,6 +20,7 @@ import {
   fullName,
   isFeePaymentLate,
   calendarPartsInTijuana,
+  feePeriodRange,
   nextFeePeriod,
   pickFineBillingPeriod,
 } from "@/lib/utils";
@@ -816,6 +818,213 @@ export async function registerCobranza(formData: FormData) {
       ok: true,
       amount: abonoAmount,
       concepts: [`Abono $${abonoAmount}`],
+    };
+  }
+
+  // —— Pago anual: un cobro cubre 12 meses consecutivos desde el mes elegido ——
+  if (mode === "anual") {
+    if (!year || !month || month < 1 || month > 12) {
+      return { error: "Indica el mes de inicio del pago anual." };
+    }
+    const monthlyAmount = Number(
+      formData.get("maintenanceAmount") ?? FEE_BASE_AMOUNT,
+    );
+    if (Number.isNaN(monthlyAmount) || monthlyAmount <= 0) {
+      return { error: "Monto mensual inválido." };
+    }
+
+    const periods = feePeriodRange(year, month, FEE_ANNUAL_MONTHS);
+    const end = periods[periods.length - 1]!;
+
+    const priorUnpaid = await prisma.monthlyFee.findMany({
+      where: {
+        houseNumber,
+        concept: FEE_CONCEPT.MANTENIMIENTO,
+        status: { in: ["ADEUDO", "PENDIENTE"] },
+        OR: [
+          { year: { lt: year } },
+          { year, month: { lt: month } },
+        ],
+      },
+      orderBy: [{ year: "asc" }, { month: "asc" }],
+      take: 6,
+    });
+    if (priorUnpaid.length) {
+      const labels = priorUnpaid.map((f) => feeLabel(f.year, f.month)).join(", ");
+      return {
+        error: `Hay adeudos anteriores (${labels}). Límpialos con cobro o abono antes del pago anual.`,
+      };
+    }
+
+    const existingFees = await prisma.monthlyFee.findMany({
+      where: {
+        houseNumber,
+        concept: FEE_CONCEPT.MANTENIMIENTO,
+        OR: periods.map((p) => ({ year: p.year, month: p.month })),
+      },
+    });
+    const byPeriod = new Map(
+      existingFees.map((f) => [`${f.year}-${f.month}`, f]),
+    );
+
+    const toCover: {
+      year: number;
+      month: number;
+      feeAmount: number;
+      payAmount: number;
+      existingId?: string;
+      existingFinanceEntryId?: string | null;
+    }[] = [];
+
+    for (const p of periods) {
+      const fee = byPeriod.get(`${p.year}-${p.month}`);
+      if (fee?.status === "PAGADO") continue;
+      const feeAmount = fee?.amount ?? monthlyAmount;
+      const prevPaid = fee?.amountPaid ?? 0;
+      const payAmount = Math.max(0, feeAmount - prevPaid);
+      if (payAmount <= 0 && fee) {
+        // Ya liquidado en monto pero sin status PAGADO: forzar cierre.
+        toCover.push({
+          year: p.year,
+          month: p.month,
+          feeAmount,
+          payAmount: 0,
+          existingId: fee.id,
+          existingFinanceEntryId: fee.financeEntryId,
+        });
+        continue;
+      }
+      toCover.push({
+        year: p.year,
+        month: p.month,
+        feeAmount,
+        payAmount: payAmount || monthlyAmount,
+        existingId: fee?.id,
+        existingFinanceEntryId: fee?.financeEntryId,
+      });
+    }
+
+    if (toCover.length === 0) {
+      return {
+        error: `Los ${FEE_ANNUAL_MONTHS} meses desde ${feeLabel(year, month)} ya están pagados.`,
+      };
+    }
+
+    const paidAt = new Date();
+    const total = toCover.reduce(
+      (s, p) => s + (p.payAmount > 0 ? p.payAmount : 0),
+      0,
+    );
+    // Si todos tenían payAmount 0 (edge), cobra al menos el mensual × meses.
+    const chargeTotal =
+      total > 0 ? total : monthlyAmount * toCover.length;
+    const rangeLabel = `${feeLabel(year, month)}–${feeLabel(end.year, end.month)}`;
+    const coveredLabels = toCover
+      .map((p) => feeLabel(p.year, p.month))
+      .join(", ");
+
+    const entry = await prisma.financeEntry.create({
+      data: {
+        type: "INGRESO",
+        category: "Cuotas",
+        description: `Casa ${houseNumber} · Pago anual ${rangeLabel} · ${toCover.length} meses · ${coveredLabels}`,
+        amount: chargeTotal,
+        date: paidAt,
+        status: "PENDING",
+      },
+    });
+
+    let linkedFirst = false;
+    for (const p of toCover) {
+      const linkEntry = !linkedFirst && !p.existingFinanceEntryId;
+      if (linkEntry) linkedFirst = true;
+
+      await prisma.monthlyFee.upsert({
+        where: {
+          houseNumber_year_month_concept: {
+            houseNumber,
+            year: p.year,
+            month: p.month,
+            concept: FEE_CONCEPT.MANTENIMIENTO,
+          },
+        },
+        create: {
+          houseNumber,
+          year: p.year,
+          month: p.month,
+          concept: FEE_CONCEPT.MANTENIMIENTO,
+          amount: p.feeAmount,
+          amountPaid: p.feeAmount,
+          status: "PAGADO",
+          withSurcharge: false,
+          paidAt,
+          ...(linkEntry ? { financeEntryId: entry.id } : {}),
+        },
+        update: {
+          amount: p.feeAmount,
+          amountPaid: p.feeAmount,
+          status: "PAGADO",
+          withSurcharge: false,
+          paidAt,
+          ...(linkEntry ? { financeEntryId: entry.id } : {}),
+        },
+      });
+    }
+
+    const residents = await prisma.user.findMany({
+      where: { houseNumber, role: { in: ["COLONO", "ADMIN"] } },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+      },
+    });
+    if (residents.length) {
+      await prisma.notification.createMany({
+        data: residents.map((r) => ({
+          userId: r.id,
+          title: "Pago anual registrado",
+          body: `Casa ${houseNumber} · ${toCover.length} meses (${rangeLabel}) · ${formatCurrency(chargeTotal)}.`,
+        })),
+      });
+      const privada = await getPrivada();
+      after(() => {
+        void Promise.all(
+          residents.map((r) =>
+            sendPaymentReceiptEmail({
+              residentName: fullName(r),
+              residentEmail: r.email,
+              houseNumber,
+              periodLabel: `Anual ${rangeLabel}`,
+              lines: [
+                {
+                  label: `Mantenimiento × ${toCover.length} meses`,
+                  amount: chargeTotal,
+                },
+              ],
+              total: chargeTotal,
+              paidAt,
+              privadaName: privada.name,
+              privadaAddress: privada.address,
+              privadaEmail: privada.email,
+              privadaPhone: privada.phone,
+            }),
+          ),
+        ).catch((err) => console.error("[anual] email failed", err));
+      });
+    }
+
+    revalidatePath("/admin/cobranza");
+    revalidatePath("/admin/cobranza/matriz");
+    revalidatePath("/admin/finanzas");
+    revalidatePath("/cuotas");
+    return {
+      ok: true,
+      amount: chargeTotal,
+      concepts: [
+        `Pago anual ${rangeLabel} (${toCover.length} meses)`,
+      ],
     };
   }
 
