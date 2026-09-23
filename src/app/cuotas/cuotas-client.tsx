@@ -350,8 +350,8 @@ export function CuotasClient({
 
       <div className="mx-auto max-w-4xl space-y-5 px-4 sm:space-y-6 lg:px-6">
         {isAdmin ? (
-          <section className="overflow-hidden rounded-2xl border-2 border-primary/25 bg-surface shadow-sm">
-            <div className="border-b border-border bg-primary-soft/50 px-4 py-3 sm:px-5">
+          <section className="relative z-20 overflow-visible rounded-2xl border-2 border-primary/25 bg-surface shadow-sm">
+            <div className="rounded-t-2xl border-b border-border bg-primary-soft/50 px-4 py-3 sm:px-5">
               <p className="text-xs font-bold tracking-[0.12em] text-primary uppercase">
                 Confirmación de casa
               </p>
@@ -360,7 +360,7 @@ export function CuotasClient({
               </p>
             </div>
 
-            <div className="grid gap-4 p-4 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-6 sm:p-6">
+            <div className="grid gap-4 p-4 sm:grid-cols-[1fr_auto] sm:items-start sm:gap-6 sm:p-6">
               <div className="flex items-start gap-4">
                 <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-sm sm:h-20 sm:w-20">
                   <Home className="h-7 w-7 sm:h-8 sm:w-8" />
@@ -432,7 +432,7 @@ export function CuotasClient({
                   <ul
                     id="cobranza-house-results"
                     role="listbox"
-                    className="absolute top-[calc(100%+0.35rem)] right-0 left-0 z-30 max-h-64 overflow-y-auto rounded-xl border border-border bg-surface py-1 shadow-[0_16px_40px_-20px_rgba(47,29,45,0.45)]"
+                    className="absolute top-[calc(100%+0.35rem)] right-0 left-0 z-50 max-h-72 overflow-y-auto rounded-xl border border-border bg-surface py-1 shadow-[0_18px_50px_-16px_rgba(47,29,45,0.55)]"
                   >
                     {filteredHouses.length === 0 ? (
                       <li className="px-4 py-3 text-sm text-muted">
