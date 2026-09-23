@@ -257,6 +257,37 @@ export function CuotasClient({
   const feesDebt = unpaidFees.reduce((s, f) => s + f.owed, 0);
   const totalDebt = feesDebt + pendingFinesTotal;
 
+  /** Simulación FIFO del abono: qué meses cubre y cuánto queda en cada uno. */
+  const abonoPreview = useMemo(() => {
+    let remaining = Math.max(0, abonoAmount || 0);
+    const lines: {
+      year: number;
+      month: number;
+      owed: number;
+      apply: number;
+      after: number;
+      fullyPaid: boolean;
+    }[] = [];
+    for (const fee of unpaidFees) {
+      if (remaining <= 0) break;
+      const apply = Math.min(remaining, fee.owed);
+      if (apply <= 0) continue;
+      const after = Math.round((fee.owed - apply) * 100) / 100;
+      lines.push({
+        year: fee.year,
+        month: fee.month,
+        owed: fee.owed,
+        apply,
+        after,
+        fullyPaid: after <= 0.01,
+      });
+      remaining = Math.round((remaining - apply) * 100) / 100;
+    }
+    const covered = lines.reduce((s, l) => s + l.apply, 0);
+    const leftoverDebt = Math.max(0, feesDebt - covered);
+    return { lines, covered, leftoverDebt, unused: remaining };
+  }, [abonoAmount, unpaidFees, feesDebt]);
+
   useEffect(() => {
     if (feesDebt > 0) setAbonoAmount(feesDebt);
   }, [houseNumber, feesDebt]);
@@ -757,7 +788,7 @@ export function CuotasClient({
                     Registrar abono a cuenta
                   </span>
                   <span className="text-xs text-muted">
-                    Aplica el monto al adeudo más antiguo primero. Queda
+                    Verás exactamente qué meses liquida o deja parciales. Queda
                     pendiente de validar en Tesorería.
                   </span>
                 </span>
@@ -808,13 +839,87 @@ export function CuotasClient({
                   />
                 </label>
                 <p className="text-xs text-muted">
-                  Máximo {formatCurrency(feesDebt)} en cuotas (FIFO).
+                  Máximo {formatCurrency(feesDebt)}. Se aplica del mes más
+                  antiguo al más reciente.
                 </p>
+
+                {abonoPreview.lines.length > 0 ? (
+                  <div className="overflow-hidden rounded-xl border border-border">
+                    <div className="border-b border-border bg-primary-soft/40 px-4 py-2.5">
+                      <p className="text-xs font-bold tracking-wide text-primary uppercase">
+                        Meses que cubre este abono
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted">
+                        {abonoPreview.lines.filter((l) => l.fullyPaid).length}{" "}
+                        liquidado
+                        {abonoPreview.lines.filter((l) => l.fullyPaid)
+                          .length === 1
+                          ? ""
+                          : "s"}
+                        {abonoPreview.lines.some((l) => !l.fullyPaid)
+                          ? ` · ${abonoPreview.lines.filter((l) => !l.fullyPaid).length} parcial`
+                          : ""}
+                      </p>
+                    </div>
+                    <ul className="divide-y divide-border">
+                      {abonoPreview.lines.map((line) => (
+                        <li
+                          key={`${line.year}-${line.month}`}
+                          className="flex items-center justify-between gap-3 px-4 py-2.5"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-primary-dark">
+                              {feeLabel(line.year, line.month)}
+                            </p>
+                            <p className="text-xs text-muted">
+                              Adeudo {formatCurrency(line.owed)}
+                              {line.fullyPaid
+                                ? " · queda en $0.00"
+                                : ` · queda ${formatCurrency(line.after)}`}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-primary-dark">
+                              {formatCurrency(line.apply)}
+                            </p>
+                            <p
+                              className={`text-[11px] font-bold tracking-wide uppercase ${
+                                line.fullyPaid ? "text-success" : "text-warning"
+                              }`}
+                            >
+                              {line.fullyPaid ? "Pagado" : "Parcial"}
+                            </p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                    {abonoPreview.leftoverDebt > 0.01 && (
+                      <div className="border-t border-border bg-warning-soft/40 px-4 py-2.5 text-xs text-foreground">
+                        Tras este abono aún quedará adeudo de cuotas:{" "}
+                        <strong>
+                          {formatCurrency(abonoPreview.leftoverDebt)}
+                        </strong>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="rounded-xl border border-border bg-background px-4 py-3 text-sm text-muted">
+                    Indica un monto para ver qué meses se cubren.
+                  </p>
+                )}
+
                 <div className="rounded-xl bg-background px-4 py-4">
                   <p className="text-sm text-muted">Total a recibir</p>
                   <p className="font-display text-3xl font-bold text-primary-dark">
-                    {formatCurrency(abonoAmount || 0)}
+                    {formatCurrency(abonoPreview.covered || 0)}
                   </p>
+                  {abonoPreview.lines.length > 0 && (
+                    <p className="mt-1 text-xs text-muted">
+                      {abonoPreview.lines
+                        .map((l) => feeLabel(l.year, l.month))
+                        .join(" · ")}
+                    </p>
+                  )}
                 </div>
               </div>
             ) : anualMode ? (
