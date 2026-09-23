@@ -55,7 +55,8 @@ const emptyForm = (): FormState => ({
   gateCode: "",
   role: "COLONO",
   occupancyType: "PROPIETARIO",
-  isPrimary: true,
+  // Solo se fuerza a principal en servidor si la casa aún no tiene usuarios.
+  isPrimary: false,
 });
 
 function sortHouseKey(a: string, b: string) {
@@ -412,6 +413,9 @@ export function ResidentsAdmin({
                   occupancyType: e.target.value as
                     | "PROPIETARIO"
                     | "INQUILINO",
+                  // Un inquilino nuevo no debe quitar al principal existente.
+                  isPrimary:
+                    e.target.value === "INQUILINO" ? false : f.isPrimary,
                 }))
               }
               className="rounded-lg border border-border bg-background px-3 py-2 text-sm sm:col-span-2"

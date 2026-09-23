@@ -630,6 +630,29 @@ async function syncHousePrimary(opts: {
   }
 }
 
+/** Destinatarios de cobros/multas: propietarios de la casa (fallback: todos). */
+async function getHouseFinanceRecipients(houseNumber: string) {
+  const select = {
+    id: true,
+    email: true,
+    firstName: true,
+    lastName: true,
+  } as const;
+  const owners = await prisma.user.findMany({
+    where: {
+      houseNumber,
+      role: { in: ["COLONO", "ADMIN"] },
+      occupancyType: "PROPIETARIO",
+    },
+    select,
+  });
+  if (owners.length) return owners;
+  return prisma.user.findMany({
+    where: { houseNumber, role: { in: ["COLONO", "ADMIN"] } },
+    select,
+  });
+}
+
 export async function createResident(formData: FormData) {
   const actor = await requireAdmin();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
@@ -659,7 +682,11 @@ export async function createResident(formData: FormData) {
 
   if (houseNumber) {
     const others = await prisma.user.count({ where: { houseNumber } });
-    if (others === 0) wantPrimary = true;
+    if (others === 0) {
+      wantPrimary = true;
+    } else if (occupancyType === "INQUILINO" && !wantPrimary) {
+      // no quitar al principal existente
+    }
   } else {
     wantPrimary = false;
   }
@@ -1203,15 +1230,7 @@ export async function registerCobranza(formData: FormData) {
       },
     });
 
-    const residents = await prisma.user.findMany({
-      where: { houseNumber, role: { in: ["COLONO", "ADMIN"] } },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-      },
-    });
+    const residents = await getHouseFinanceRecipients(houseNumber);
     if (residents.length) {
       await prisma.notification.createMany({
         data: residents.map((r) => ({
@@ -1414,15 +1433,7 @@ export async function registerCobranza(formData: FormData) {
       });
     }
 
-    const residents = await prisma.user.findMany({
-      where: { houseNumber, role: { in: ["COLONO", "ADMIN"] } },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-      },
-    });
+    const residents = await getHouseFinanceRecipients(houseNumber);
     if (residents.length) {
       await prisma.notification.createMany({
         data: residents.map((r) => ({
@@ -1652,15 +1663,7 @@ export async function registerCobranza(formData: FormData) {
     });
   }
 
-  const residents = await prisma.user.findMany({
-    where: { houseNumber, role: "COLONO" },
-    select: {
-      id: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-    },
-  });
+  const residents = await getHouseFinanceRecipients(houseNumber);
   if (residents.length) {
     await prisma.notification.createMany({
       data: residents.map((r) => ({
@@ -2230,15 +2233,7 @@ export async function issueFine(formData: FormData) {
   });
 
   const periodLabel = feeLabel(billing.year, billing.month);
-  const residents = await prisma.user.findMany({
-    where: { houseNumber, role: "COLONO" },
-    select: {
-      id: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-    },
-  });
+  const residents = await getHouseFinanceRecipients(houseNumber);
 
   if (residents.length) {
     await prisma.notification.createMany({
