@@ -58,7 +58,7 @@ Sin estas variables, el pago **igual se guarda**; solo se omite el correo.
 
 ### Paso 1 — Activar verificación en 2 pasos
 
-1. Entra a la cuenta de Gmail del comité (ej. `comitegrenche@gmail.com`).
+1. Entra a la cuenta de Gmail del comité (ej. `comitegrenache@gmail.com`).
 2. [Cuenta de Google → Seguridad](https://myaccount.google.com/security)
 3. Activa **Verificación en 2 pasos** (obligatorio para app passwords).
 
@@ -75,9 +75,9 @@ Project → **Settings** → **Environment Variables** (Production + Preview):
 
 | Variable | Ejemplo |
 |---|---|
-| `GMAIL_USER` | `comitegrenche@gmail.com` |
+| `GMAIL_USER` | `comitegrenache@gmail.com` |
 | `GMAIL_APP_PASSWORD` | `abcd efgh ijkl mnop` (pega tal cual; la app quita espacios) |
-| `EMAIL_FROM` | `Privada Manager <comitegrenche@gmail.com>` (opcional) |
+| `EMAIL_FROM` | `Privada Manager <comitegrenache@gmail.com>` (opcional) |
 
 > **Importante:** no uses tu contraseña normal de Gmail. Solo la **contraseña de aplicación**.  
 > El remitente debe ser **ese mismo Gmail** (o un alias ya configurado en Gmail).
@@ -90,10 +90,10 @@ Es normal en los **primeros envíos** automáticos desde Gmail. Mitigaciones:
 
 1. En el correo de prueba: **“No es spam”** / mover a Recibidos (entrena el filtro).
 2. En Gmail del residente: crear filtro  
-   `from:(comitegrenche@gmail.com)` → **Nunca enviar a spam**.
-3. Avisar a los vecinos una vez: “Los comprobantes llegan de `comitegrenche@gmail.com`; márquenlo como confiable”.
+   `from:(comitegrenache@gmail.com)` → **Nunca enviar a spam**.
+3. Avisar a los vecinos una vez: “Los comprobantes llegan de `comitegrenache@gmail.com`; márquenlo como confiable”.
 4. Remitente en Vercel:  
-   `EMAIL_FROM="Comité Grenaché <comitegrenche@gmail.com>"`  
+   `EMAIL_FROM="Comité Grenaché <comitegrenache@gmail.com>"`  
    (mejor que un nombre de “app/marketing”).
 5. Solución fuerte a futuro: dominio propio + Resend (SPF/DKIM/DMARC) — casi elimina spam.
 

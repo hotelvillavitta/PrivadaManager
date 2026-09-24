@@ -135,7 +135,7 @@ export function renderEmailShell(opts: EmailShellOpts) {
           </tr>
         </table>
         <p style="margin:16px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#8a7a86;">
-          Correo del portal residencial · ${name}
+          Correo de la app residencial · ${name}
         </p>
       </td>
     </tr>
