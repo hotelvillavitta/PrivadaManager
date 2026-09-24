@@ -22,7 +22,6 @@ import { PageHero } from "@/components/PageHero";
 import { toast } from "@/components/Toast";
 import { registerCobranza, setHouseConvenio, voidMonthlyFeePayment, voidPalapaPayment } from "@/lib/actions/portal";
 import {
-  FEE_ANNUAL_MONTHS,
   FEE_BASE_AMOUNT,
   FEE_CONCEPT,
   FEE_CONCEPT_LABEL,
@@ -35,7 +34,6 @@ import {
   feeHasSurcharge,
   feeLabel,
   feeOwedAmount,
-  feePeriodRange,
   formatCurrency,
   isFeePaymentLate,
   isFeePeriodBefore,
@@ -217,7 +215,7 @@ export function CuotasClient({
   const [includeMaintenance, setIncludeMaintenance] = useState(true);
   const [includeLate, setIncludeLate] = useState(false);
   const [includePalapa, setIncludePalapa] = useState(false);
-  const [chargeMode, setChargeMode] = useState<"periodo" | "abono" | "anual">(
+  const [chargeMode, setChargeMode] = useState<"periodo" | "abono" | "meses">(
     "periodo",
   );
   const [abonoAmount, setAbonoAmount] = useState(0);
@@ -226,11 +224,15 @@ export function CuotasClient({
   const [maintenanceAmount, setMaintenanceAmount] = useState(FEE_BASE_AMOUNT);
   const [lateAmount, setLateAmount] = useState(FEE_LATE_SURCHARGE);
   const [palapaAmount, setPalapaAmount] = useState(FEE_PALAPA_AMOUNT);
+  const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
+  const [monthsPickerYear, setMonthsPickerYear] = useState(
+    () => calendarPartsInTijuana().year,
+  );
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
 
   const abonoMode = chargeMode === "abono";
-  const anualMode = chargeMode === "anual";
+  const mesesMode = chargeMode === "meses";
 
   useEffect(() => {
     if (initialChargeYear) setChargeYear(initialChargeYear);
@@ -241,6 +243,8 @@ export function CuotasClient({
     setChargeMode("periodo");
     setIncludeAbonoCurrent(false);
     setIncludeAbonoNext(false);
+    setSelectedMonths([]);
+    setMonthsPickerYear(calendarPartsInTijuana().year);
   }, [houseNumber]);
 
   const pendingFinesTotal = fines
@@ -339,13 +343,23 @@ export function CuotasClient({
     if (feesDebt > 0) setAbonoAmount(feesDebt);
   }, [houseNumber, feesDebt]);
 
-  const annualPeriods = useMemo(
-    () => feePeriodRange(chargeYear, chargeMonth, FEE_ANNUAL_MONTHS),
-    [chargeYear, chargeMonth],
-  );
-  const annualEnd = annualPeriods[annualPeriods.length - 1]!;
-  const annualToCover = useMemo(() => {
-    return annualPeriods.filter((p) => {
+  const periodKey = (year: number, month: number) => `${year}-${month}`;
+
+  const selectedPeriods = useMemo(() => {
+    return selectedMonths
+      .map((key) => {
+        const [ys, ms] = key.split("-");
+        const year = Number(ys);
+        const month = Number(ms);
+        if (!year || !month || month < 1 || month > 12) return null;
+        return { year, month };
+      })
+      .filter((p): p is { year: number; month: number } => Boolean(p))
+      .sort((a, b) => a.year * 12 + a.month - (b.year * 12 + b.month));
+  }, [selectedMonths]);
+
+  const mesesToCover = useMemo(() => {
+    return selectedPeriods.filter((p) => {
       const fee = fees.find(
         (f) =>
           f.year === p.year &&
@@ -354,9 +368,10 @@ export function CuotasClient({
       );
       return !fee || fee.status !== "PAGADO";
     });
-  }, [annualPeriods, fees]);
-  const annualTotal = useMemo(() => {
-    return annualToCover.reduce((sum, p) => {
+  }, [selectedPeriods, fees]);
+
+  const mesesTotal = useMemo(() => {
+    return mesesToCover.reduce((sum, p) => {
       const fee = fees.find(
         (f) =>
           f.year === p.year &&
@@ -373,8 +388,53 @@ export function CuotasClient({
           : maintenanceAmount)
       );
     }, 0);
-  }, [annualToCover, fees, maintenanceAmount]);
-  const annualRangeLabel = `${feeLabel(chargeYear, chargeMonth)}–${feeLabel(annualEnd.year, annualEnd.month)}`;
+  }, [mesesToCover, fees, maintenanceAmount]);
+
+  const mesesRangeLabel = useMemo(() => {
+    if (mesesToCover.length === 0) return "";
+    if (mesesToCover.length === 1) {
+      return feeLabel(mesesToCover[0]!.year, mesesToCover[0]!.month);
+    }
+    const first = mesesToCover[0]!;
+    const last = mesesToCover[mesesToCover.length - 1]!;
+    return `${feeLabel(first.year, first.month)}–${feeLabel(last.year, last.month)}`;
+  }, [mesesToCover]);
+
+  const earliestSelected = mesesToCover[0] ?? null;
+
+  function toggleMonth(year: number, month: number) {
+    const key = periodKey(year, month);
+    const fee = fees.find(
+      (f) =>
+        f.year === year &&
+        f.month === month &&
+        f.concept === FEE_CONCEPT.MANTENIMIENTO,
+    );
+    if (fee?.status === "PAGADO") return;
+    setSelectedMonths((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    );
+  }
+
+  function selectUnpaidInPickerYear() {
+    const keys: string[] = [];
+    for (let m = 1; m <= 12; m++) {
+      const fee = fees.find(
+        (f) =>
+          f.year === monthsPickerYear &&
+          f.month === m &&
+          f.concept === FEE_CONCEPT.MANTENIMIENTO,
+      );
+      if (!fee || fee.status !== "PAGADO") {
+        keys.push(periodKey(monthsPickerYear, m));
+      }
+    }
+    setSelectedMonths((prev) => {
+      const set = new Set(prev);
+      for (const k of keys) set.add(k);
+      return [...set];
+    });
+  }
 
   const months = fees.filter((f) => f.year === historyYear);
 
@@ -412,14 +472,16 @@ export function CuotasClient({
         f.status !== "PAGADO" &&
         isFeePeriodBefore(
           { year: f.year, month: f.month },
-          { year: chargeYear, month: chargeMonth },
+          mesesMode && earliestSelected
+            ? earliestSelected
+            : { year: chargeYear, month: chargeMonth },
         ),
     )
     .sort((a, b) => a.year * 12 + a.month - (b.year * 12 + b.month));
   const blockedByPriorDebt =
     !hasConvenio &&
     priorUnpaidFees.length > 0 &&
-    (anualMode || (includeMaintenance && !maintenancePaid));
+    (mesesMode || (includeMaintenance && !maintenancePaid));
 
   useEffect(() => {
     if (maintenancePaid) {
@@ -463,11 +525,11 @@ export function CuotasClient({
 
   const canCharge = abonoMode
     ? !pending && abonoCombinedTotal > 0
-    : anualMode
+    : mesesMode
       ? !pending &&
         !blockedByPriorDebt &&
-        annualToCover.length > 0 &&
-        annualTotal > 0
+        mesesToCover.length > 0 &&
+        mesesTotal > 0
       : !pending &&
         !blockedByPriorDebt &&
         total > 0 &&
@@ -766,6 +828,8 @@ export function CuotasClient({
                       : "";
                   setMessage(`Cobro registrado${amt ? ` · ${amt}` : ""}.`);
                   toast(`Cobro registrado${amt ? `: ${amt}` : ""}.`);
+                  setSelectedMonths([]);
+                  setChargeMode("periodo");
                   router.refresh();
                 }
               });
@@ -851,19 +915,19 @@ export function CuotasClient({
               <label className="mb-4 flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-background px-4 py-3">
                 <input
                   type="checkbox"
-                  checked={anualMode}
+                  checked={mesesMode}
                   onChange={(e) =>
-                    setChargeMode(e.target.checked ? "anual" : "periodo")
+                    setChargeMode(e.target.checked ? "meses" : "periodo")
                   }
                   className="mt-1"
                 />
                 <span>
                   <span className="block text-sm font-semibold text-primary-dark">
-                    Pago anual ({FEE_ANNUAL_MONTHS} meses)
+                    Varios meses / adelantado
                   </span>
                   <span className="text-xs text-muted">
-                    Un solo cobro desde el mes elegido. Cada mes queda marcado
-                    como pagado (no hay que registrar mes a mes).
+                    Elige en el calendario los meses a cobrar (pueden ser unos
+                    cuantos o todo un año). Un solo comprobante.
                   </span>
                 </span>
               </label>
@@ -1051,42 +1115,17 @@ export function CuotasClient({
                   </ul>
                 </div>
               </div>
-            ) : anualMode ? (
+            ) : mesesMode ? (
               <div className="mb-4 space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="flex flex-col gap-1.5 text-sm">
-                    <span className="font-medium text-primary-dark">
-                      Mes de inicio
-                    </span>
-                    <select
-                      name="month"
-                      value={chargeMonth}
-                      onChange={(e) => setChargeMonth(Number(e.target.value))}
-                      className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
-                    >
-                      {MONTH_LABELS.map((label, idx) => (
-                        <option key={label} value={idx + 1}>
-                          {label} ({idx + 1})
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1.5 text-sm">
-                    <span className="font-medium text-primary-dark">Año</span>
-                    <input
-                      name="year"
-                      type="number"
-                      value={chargeYear}
-                      onChange={(e) => setChargeYear(Number(e.target.value))}
-                      required
-                      className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
-                    />
-                  </label>
-                </div>
+                {selectedMonths.map((key) => (
+                  <input key={key} type="hidden" name="months" value={key} />
+                ))}
+                <input type="hidden" name="year" value={chargeYear} />
+                <input type="hidden" name="month" value={chargeMonth} />
 
                 <label className="block text-sm">
                   <span className="mb-1.5 block font-medium text-primary-dark">
-                    Monto por mes (meses nuevos)
+                    Monto por mes (meses sin cuota registrada)
                   </span>
                   <input
                     name="maintenanceAmount"
@@ -1100,50 +1139,123 @@ export function CuotasClient({
                     className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
                   />
                   <span className="mt-1 block text-xs text-muted">
-                    Si un mes ya tiene multa cargada, se cobra el saldo de ese
-                    mes.
+                    Si un mes ya tiene adeudo o multa, se cobra ese saldo.
                   </span>
                 </label>
 
-                {blockedByPriorDebt && (
+                <div className="overflow-hidden rounded-xl border border-border">
+                  <div className="flex items-center justify-between gap-2 border-b border-border bg-primary-soft/40 px-3 py-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setMonthsPickerYear((y) => y - 1)}
+                      className="rounded-lg px-2 py-1 text-sm font-medium text-primary hover:bg-background"
+                    >
+                      ←
+                    </button>
+                    <p className="text-sm font-bold text-primary-dark">
+                      {monthsPickerYear}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setMonthsPickerYear((y) => y + 1)}
+                      className="rounded-lg px-2 py-1 text-sm font-medium text-primary hover:bg-background"
+                    >
+                      →
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 p-3 sm:grid-cols-4">
+                    {MONTH_LABELS.map((label, idx) => {
+                      const month = idx + 1;
+                      const key = periodKey(monthsPickerYear, month);
+                      const fee = fees.find(
+                        (f) =>
+                          f.year === monthsPickerYear &&
+                          f.month === month &&
+                          f.concept === FEE_CONCEPT.MANTENIMIENTO,
+                      );
+                      const paid = fee?.status === "PAGADO";
+                      const selected = selectedMonths.includes(key);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          disabled={paid}
+                          onClick={() =>
+                            toggleMonth(monthsPickerYear, month)
+                          }
+                          className={`rounded-xl border px-2 py-3 text-center text-sm font-semibold transition ${
+                            paid
+                              ? "cursor-not-allowed border-success/30 bg-success-soft text-success opacity-80"
+                              : selected
+                                ? "border-primary bg-primary text-white"
+                                : "border-border bg-background text-primary-dark hover:border-primary/50"
+                          }`}
+                        >
+                          <span className="block">{label}</span>
+                          <span className="mt-0.5 block text-[10px] font-medium tracking-wide uppercase opacity-80">
+                            {paid ? "Pagado" : selected ? "Elegido" : "Libre"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex flex-wrap gap-2 border-t border-border px-3 py-2.5">
+                    <button
+                      type="button"
+                      onClick={selectUnpaidInPickerYear}
+                      className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-primary-dark hover:bg-primary-soft"
+                    >
+                      Marcar libres de {monthsPickerYear}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMonths([])}
+                      className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-muted hover:bg-background"
+                    >
+                      Limpiar selección
+                    </button>
+                  </div>
+                </div>
+
+                {blockedByPriorDebt && earliestSelected && (
                   <p className="rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-sm text-foreground">
                     Hay adeudos anteriores a{" "}
-                    <strong>{feeLabel(chargeYear, chargeMonth)}</strong>:{" "}
+                    <strong>
+                      {feeLabel(earliestSelected.year, earliestSelected.month)}
+                    </strong>
+                    :{" "}
                     {priorUnpaidFees
                       .map((f) => feeLabel(f.year, f.month))
                       .join(", ")}
-                    . Límpialos o activa un{" "}
-                    <strong>convenio</strong> en esta casa.
+                    . Límpialos o activa un <strong>convenio</strong> en esta
+                    casa.
                   </p>
                 )}
 
-                {annualToCover.length === 0 ? (
-                  <p className="rounded-xl border border-success/30 bg-success-soft px-4 py-3 text-sm text-success">
-                    Los {FEE_ANNUAL_MONTHS} meses desde{" "}
-                    {feeLabel(chargeYear, chargeMonth)} ya están pagados.
+                {mesesToCover.length === 0 ? (
+                  <p className="rounded-xl border border-border bg-background px-4 py-3 text-sm text-muted">
+                    Selecciona uno o más meses en el calendario para cobrarlos
+                    juntos.
                   </p>
                 ) : (
                   <div className="rounded-xl bg-background px-4 py-4">
                     <p className="text-sm text-muted">Cobertura</p>
                     <p className="font-medium text-primary-dark">
-                      {annualRangeLabel} · {annualToCover.length} mes
-                      {annualToCover.length === 1 ? "" : "es"} por registrar
-                      {FEE_ANNUAL_MONTHS - annualToCover.length > 0
-                        ? ` (${FEE_ANNUAL_MONTHS - annualToCover.length} ya pagados, se omiten)`
-                        : ""}
+                      {mesesRangeLabel} · {mesesToCover.length} mes
+                      {mesesToCover.length === 1 ? "" : "es"}
                     </p>
                     <p className="mt-2 text-xs leading-relaxed text-muted">
-                      {annualToCover
+                      {mesesToCover
                         .map((p) => feeLabel(p.year, p.month))
                         .join(" · ")}
                     </p>
                     <p className="mt-3 text-sm text-muted">Total a cobrar</p>
                     <p className="font-display text-3xl font-bold text-primary-dark">
-                      {formatCurrency(annualTotal)}
+                      {formatCurrency(mesesTotal)}
                     </p>
                     <p className="mt-2 text-xs text-muted">
-                      Queda pendiente de validar en Tesorería. En el calendario
-                      esos meses aparecen como pagados de inmediato.
+                      Queda pendiente de validar en Tesorería. Esos meses
+                      aparecen como pagados de inmediato.
                     </p>
                   </div>
                 )}
@@ -1295,14 +1407,14 @@ export function CuotasClient({
                 ? pending
                   ? "Registrando cobro…"
                   : `Registrar cobro · ${formatCurrency(abonoCombinedTotal)}`
-                : anualMode
+                : mesesMode
                   ? blockedByPriorDebt
                     ? "Hay adeudos anteriores — límpialos primero"
-                    : annualToCover.length === 0
-                      ? "Rango anual ya pagado"
+                    : mesesToCover.length === 0
+                      ? "Selecciona al menos un mes"
                       : pending
-                        ? "Registrando pago anual…"
-                        : `Pago anual Casa ${houseNumber} · ${formatCurrency(annualTotal)}`
+                        ? "Registrando meses…"
+                        : `Cobrar ${mesesToCover.length} mes${mesesToCover.length === 1 ? "" : "es"} · ${formatCurrency(mesesTotal)}`
                   : blockedByPriorDebt
                     ? "Hay adeudos anteriores — usa abono o cobra el mes más antiguo"
                     : maintenancePaid && !includePalapa
@@ -1416,7 +1528,7 @@ export function CuotasClient({
                       onClick={() => {
                         if (
                           !confirm(
-                            `¿Anular el cobro de ${feeLabel(m.year, m.month)}? Si fue parte de un abono o pago anual, se revierten todos los meses del mismo movimiento.`,
+                            `¿Anular el cobro de ${feeLabel(m.year, m.month)}? Si fue parte de un abono o de varios meses juntos, se revierten todos los meses del mismo movimiento.`,
                           )
                         ) {
                           return;

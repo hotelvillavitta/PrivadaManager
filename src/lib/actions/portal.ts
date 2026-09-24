@@ -1274,11 +1274,8 @@ export async function registerCobranza(formData: FormData) {
     };
   }
 
-  // —— Pago anual: un cobro cubre 12 meses consecutivos desde el mes elegido ——
-  if (mode === "anual") {
-    if (!year || !month || month < 1 || month > 12) {
-      return { error: "Indica el mes de inicio del pago anual." };
-    }
+  // —— Varios meses / adelantado: cobro de meses elegidos en el calendario ——
+  if (mode === "meses" || mode === "anual") {
     const monthlyAmount = Number(
       formData.get("maintenanceAmount") ?? FEE_BASE_AMOUNT,
     );
@@ -1286,8 +1283,38 @@ export async function registerCobranza(formData: FormData) {
       return { error: "Monto mensual inválido." };
     }
 
-    const periods = feePeriodRange(year, month, FEE_ANNUAL_MONTHS);
-    const end = periods[periods.length - 1]!;
+    const rawMonths = formData.getAll("months").map(String);
+    let periods = rawMonths
+      .map((key) => {
+        const [ys, ms] = key.split("-");
+        const y = Number(ys);
+        const m = Number(ms);
+        if (!y || !m || m < 1 || m > 12) return null;
+        return { year: y, month: m };
+      })
+      .filter((p): p is { year: number; month: number } => Boolean(p));
+
+    // Compat: modo "anual" antiguo enviaba solo mes/año de inicio → 12 meses.
+    if (periods.length === 0 && mode === "anual" && year && month >= 1 && month <= 12) {
+      periods = feePeriodRange(year, month, FEE_ANNUAL_MONTHS);
+    }
+
+    // Deduplicar y ordenar
+    const seen = new Set<string>();
+    periods = periods
+      .filter((p) => {
+        const k = `${p.year}-${p.month}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      })
+      .sort((a, b) => a.year * 12 + a.month - (b.year * 12 + b.month));
+
+    if (periods.length === 0) {
+      return { error: "Selecciona al menos un mes a cobrar." };
+    }
+
+    const first = periods[0]!;
     const account = await prisma.houseAccount.findUnique({
       where: { houseNumber },
       select: { hasConvenio: true },
@@ -1301,8 +1328,8 @@ export async function registerCobranza(formData: FormData) {
           concept: FEE_CONCEPT.MANTENIMIENTO,
           status: { in: ["ADEUDO", "PENDIENTE"] },
           OR: [
-            { year: { lt: year } },
-            { year, month: { lt: month } },
+            { year: { lt: first.year } },
+            { year: first.year, month: { lt: first.month } },
           ],
         },
         orderBy: [{ year: "asc" }, { month: "asc" }],
@@ -1341,11 +1368,15 @@ export async function registerCobranza(formData: FormData) {
     for (const p of periods) {
       const fee = byPeriod.get(`${p.year}-${p.month}`);
       if (fee?.status === "PAGADO") continue;
-      const feeAmount = fee?.amount ?? monthlyAmount;
+
+      const feeAmount = fee
+        ? unpaidMaintenanceDueAmount(fee)
+        : isFeePaymentLate(p.year, p.month)
+          ? FEE_BASE_AMOUNT + FEE_LATE_SURCHARGE
+          : monthlyAmount;
       const prevPaid = fee?.amountPaid ?? 0;
-      const payAmount = Math.max(0, feeAmount - prevPaid);
+      const payAmount = Math.max(0, Math.round((feeAmount - prevPaid) * 100) / 100);
       if (payAmount <= 0 && fee) {
-        // Ya liquidado en monto pero sin status PAGADO: forzar cierre.
         toCover.push({
           year: p.year,
           month: p.month,
@@ -1360,7 +1391,7 @@ export async function registerCobranza(formData: FormData) {
         year: p.year,
         month: p.month,
         feeAmount,
-        payAmount: payAmount || monthlyAmount,
+        payAmount: payAmount || feeAmount,
         existingId: fee?.id,
         existingFinanceEntryId: fee?.financeEntryId,
       });
@@ -1368,7 +1399,7 @@ export async function registerCobranza(formData: FormData) {
 
     if (toCover.length === 0) {
       return {
-        error: `Los ${FEE_ANNUAL_MONTHS} meses desde ${feeLabel(year, month)} ya están pagados.`,
+        error: "Los meses seleccionados ya están pagados.",
       };
     }
 
@@ -1377,19 +1408,25 @@ export async function registerCobranza(formData: FormData) {
       (s, p) => s + (p.payAmount > 0 ? p.payAmount : 0),
       0,
     );
-    // Si todos tenían payAmount 0 (edge), cobra al menos el mensual × meses.
     const chargeTotal =
       total > 0 ? total : monthlyAmount * toCover.length;
-    const rangeLabel = `${feeLabel(year, month)}–${feeLabel(end.year, end.month)}`;
+    const coverFirst = toCover[0]!;
+    const coverLast = toCover[toCover.length - 1]!;
+    const rangeLabel =
+      toCover.length === 1
+        ? feeLabel(coverFirst.year, coverFirst.month)
+        : `${feeLabel(coverFirst.year, coverFirst.month)}–${feeLabel(coverLast.year, coverLast.month)}`;
     const coveredLabels = toCover
       .map((p) => feeLabel(p.year, p.month))
       .join(", ");
+    const coverageNoun =
+      toCover.length === 1 ? "1 mes" : `${toCover.length} meses`;
 
     const entry = await prisma.financeEntry.create({
       data: {
         type: "INGRESO",
         category: "Cuotas",
-        description: `Casa ${houseNumber} · Pago anual ${rangeLabel} · ${toCover.length} meses · ${coveredLabels}`,
+        description: `Casa ${houseNumber} · Adelanto ${rangeLabel} · ${coverageNoun} · ${coveredLabels}`,
         amount: chargeTotal,
         date: paidAt,
         status: "PENDING",
@@ -1400,6 +1437,9 @@ export async function registerCobranza(formData: FormData) {
     for (const p of toCover) {
       const linkEntry = !linkedFirst && !p.existingFinanceEntryId;
       if (linkEntry) linkedFirst = true;
+      const withSurcharge =
+        p.feeAmount >= FEE_BASE_AMOUNT + FEE_LATE_SURCHARGE - 0.01 &&
+        isFeePaymentLate(p.year, p.month);
 
       await prisma.monthlyFee.upsert({
         where: {
@@ -1418,7 +1458,7 @@ export async function registerCobranza(formData: FormData) {
           amount: p.feeAmount,
           amountPaid: p.feeAmount,
           status: "PAGADO",
-          withSurcharge: false,
+          withSurcharge,
           paidAt,
           ...(linkEntry ? { financeEntryId: entry.id } : {}),
         },
@@ -1426,7 +1466,7 @@ export async function registerCobranza(formData: FormData) {
           amount: p.feeAmount,
           amountPaid: p.feeAmount,
           status: "PAGADO",
-          withSurcharge: false,
+          withSurcharge,
           paidAt,
           ...(linkEntry ? { financeEntryId: entry.id } : {}),
         },
@@ -1438,8 +1478,8 @@ export async function registerCobranza(formData: FormData) {
       await prisma.notification.createMany({
         data: residents.map((r) => ({
           userId: r.id,
-          title: "Pago anual registrado",
-          body: `Casa ${houseNumber} · ${toCover.length} meses (${rangeLabel}) · ${formatCurrency(chargeTotal)}.`,
+          title: "Pago de mantenimiento registrado",
+          body: `Casa ${houseNumber} · ${coverageNoun} (${rangeLabel}) · ${formatCurrency(chargeTotal)}.`,
         })),
       });
       const privada = await getPrivada();
@@ -1450,10 +1490,10 @@ export async function registerCobranza(formData: FormData) {
               residentName: fullName(r),
               residentEmail: r.email,
               houseNumber,
-              periodLabel: `Anual ${rangeLabel}`,
+              periodLabel: coverageNoun === "1 mes" ? rangeLabel : `Adelanto ${rangeLabel}`,
               lines: [
                 {
-                  label: `Mantenimiento × ${toCover.length} meses`,
+                  label: `Mantenimiento × ${toCover.length} mes${toCover.length === 1 ? "" : "es"}`,
                   amount: chargeTotal,
                 },
               ],
@@ -1465,7 +1505,7 @@ export async function registerCobranza(formData: FormData) {
               privadaPhone: privada.phone,
             }),
           ),
-        ).catch((err) => console.error("[anual] email failed", err));
+        ).catch((err) => console.error("[meses] email failed", err));
       });
     }
 
@@ -1477,7 +1517,7 @@ export async function registerCobranza(formData: FormData) {
       ok: true,
       amount: chargeTotal,
       concepts: [
-        `Pago anual ${rangeLabel} (${toCover.length} meses)`,
+        `Adelanto ${rangeLabel} (${coverageNoun})`,
       ],
     };
   }
@@ -1848,7 +1888,7 @@ export async function updateFinanceEntry(formData: FormData) {
   return { ok: true };
 }
 
-/** Revierte un lote de cuotas pagadas en el mismo instante (cobro simple, abono o anual). */
+/** Revierte un lote de cuotas pagadas en el mismo instante (cobro simple, abono o adelanto). */
 async function revertPaidFeeBatch(
   fees: {
     id: string;
@@ -1927,7 +1967,7 @@ async function findFeePaymentBatch(seed: {
 }
 
 /**
- * Anula un cobro de cuota (y el lote del mismo paidAt: abono/anual).
+ * Anula un cobro de cuota (y el lote del mismo paidAt: abono/adelanto).
  * También elimina el ingreso de tesorería ligado si existe.
  */
 export async function voidMonthlyFeePayment(feeId: string) {
@@ -1957,7 +1997,7 @@ export async function voidMonthlyFeePayment(feeId: string) {
     });
   }
 
-  // Si el lote no tenía vínculo 1:1 (pago anual), buscar ingreso PENDING/APPROVED
+  // Si el lote no tenía vínculo 1:1 (adelanto multi-mes), buscar ingreso PENDING/APPROVED
   // del mismo día y casa por descripción.
   if (financeIds.length === 0 && fee.paidAt) {
     const dayStart = new Date(fee.paidAt);
