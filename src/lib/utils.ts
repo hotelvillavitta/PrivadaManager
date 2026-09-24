@@ -40,6 +40,23 @@ export const FEE_PALAPA_AMOUNT = 200;
 /** Meses cubiertos por un pago anual de mantenimiento. */
 export const FEE_ANNUAL_MONTHS = 12;
 
+/** Contacto para confirmar pago de reservación de palapa. */
+export const PALAPA_PAYMENT_CONTACT = {
+  name: "Kenia Medina",
+  houseNumber: "12",
+  phone: "6631031031",
+} as const;
+
+export function palapaPaymentNoticeText() {
+  const { name, houseNumber, phone } = PALAPA_PAYMENT_CONTACT;
+  return `Para confirmar tu reservación debes contactar a ${name} (casa ${houseNumber}, teléfono ${phone}) y realizar el pago del uso de palapa.`;
+}
+
+export function palapaPaymentContactShort() {
+  const { name, houseNumber, phone } = PALAPA_PAYMENT_CONTACT;
+  return `Contacto ${name} casa ${houseNumber} Teléfono ${phone}`;
+}
+
 export const FEE_CONCEPT = {
   MANTENIMIENTO: "MANTENIMIENTO",
   PALAPA: "PALAPA",

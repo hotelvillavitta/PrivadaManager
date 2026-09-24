@@ -195,8 +195,8 @@ export function AdminCreateReservation({
         <span>
           <strong className="text-primary-dark">Aprobar de inmediato</strong>
           <span className="mt-0.5 block text-xs text-muted">
-            Úsalo si el pago ya quedó acordado con la casa #12. Si no, deja la
-            solicitud pendiente y apruébala después.
+            Úsalo si el pago ya quedó acordado con Kenia Medina (casa 12). Si no,
+            deja la solicitud pendiente y apruébala después.
           </span>
         </span>
       </label>

@@ -26,6 +26,8 @@ import {
   nextFeePeriod,
   pickFineBillingPeriod,
   unpaidMaintenanceDueAmount,
+  palapaPaymentContactShort,
+  palapaPaymentNoticeText,
 } from "@/lib/utils";
 import { syncOverdueMaintenanceSurcharges } from "@/lib/fees/overdue";
 import { getPrivada } from "@/lib/queries";
@@ -217,8 +219,7 @@ export async function createReservation(formData: FormData) {
   });
 
   const house = user.houseNumber;
-  const paymentNotice =
-    "Para confirmar tu reservación debes contactar a la casa #12 y realizar el pago del uso de palapa.";
+  const paymentNotice = palapaPaymentNoticeText();
 
   const admins = await prisma.user.findMany({
     where: { role: "ADMIN" },
@@ -241,7 +242,7 @@ export async function createReservation(formData: FormData) {
     data: {
       userId: user.id,
       title: "Importante: confirma tu reservación con el pago",
-      body: `${paymentNotice} Solicitud: ${eventName} · ${date}.`,
+      body: `${palapaPaymentContactShort()}. ${paymentNotice} Solicitud: ${eventName} · ${date}.`,
       reservationId: reservation.id,
     },
   });
@@ -354,8 +355,7 @@ export async function createReservationAsAdmin(formData: FormData) {
     },
   });
 
-  const paymentNotice =
-    "Para confirmar tu reservación debes contactar a la casa #12 y realizar el pago del uso de palapa.";
+  const paymentNotice = palapaPaymentNoticeText();
 
   await prisma.notification.create({
     data: {
@@ -364,8 +364,8 @@ export async function createReservationAsAdmin(formData: FormData) {
         ? "Reservación registrada por el comité"
         : "Importante: confirma tu reservación con el pago",
       body: approveNow
-        ? `El comité registró tu uso de palapa (${eventName} · ${date}). ${paymentNotice}`
-        : `El comité registró una solicitud a tu nombre (${eventName} · ${date}). ${paymentNotice}`,
+        ? `El comité registró tu uso de palapa (${eventName} · ${date}). ${palapaPaymentContactShort()}. ${paymentNotice}`
+        : `El comité registró una solicitud a tu nombre (${eventName} · ${date}). ${palapaPaymentContactShort()}. ${paymentNotice}`,
       reservationId: reservation.id,
     },
   });

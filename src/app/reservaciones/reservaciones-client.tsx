@@ -21,9 +21,11 @@ import {
   createReservation,
   updateReservationStatus,
 } from "@/lib/actions/portal";
-
-/** Casa que recibe el pago del uso de palapa. */
-const PALAPA_PAYMENT_HOUSE = "12";
+import {
+  PALAPA_PAYMENT_CONTACT,
+  palapaPaymentContactShort,
+  palapaPaymentNoticeText,
+} from "@/lib/utils";
 
 type Reservation = {
   id: string;
@@ -230,9 +232,10 @@ export function ReservacionesClient({
                 <Home className="mt-0.5 h-8 w-8 shrink-0 text-accent" />
                 <div>
                   <p className="text-base font-semibold text-primary-dark sm:text-lg">
-                    Para confirmar tu reservación debes ponerte en contacto con
-                    la <span className="text-accent">casa #{PALAPA_PAYMENT_HOUSE}</span>{" "}
-                    y realizar el pago del uso de palapa.
+                    {palapaPaymentNoticeText()}
+                  </p>
+                  <p className="mt-3 rounded-xl bg-surface px-3 py-2.5 text-sm font-semibold text-accent">
+                    {palapaPaymentContactShort()}
                   </p>
                   <p className="mt-2 text-sm text-muted">
                     Sin ese pago, el comité no podrá validar tu solicitud. También
@@ -245,7 +248,7 @@ export function ReservacionesClient({
                 onClick={() => setPaymentNoticeOpen(false)}
                 className="w-full rounded-xl bg-accent py-3.5 text-sm font-bold text-white hover:opacity-95"
               >
-                Entendido — contactaré a la casa #{PALAPA_PAYMENT_HOUSE}
+                Entendido — contactaré a {PALAPA_PAYMENT_CONTACT.name}
               </button>
             </div>
           </div>
