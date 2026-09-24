@@ -27,7 +27,7 @@ export default async function AdminReservacionesPage() {
       <PageHero
         eyebrow="Administración"
         title="Reservaciones de palapa"
-        description="Registra solicitudes a nombre de residentes, y aprueba o rechaza las pendientes."
+        description="Aprueba o rechaza pendientes, y registra solicitudes a nombre de residentes."
       />
       <div className="mx-auto max-w-4xl space-y-4 px-4 lg:px-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -39,13 +39,6 @@ export default async function AdminReservacionesPage() {
             Ver calendario →
           </Link>
         </div>
-
-        <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-6">
-          <AdminCreateReservation
-            houses={houses}
-            capacityMax={privada.capacityMax}
-          />
-        </section>
 
         <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-6">
           <h2 className="mb-4 font-display text-2xl text-primary-dark">
@@ -60,6 +53,13 @@ export default async function AdminReservacionesPage() {
               notes: r.notes,
               user: r.user,
             }))}
+          />
+        </section>
+
+        <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-6">
+          <AdminCreateReservation
+            houses={houses}
+            capacityMax={privada.capacityMax}
           />
         </section>
       </div>
