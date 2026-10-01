@@ -9,6 +9,7 @@ import {
   ChevronRight,
   CircleDollarSign,
   ClipboardList,
+  BookOpen,
   Info,
   Newspaper,
   Palette,
@@ -110,6 +111,12 @@ const categories: {
   {
     title: "Configuración",
     items: [
+      {
+        href: "/admin/guia",
+        title: "Guía de la app",
+        description: "Qué hace cada sección y cada movimiento",
+        icon: BookOpen,
+      },
       {
         href: "/admin/informacion",
         title: "Información",
