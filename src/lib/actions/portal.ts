@@ -5,7 +5,11 @@ import { after } from "next/server";
 import type { NewsCategory, ReservationStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireAdmin, requireUser } from "@/lib/session";
-import { saveUploadedDocument, fileFromFormData } from "@/lib/uploads";
+import {
+  deleteStoredFiles,
+  fileFromFormData,
+  saveUploadedDocument,
+} from "@/lib/uploads";
 import { ISSUE_CATEGORIES } from "@/lib/issues/catalog";
 import { overdueMaintenanceWhere } from "@/lib/utils";
 import {
@@ -2541,6 +2545,43 @@ export async function updateIssueReport(formData: FormData) {
       },
     });
   }
+
+  revalidatePath("/reportes");
+  revalidatePath("/admin/reportes");
+  revalidatePath("/admin");
+  revalidatePath("/notificaciones");
+  return { ok: true };
+}
+
+/** Borra un reporte ya atendido y las fotos que ocupan almacenamiento. */
+export async function deleteIssueReport(id: string) {
+  await requireAdmin();
+  if (!id) return { error: "Reporte inválido." };
+
+  const existing = await prisma.issueReport.findUnique({
+    where: { id },
+    include: { photos: { select: { url: true } } },
+  });
+  if (!existing) return { error: "Reporte no encontrado." };
+  if (existing.status !== "RESUELTO" && existing.status !== "CERRADO") {
+    return {
+      error: "Solo se pueden eliminar reportes resueltos o cerrados.",
+    };
+  }
+
+  try {
+    await deleteStoredFiles(existing.photos.map((photo) => photo.url));
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "No se pudieron borrar las fotos del reporte.",
+    };
+  }
+
+  await prisma.notification.deleteMany({ where: { issueReportId: id } });
+  await prisma.issueReport.delete({ where: { id } });
 
   revalidatePath("/reportes");
   revalidatePath("/admin/reportes");

@@ -17,7 +17,7 @@ export default async function AdminReportesPage() {
       <PageHero
         eyebrow="Administración"
         title="Reportes de desperfectos"
-        description="Revisa, actualiza el estado y responde a los vecinos."
+        description="Revisa, actualiza el estado y responde a los vecinos. Los reportes resueltos o cerrados se pueden eliminar para liberar las fotos."
       />
       <div className="mx-auto max-w-3xl space-y-4 px-4 lg:px-6">
         <AdminBackLink />

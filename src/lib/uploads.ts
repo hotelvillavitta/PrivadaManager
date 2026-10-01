@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, rm, writeFile } from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
 
@@ -155,4 +155,30 @@ export async function saveUploadedDocument(
     documentUrl: `/${folder}/${filename}`,
     documentName: file.name,
   };
+}
+
+/** Borra archivos de un reporte: Blob en Vercel o copia local en public/. */
+export async function deleteStoredFiles(urls: string[]) {
+  const blobUrls = urls.filter(
+    (url) =>
+      url.startsWith("https://") && url.includes(".blob.vercel-storage.com"),
+  );
+  if (blobUrls.length) {
+    const { del } = await import("@vercel/blob");
+    await del(blobUrls, {
+      ...(process.env.BLOB_READ_WRITE_TOKEN
+        ? { token: process.env.BLOB_READ_WRITE_TOKEN }
+        : {}),
+    });
+  }
+
+  const root = path.join(process.cwd(), "public");
+  for (const url of urls) {
+    if (!url.startsWith("/reports/") && !url.startsWith("/uploads/")) continue;
+    const rel = url.slice(1);
+    if (rel.includes("..") || rel.includes("\\")) continue;
+    const full = path.resolve(root, rel);
+    if (!full.startsWith(root + path.sep)) continue;
+    await rm(full, { force: true });
+  }
 }

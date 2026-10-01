@@ -2,10 +2,10 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { MapPin } from "lucide-react";
+import { MapPin, Trash2 } from "lucide-react";
 import { toast } from "@/components/Toast";
 import { AdminFormSheet } from "@/components/AdminFormSheet";
-import { updateIssueReport } from "@/lib/actions/portal";
+import { deleteIssueReport, updateIssueReport } from "@/lib/actions/portal";
 import {
   ISSUE_STATUS_LABEL,
   ISSUE_STATUS_STYLE,
@@ -42,6 +42,7 @@ export function ReportesAdminClient({ reports }: { reports: Report[] }) {
   const [editing, setEditing] = useState<Report | null>(null);
   const [status, setStatus] = useState<Report["status"]>("ABIERTO");
   const [adminNotes, setAdminNotes] = useState("");
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     if (filter === "abiertos") {
@@ -61,6 +62,24 @@ export function ReportesAdminClient({ reports }: { reports: Report[] }) {
     setEditing(r);
     setStatus(r.status);
     setAdminNotes(r.adminNotes ?? "");
+  }
+
+  function canDelete(status: Report["status"]) {
+    return status === "RESUELTO" || status === "CERRADO";
+  }
+
+  function remove(r: Report) {
+    startTransition(async () => {
+      const res = await deleteIssueReport(r.id);
+      if (res.error) {
+        toast(res.error, "error");
+        return;
+      }
+      toast("Reporte eliminado. Las fotos ya no ocupan espacio.");
+      setConfirmingId(null);
+      setEditing(null);
+      router.refresh();
+    });
   }
 
   return (
@@ -143,13 +162,49 @@ export function ReportesAdminClient({ reports }: { reports: Report[] }) {
                     timeStyle: "short",
                   })}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => openEdit(r)}
-                  className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white"
-                >
-                  Gestionar
-                </button>
+                <div className="flex items-center gap-2">
+                  {canDelete(r.status) &&
+                    (confirmingId === r.id ? (
+                      <>
+                        <span className="text-[11px] text-red-700">
+                          Se borran el reporte y sus fotos.
+                        </span>
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => setConfirmingId(null)}
+                          className="rounded-lg px-3 py-1.5 text-xs font-semibold text-muted"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => remove(r)}
+                          className="rounded-lg bg-red-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                        >
+                          {pending ? "Eliminando…" : "Confirmar"}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => setConfirmingId(r.id)}
+                        className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-red-700 ring-1 ring-red-200 disabled:opacity-60"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Eliminar
+                      </button>
+                    ))}
+                  <button
+                    type="button"
+                    onClick={() => openEdit(r)}
+                    className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white"
+                  >
+                    Gestionar
+                  </button>
+                </div>
               </div>
             </li>
           ))}
@@ -220,6 +275,37 @@ export function ReportesAdminClient({ reports }: { reports: Report[] }) {
             >
               {pending ? "Guardando…" : "Guardar cambios"}
             </button>
+            {canDelete(editing.status) &&
+              (confirmingId === editing.id ? (
+                <div className="mt-3 flex items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => remove(editing)}
+                    className="rounded-xl bg-red-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                  >
+                    {pending ? "Eliminando…" : "Confirmar eliminación"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => setConfirmingId(null)}
+                    className="text-sm font-semibold text-muted"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => setConfirmingId(editing.id)}
+                  className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-red-700 disabled:opacity-60"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Eliminar reporte y fotos
+                </button>
+              ))}
           </form>
         )}
       </AdminFormSheet>

@@ -254,7 +254,19 @@ export const adminGuide: GuideSection[] = [
     id: "reportes",
     title: "Reportes",
     summary:
-      "Desperfectos que reporta un vecino, con foto si la adjunta. El comité cambia el estado: Abierto, En revisión, Resuelto o Cerrado. Es un aviso interno; no genera cobro ni correo.",
+      "Desperfectos que reporta un vecino, con foto. El comité cambia el estado: Abierto, En revisión, Resuelto o Cerrado. Es un aviso interno; no genera cobro ni correo.",
+    actions: [
+      {
+        action: "Cambiar estado o notas",
+        effect:
+          "Actualiza el seguimiento. Si pasa a Resuelto o Cerrado, el residente recibe un aviso en la app. No se envía correo.",
+      },
+      {
+        action: "Eliminar reporte resuelto o cerrado",
+        effect:
+          "Borra el reporte y sus fotos del almacenamiento para liberar espacio. Los abiertos o en revisión no se pueden eliminar.",
+      },
+    ],
   },
   {
     id: "multas",
