@@ -7,7 +7,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-// Requerido por Chrome para PWA instalable; siempre va a la red.
-self.addEventListener("fetch", (event) => {
-  event.respondWith(fetch(event.request));
-});
+// Chrome exige un listener de fetch para poder instalar la app.
+// No reenviamos la petición: en Safari, respondWith(fetch(event.request))
+// cancela la navegación de Next.js y el clic en la barra no cambia de página.
+self.addEventListener("fetch", () => {});
