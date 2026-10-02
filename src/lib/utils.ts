@@ -253,6 +253,27 @@ export function unpaidMaintenanceDueAmount(
   return fee.amount;
 }
 
+/**
+ * Si el mes en curso no tiene cuota registrada, sigue siendo un adeudo.
+ * El recargo de $50 solo entra después del día 10.
+ */
+export function currentMonthDueIfUnbilled(
+  fees: { year: number; month: number }[],
+  asOf: Date = new Date(),
+) {
+  const { year, month } = calendarPartsInTijuana(asOf);
+  if (fees.some((f) => f.year === year && f.month === month)) return null;
+  const withSurcharge = isFeePaymentLate(year, month, asOf);
+  return {
+    year,
+    month,
+    withSurcharge,
+    amount: withSurcharge
+      ? FEE_BASE_AMOUNT + FEE_LATE_SURCHARGE
+      : FEE_BASE_AMOUNT,
+  };
+}
+
 /** Saldo pendiente de una cuota (considera recargo exigible tras el día 10). */
 export function feeOwedAmount(
   fee: {

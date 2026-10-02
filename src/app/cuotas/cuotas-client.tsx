@@ -31,6 +31,7 @@ import {
   FEE_STATUS_LABEL,
   MONTH_LABELS,
   calendarPartsInTijuana,
+  currentMonthDueIfUnbilled,
   feeHasSurcharge,
   feeLabel,
   feeOwedAmount,
@@ -251,21 +252,35 @@ export function CuotasClient({
     .filter((f) => f.status === "PENDIENTE")
     .reduce((sum, f) => sum + f.amount, 0);
 
-  const unpaidFees = useMemo(
-    () =>
-      fees
-        .filter(
-          (f) =>
-            f.concept === FEE_CONCEPT.MANTENIMIENTO && f.status !== "PAGADO",
-        )
-        .map((f) => ({
-          ...f,
-          owed: feeOwedAmount(f),
-        }))
-        .filter((f) => f.owed > 0)
-        .sort((a, b) => a.year * 12 + a.month - (b.year * 12 + b.month)),
-    [fees],
-  );
+  const unpaidFees = useMemo(() => {
+    const rows = fees
+      .filter(
+        (f) =>
+          f.concept === FEE_CONCEPT.MANTENIMIENTO && f.status !== "PAGADO",
+      )
+      .map((f) => ({
+        ...f,
+        owed: feeOwedAmount(f),
+      }))
+      .filter((f) => f.owed > 0);
+    const open = currentMonthDueIfUnbilled(
+      fees.filter((f) => f.concept === FEE_CONCEPT.MANTENIMIENTO),
+    );
+    if (open) {
+      rows.push({
+        id: `open-${open.year}-${open.month}`,
+        year: open.year,
+        month: open.month,
+        amount: open.amount,
+        amountPaid: 0,
+        concept: FEE_CONCEPT.MANTENIMIENTO,
+        status: "ADEUDO" as const,
+        withSurcharge: open.withSurcharge,
+        owed: open.amount,
+      });
+    }
+    return rows.sort((a, b) => a.year * 12 + a.month - (b.year * 12 + b.month));
+  }, [fees]);
   const feesDebt = unpaidFees.reduce((s, f) => s + f.owed, 0);
   const totalDebt = feesDebt + pendingFinesTotal;
 
@@ -436,7 +451,24 @@ export function CuotasClient({
     });
   }
 
-  const months = fees.filter((f) => f.year === historyYear);
+  const months = useMemo(() => {
+    const list = fees.filter((f) => f.year === historyYear);
+    const open = currentMonthDueIfUnbilled(
+      fees.filter((f) => f.concept === FEE_CONCEPT.MANTENIMIENTO),
+    );
+    if (open && open.year === historyYear) {
+      list.push({
+        id: `open-${open.year}-${open.month}`,
+        year: open.year,
+        month: open.month,
+        amount: open.amount,
+        concept: FEE_CONCEPT.MANTENIMIENTO,
+        status: "ADEUDO",
+        withSurcharge: open.withSurcharge,
+      });
+    }
+    return list.sort((a, b) => a.month - b.month || a.year - b.year);
+  }, [fees, historyYear]);
 
   // Si el servidor aún no suma multas futuras, el cliente las incluye.
   const pendingAmountToShow =

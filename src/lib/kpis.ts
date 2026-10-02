@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/db";
-import { feeOwedAmount, MONTH_LABELS } from "@/lib/utils";
+import {
+  calendarPartsInTijuana,
+  currentMonthDueIfUnbilled,
+  feeOwedAmount,
+  MONTH_LABELS,
+} from "@/lib/utils";
 
 function periodKey(year: number, month: number) {
   return year * 12 + month;
@@ -103,8 +108,8 @@ export async function getCollectionKpis(): Promise<CollectionKpis> {
   const collectionRate = totalCount === 0 ? 0 : (paidCount / totalCount) * 100;
 
   const unpaidFees = fees.filter((f) => isUnpaid(f.status));
-  const totalDebt = unpaidFees.reduce((sum, f) => sum + owedOf(f), 0);
-  const pendingFees = unpaidFees.filter((f) => owedOf(f) > 0).length;
+  let totalDebt = unpaidFees.reduce((sum, f) => sum + owedOf(f), 0);
+  let pendingFees = unpaidFees.filter((f) => owedOf(f) > 0).length;
 
   const monthMap = new Map<
     number,
@@ -143,6 +148,30 @@ export async function getCollectionKpis(): Promise<CollectionKpis> {
     byHouse.set(f.houseNumber, house);
   }
 
+  const { year: cy, month: cm } = calendarPartsInTijuana();
+  const currentKey = periodKey(cy, cm);
+  let missingCurrentDebt = 0;
+  let missingCurrentCount = 0;
+  for (const [houseNumber, house] of byHouse) {
+    const open = currentMonthDueIfUnbilled(
+      fees.filter((f) => f.houseNumber === houseNumber),
+    );
+    if (!open) continue;
+    house.unpaidMonths += 1;
+    house.totalMonths += 1;
+    house.amount += open.amount;
+    missingCurrentDebt += open.amount;
+    missingCurrentCount += 1;
+    const month = monthMap.get(currentKey) ?? {
+      year: cy,
+      month: cm,
+      paid: 0,
+      unpaid: 0,
+    };
+    month.unpaid += 1;
+    monthMap.set(currentKey, month);
+  }
+
   const byMonth = [...monthMap.entries()]
     .sort((a, b) => a[0] - b[0])
     .map(([key, m]) => {
@@ -162,6 +191,9 @@ export async function getCollectionKpis(): Promise<CollectionKpis> {
   const prev = byMonth.at(-2);
   const collectionRateDelta =
     last && prev ? last.rate - prev.rate : null;
+
+  totalDebt += missingCurrentDebt;
+  pendingFees += missingCurrentCount;
 
   const housesWithDebt = [...byHouse.values()].filter((h) => h.amount > 0).length;
   const totalHouses = byHouse.size;

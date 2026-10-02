@@ -6,6 +6,7 @@ import {
 } from "@/lib/master-admin";
 import {
   calendarPartsInTijuana,
+  currentMonthDueIfUnbilled,
   feeOwedAmount,
   overdueMaintenanceWhere,
 } from "@/lib/utils";
@@ -152,13 +153,16 @@ export function summarizeFees(fees: FeeLike[], pendingFines: FineLike[]) {
   const currentKey = cy * 12 + cm;
 
   const paid = fees.filter((f) => f.status === "PAGADO").length;
-  const debt = fees.filter(
-    (f) => feeOwed(f) > 0 && f.year * 12 + f.month <= currentKey,
-  ).length;
+  const openCurrent = currentMonthDueIfUnbilled(fees);
+  const debt =
+    fees.filter(
+      (f) => feeOwed(f) > 0 && f.year * 12 + f.month <= currentKey,
+    ).length + (openCurrent ? 1 : 0);
 
-  const dueFeesAmount = fees
-    .filter((f) => feeOwed(f) > 0 && f.year * 12 + f.month <= currentKey)
-    .reduce((sum, f) => sum + feeOwed(f), 0);
+  const dueFeesAmount =
+    fees
+      .filter((f) => feeOwed(f) > 0 && f.year * 12 + f.month <= currentKey)
+      .reduce((sum, f) => sum + feeOwed(f), 0) + (openCurrent?.amount ?? 0);
 
   const futureFinesAmount = pendingFines
     .filter((f) => f.billingYear * 12 + f.billingMonth > currentKey)
@@ -198,6 +202,20 @@ export async function houseHasPendingFees(
   houseNumber: string | null | undefined,
 ) {
   if (!houseNumber) return true;
+  const { year, month } = calendarPartsInTijuana();
+  const current = await prisma.monthlyFee.findUnique({
+    where: {
+      houseNumber_year_month_concept: {
+        houseNumber,
+        year,
+        month,
+        concept: "MANTENIMIENTO",
+      },
+    },
+    select: { status: true },
+  });
+  // Sin fila del mes en curso la casa aún no pagó, aunque no tenga adeudos viejos.
+  if (!current || current.status !== "PAGADO") return true;
   const pending = await prisma.monthlyFee.count({
     where: overdueMaintenanceWhere(houseNumber),
   });
