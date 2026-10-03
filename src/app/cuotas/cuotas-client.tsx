@@ -282,7 +282,21 @@ export function CuotasClient({
     return rows.sort((a, b) => a.year * 12 + a.month - (b.year * 12 + b.month));
   }, [fees]);
   const feesDebt = unpaidFees.reduce((s, f) => s + f.owed, 0);
-  const totalDebt = feesDebt + pendingFinesTotal;
+  const { year: fineYear, month: fineMonth } = calendarPartsInTijuana();
+  const fineCurrentKey = fineYear * 12 + fineMonth;
+  // Las multas del mes actual o anteriores ya van dentro del monto de esa cuota.
+  const finesInsideFees = fines
+    .filter((f) => f.status === "PENDIENTE")
+    .filter((f) => {
+      const key = f.billingYear * 12 + f.billingMonth;
+      if (key > fineCurrentKey) return false;
+      return unpaidFees.some(
+        (fee) => fee.year === f.billingYear && fee.month === f.billingMonth,
+      );
+    })
+    .reduce((sum, f) => sum + f.amount, 0);
+  const finesOutsideFees = Math.max(0, pendingFinesTotal - finesInsideFees);
+  const totalDebt = feesDebt + finesOutsideFees;
 
   const { year: calendarYear, month: calendarMonth } = useMemo(
     () => calendarPartsInTijuana(),
@@ -904,11 +918,15 @@ export function CuotasClient({
                   {formatCurrency(totalDebt)}
                 </p>
                 <p className="mt-1 text-sm text-muted">
-                  {unpaidFees.length} mes
-                  {unpaidFees.length === 1 ? "" : "es"} de cuota
+                  {unpaidFees.length === 1
+                    ? "1 mes de cuota"
+                    : `${unpaidFees.length} meses de cuota`}
                   {feesDebt > 0 ? ` (${formatCurrency(feesDebt)})` : ""}
-                  {pendingFinesTotal > 0
-                    ? ` · multas ${formatCurrency(pendingFinesTotal)}`
+                  {finesInsideFees > 0
+                    ? ` · incluye multas ${formatCurrency(finesInsideFees)}`
+                    : ""}
+                  {finesOutsideFees > 0
+                    ? ` · multas ${formatCurrency(finesOutsideFees)}`
                     : ""}
                 </p>
                 {unpaidFees.length > 0 && (
