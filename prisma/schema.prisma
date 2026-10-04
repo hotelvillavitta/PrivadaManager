@@ -203,7 +203,7 @@ model HouseAccount {
 model PalapaPayment {
   id             String   @id @default(cuid())
   houseNumber    String
-  amount         Float    @default(200)
+  amount         Float    @default(250)
   paidAt         DateTime @default(now())
   financeEntryId String?  @unique
   financeEntry   FinanceEntry? @relation(fields: [financeEntryId], references: [id], onDelete: SetNull)

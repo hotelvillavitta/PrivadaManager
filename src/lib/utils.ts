@@ -36,7 +36,7 @@ export const FEE_LATE_SURCHARGE = 50;
 /** Días de gracia al inicio del mes sin recargo. */
 export const FEE_GRACE_DAYS = 10;
 /** Cuota por uso de palapa (MXN). */
-export const FEE_PALAPA_AMOUNT = 200;
+export const FEE_PALAPA_AMOUNT = 250;
 /** Meses cubiertos por un pago anual de mantenimiento. */
 export const FEE_ANNUAL_MONTHS = 12;
 

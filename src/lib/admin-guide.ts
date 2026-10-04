@@ -90,7 +90,7 @@ export const adminGuide: GuideSection[] = [
       "El saldo público solo cuenta ingresos y gastos ya validados. La fecha del movimiento decide en qué mes aparece.",
     points: [
       "Cuota de mantenimiento: $200. Si se paga después del día 10 del mes de esa cuota, se suman $50 de recargo. El monto se puede ajustar al cobrar.",
-      "Uso de palapa: $200 por defecto, también editable al cobrar.",
+      "Uso de palapa: $250 por defecto, también editable al cobrar.",
       "Ingresos del mes y Gastos del mes son del mes calendario en curso, según la fecha del movimiento. Un pago del 18 de septiembre no aparece en octubre, aunque se consulte en octubre. Sí está en Ingresos totales y en la liquidez.",
       "Ingresos publicados cuenta un movimiento por cada mes cobrado a cada casa. Un pago de todo el año son 12 ingresos aquí, aunque en otro sistema sea un solo recibo. El dinero total puede coincidir aunque el número de movimientos no.",
       "Lo importado de años anteriores entró ya validado. Por eso no aparece en Por aprobar.",
@@ -235,7 +235,7 @@ export const adminGuide: GuideSection[] = [
     id: "reservaciones",
     title: "Reservaciones",
     summary:
-      "Solicitudes de palapa. Aprobar la fecha no cobra los $200 ni crea un ingreso. El cobro se registra aparte, en Cobranza.",
+      "Solicitudes de palapa. Aprobar la fecha no cobra los $250 ni crea un ingreso. El cobro se registra aparte, en Cobranza.",
     points: [
       "El residente debe pedirla con al menos 7 días de anticipación. El admin puede reservar a nombre de una casa desde el día siguiente.",
       "Si la casa debe cuotas y no tiene convenio, no puede reservar.",
