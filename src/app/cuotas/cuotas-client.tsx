@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { PageHero } from "@/components/PageHero";
 import { toast } from "@/components/Toast";
-import { registerCobranza, setHouseConvenio, voidMonthlyFeePayment, voidPalapaPayment } from "@/lib/actions/portal";
+import { collectPendingFine, registerCobranza, setHouseConvenio, voidMonthlyFeePayment, voidPalapaPayment } from "@/lib/actions/portal";
 import {
   FEE_BASE_AMOUNT,
   FEE_CONCEPT,
@@ -569,6 +569,20 @@ export function CuotasClient({
     .filter(Boolean)
     .join(" + ");
 
+  function fineCanBeChargedAlone(fine: FineRow) {
+    if (fine.status !== "PENDIENTE") return false;
+    const key = fine.billingYear * 12 + fine.billingMonth;
+    const currentKey = calendarYear * 12 + calendarMonth;
+    if (key > currentKey) return true;
+    const fee = fees.find(
+      (item) =>
+        item.concept === FEE_CONCEPT.MANTENIMIENTO &&
+        item.year === fine.billingYear &&
+        item.month === fine.billingMonth,
+    );
+    return !fee || fee.status === "PAGADO";
+  }
+
   const canCharge = abonoMode
     ? !pending && abonoCombinedTotal > 0
     : mesesMode
@@ -918,10 +932,9 @@ export function CuotasClient({
                   {formatCurrency(totalDebt)}
                 </p>
                 <p className="mt-1 text-sm text-muted">
-                  {unpaidFees.length === 1
-                    ? "1 mes de cuota"
-                    : `${unpaidFees.length} meses de cuota`}
-                  {feesDebt > 0 ? ` (${formatCurrency(feesDebt)})` : ""}
+                  {unpaidFees.length > 0
+                    ? `${unpaidFees.length === 1 ? "1 mes de cuota" : `${unpaidFees.length} meses de cuota`}${feesDebt > 0 ? ` (${formatCurrency(feesDebt)})` : ""}`
+                    : "Sin cuotas pendientes"}
                   {finesInsideFees > 0
                     ? ` · incluye multas ${formatCurrency(finesInsideFees)}`
                     : ""}
@@ -1694,8 +1707,8 @@ export function CuotasClient({
             </h2>
             <p className="mt-1 text-sm text-muted">
               Cada multa se suma a la cuota del mes con adeudo más antiguo del
-              residente. Se liquida al pagar esa cuota (no se cobra en un mes
-              futuro si aún debe el actual o anteriores).
+              residente. Si ese mes ya está pagado, o todavía no se cobra,
+              puedes registrar solo la multa.
             </p>
           </div>
           {fines.length === 0 ? (
@@ -1763,6 +1776,33 @@ export function CuotasClient({
                       >
                         {fine.status}
                       </p>
+                      {isAdmin && fineCanBeChargedAlone(fine) && (
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => {
+                            if (
+                              !confirm(
+                                `¿Cobrar la multa de ${formatCurrency(fine.amount)} sin la cuota de ${feeLabel(fine.billingYear, fine.billingMonth)}? El ingreso queda pendiente de validar en Tesorería.`,
+                              )
+                            ) {
+                              return;
+                            }
+                            startTransition(async () => {
+                              const res = await collectPendingFine(fine.id);
+                              if (res.error) {
+                                toast(res.error, "error");
+                                return;
+                              }
+                              toast("Multa cobrada. Pendiente de validar en Tesorería.");
+                              router.refresh();
+                            });
+                          }}
+                          className="mt-2 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                        >
+                          {pending ? "Cobrando…" : "Cobrar ahora"}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </li>

@@ -285,6 +285,11 @@ export const adminGuide: GuideSection[] = [
           "Si el mes queda liquidado, la multa pasa a pagada y entra en el mismo comprobante.",
       },
       {
+        action: "Cobrar solo la multa",
+        effect:
+          "Si el mes de la multa ya está pagado por adelantado, o todavía no se cobra, se registra el pago de la multa sin esa cuota. Queda pendiente de validar en Tesorería.",
+      },
+      {
         action: "Anular multa",
         effect:
           "La deja sin efecto y, si todavía no estaba pagada, resta ese monto de la cuota.",

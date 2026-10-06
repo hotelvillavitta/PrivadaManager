@@ -2326,13 +2326,116 @@ export async function issueFine(formData: FormData) {
   };
 }
 
-/** Las multas se cobran con la cuota; no hay cobro suelto. */
-export async function markFinePaid(_fineId: string) {
+/**
+ * Cobra una multa sin la cuota del mes. Sirve cuando ese mes ya está pagado
+ * por adelantado, o cuando la multa quedó en un mes que todavía no se cobra.
+ */
+export async function collectPendingFine(fineId: string) {
   await requireAdmin();
-  return {
-    error:
-      "Las multas se cobran junto con la cuota de mantenimiento del periodo indicado. Regístrala en Cobranza de cuotas.",
-  };
+  if (!fineId) return { error: "Multa inválida." };
+
+  const fine = await prisma.fine.findUnique({ where: { id: fineId } });
+  if (!fine) return { error: "No se encontró la multa." };
+  if (fine.status !== "PENDIENTE") {
+    return { error: "Solo se pueden cobrar multas pendientes." };
+  }
+
+  const { year: cy, month: cm } = calendarPartsInTijuana();
+  const fineKey = fine.billingYear * 12 + fine.billingMonth;
+  const currentKey = cy * 12 + cm;
+  const fee = await prisma.monthlyFee.findUnique({
+    where: {
+      houseNumber_year_month_concept: {
+        houseNumber: fine.houseNumber,
+        year: fine.billingYear,
+        month: fine.billingMonth,
+        concept: FEE_CONCEPT.MANTENIMIENTO,
+      },
+    },
+  });
+  const insideOpenFee =
+    fineKey <= currentKey && fee != null && fee.status !== "PAGADO";
+  if (insideOpenFee) {
+    return {
+      error: `Esta multa ya está dentro de la cuota ${feeLabel(fine.billingYear, fine.billingMonth)}. Cóbala con ese mes.`,
+    };
+  }
+
+  const paidAt = new Date();
+  const periodLabel = feeLabel(fine.billingYear, fine.billingMonth);
+  const description = `Casa ${fine.houseNumber} · Multa · ${fine.cause} · ${periodLabel}`;
+
+  await prisma.$transaction(async (tx) => {
+    const entry = await tx.financeEntry.create({
+      data: {
+        type: "INGRESO",
+        category: "Multas",
+        description,
+        amount: fine.amount,
+        date: paidAt,
+        status: "PENDING",
+      },
+    });
+    await tx.fine.update({
+      where: { id: fine.id },
+      data: {
+        status: "PAGADO",
+        paidAt,
+        financeEntryId: entry.id,
+      },
+    });
+
+    if (fee && fee.status !== "PAGADO") {
+      const nextAmount = Math.round((fee.amount - fine.amount) * 100) / 100;
+      if (fineKey > currentKey && nextAmount <= FEE_BASE_AMOUNT) {
+        await tx.monthlyFee.delete({ where: { id: fee.id } });
+      } else {
+        await tx.monthlyFee.update({
+          where: { id: fee.id },
+          data: { amount: Math.max(FEE_BASE_AMOUNT, nextAmount) },
+        });
+      }
+    }
+  });
+
+  const residents = await getHouseFinanceRecipients(fine.houseNumber);
+  if (residents.length) {
+    await prisma.notification.createMany({
+      data: residents.map((r) => ({
+        userId: r.id,
+        title: "Multa cobrada",
+        body: `Casa ${fine.houseNumber} · ${fine.cause} · ${formatCurrency(fine.amount)}. Pendiente de validar en Tesorería.`,
+        fineId: fine.id,
+      })),
+    });
+    const privada = await getPrivada();
+    after(() => {
+      void Promise.all(
+        residents.map((r) =>
+          sendPaymentReceiptEmail({
+            residentName: fullName(r),
+            residentEmail: r.email,
+            houseNumber: fine.houseNumber,
+            periodLabel: `Multa ${periodLabel}`,
+            lines: [{ label: `Multa · ${fine.cause}`, amount: fine.amount }],
+            total: fine.amount,
+            paidAt,
+            privadaName: privada.name,
+            privadaAddress: privada.address,
+            privadaEmail: privada.email,
+            privadaPhone: privada.phone,
+          }),
+        ),
+      ).catch((err) => console.error("[multa] cobro email failed", err));
+    });
+  }
+
+  revalidatePath("/admin/cobranza");
+  revalidatePath("/admin/finanzas");
+  revalidatePath("/admin/multas");
+  revalidatePath("/finanzas");
+  revalidatePath("/cuotas");
+  return { ok: true as const, amount: fine.amount };
 }
 
 export async function annulFine(fineId: string) {
