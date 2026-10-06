@@ -1047,6 +1047,14 @@ export async function registerCobranza(formData: FormData) {
   );
   const lateAmount = Number(formData.get("lateAmount") ?? FEE_LATE_SURCHARGE);
   const palapaAmount = Number(formData.get("palapaAmount") ?? FEE_PALAPA_AMOUNT);
+  const fineIds = [
+    ...new Set(
+      formData
+        .getAll("fineIds")
+        .map((value) => String(value).trim())
+        .filter(Boolean),
+    ),
+  ];
   const abonoAmount = Number(formData.get("abonoAmount") ?? 0);
 
   if (!houseNumber) {
@@ -1529,7 +1537,7 @@ export async function registerCobranza(formData: FormData) {
   if (!year || !month || month < 1 || month > 12) {
     return { error: "Selecciona casa, año y mes." };
   }
-  if (!includeMaintenance && !includePalapa) {
+  if (!includeMaintenance && !includePalapa && fineIds.length === 0) {
     return { error: "Elige al menos un concepto a cobrar." };
   }
   if (includeMaintenance && (Number.isNaN(maintenanceAmount) || maintenanceAmount < 0)) {
@@ -1540,6 +1548,13 @@ export async function registerCobranza(formData: FormData) {
   }
   if (includePalapa && (Number.isNaN(palapaAmount) || palapaAmount <= 0)) {
     return { error: "Monto de palapa inválido." };
+  }
+
+  const standaloneFines: StandaloneFine[] = [];
+  for (const fineId of fineIds) {
+    const ready = await prepareStandaloneFine(fineId, houseNumber);
+    if ("error" in ready) return ready;
+    standaloneFines.push(ready.fine);
   }
 
   // No cobrar mantenimiento de un mes posterior si hay adeudos anteriores,
@@ -1704,6 +1719,17 @@ export async function registerCobranza(formData: FormData) {
     receiptLines.push({
       label: FEE_CONCEPT_LABEL.PALAPA,
       amount: palapaAmount,
+    });
+  }
+
+  for (const fine of standaloneFines) {
+    const recorded = await recordStandaloneFine(fine, paidAt);
+    if ("error" in recorded) return recorded;
+    total += recorded.amount;
+    parts.push(`Multa $${recorded.amount}`);
+    receiptLines.push({
+      label: `Multa · ${recorded.cause}`,
+      amount: recorded.amount,
     });
   }
 
@@ -2326,16 +2352,21 @@ export async function issueFine(formData: FormData) {
   };
 }
 
-/**
- * Cobra una multa sin la cuota del mes. Sirve cuando ese mes ya está pagado
- * por adelantado, o cuando la multa quedó en un mes que todavía no se cobra.
- */
-export async function collectPendingFine(fineId: string) {
-  await requireAdmin();
-  if (!fineId) return { error: "Multa inválida." };
+type StandaloneFine = {
+  id: string;
+  houseNumber: string;
+  cause: string;
+  amount: number;
+  billingYear: number;
+  billingMonth: number;
+};
 
+/** Multa que se puede cobrar sin la cuota: mes futuro o mes ya pagado. */
+async function prepareStandaloneFine(fineId: string, houseNumber: string) {
   const fine = await prisma.fine.findUnique({ where: { id: fineId } });
-  if (!fine) return { error: "No se encontró la multa." };
+  if (!fine || fine.houseNumber !== houseNumber) {
+    return { error: "No se encontró la multa de esta casa." };
+  }
   if (fine.status !== "PENDIENTE") {
     return { error: "Solo se pueden cobrar multas pendientes." };
   }
@@ -2353,19 +2384,28 @@ export async function collectPendingFine(fineId: string) {
       },
     },
   });
-  const insideOpenFee =
-    fineKey <= currentKey && fee != null && fee.status !== "PAGADO";
-  if (insideOpenFee) {
+  if (fineKey <= currentKey && fee != null && fee.status !== "PAGADO") {
     return {
-      error: `Esta multa ya está dentro de la cuota ${feeLabel(fine.billingYear, fine.billingMonth)}. Cóbala con ese mes.`,
+      error: `La multa ya está dentro de la cuota ${feeLabel(fine.billingYear, fine.billingMonth)}. Márcala con el mantenimiento de ese mes.`,
     };
   }
 
-  const paidAt = new Date();
+  return { fine };
+}
+
+async function recordStandaloneFine(fine: StandaloneFine, paidAt: Date) {
   const periodLabel = feeLabel(fine.billingYear, fine.billingMonth);
   const description = `Casa ${fine.houseNumber} · Multa · ${fine.cause} · ${periodLabel}`;
+  const { year: cy, month: cm } = calendarPartsInTijuana();
+  const fineKey = fine.billingYear * 12 + fine.billingMonth;
+  const currentKey = cy * 12 + cm;
 
+  try {
   await prisma.$transaction(async (tx) => {
+    const current = await tx.fine.findUnique({ where: { id: fine.id } });
+    if (!current || current.status !== "PENDIENTE") {
+      throw new Error("La multa ya no está pendiente.");
+    }
     const entry = await tx.financeEntry.create({
       data: {
         type: "INGRESO",
@@ -2384,7 +2424,16 @@ export async function collectPendingFine(fineId: string) {
         financeEntryId: entry.id,
       },
     });
-
+    const fee = await tx.monthlyFee.findUnique({
+      where: {
+        houseNumber_year_month_concept: {
+          houseNumber: fine.houseNumber,
+          year: fine.billingYear,
+          month: fine.billingMonth,
+          concept: FEE_CONCEPT.MANTENIMIENTO,
+        },
+      },
+    });
     if (fee && fee.status !== "PAGADO") {
       const nextAmount = Math.round((fee.amount - fine.amount) * 100) / 100;
       if (fineKey > currentKey && nextAmount <= FEE_BASE_AMOUNT) {
@@ -2397,45 +2446,16 @@ export async function collectPendingFine(fineId: string) {
       }
     }
   });
-
-  const residents = await getHouseFinanceRecipients(fine.houseNumber);
-  if (residents.length) {
-    await prisma.notification.createMany({
-      data: residents.map((r) => ({
-        userId: r.id,
-        title: "Multa cobrada",
-        body: `Casa ${fine.houseNumber} · ${fine.cause} · ${formatCurrency(fine.amount)}. Pendiente de validar en Tesorería.`,
-        fineId: fine.id,
-      })),
-    });
-    const privada = await getPrivada();
-    after(() => {
-      void Promise.all(
-        residents.map((r) =>
-          sendPaymentReceiptEmail({
-            residentName: fullName(r),
-            residentEmail: r.email,
-            houseNumber: fine.houseNumber,
-            periodLabel: `Multa ${periodLabel}`,
-            lines: [{ label: `Multa · ${fine.cause}`, amount: fine.amount }],
-            total: fine.amount,
-            paidAt,
-            privadaName: privada.name,
-            privadaAddress: privada.address,
-            privadaEmail: privada.email,
-            privadaPhone: privada.phone,
-          }),
-        ),
-      ).catch((err) => console.error("[multa] cobro email failed", err));
-    });
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "No se pudo cobrar la multa.",
+    };
   }
 
-  revalidatePath("/admin/cobranza");
-  revalidatePath("/admin/finanzas");
-  revalidatePath("/admin/multas");
-  revalidatePath("/finanzas");
-  revalidatePath("/cuotas");
-  return { ok: true as const, amount: fine.amount };
+  return { amount: fine.amount, cause: fine.cause };
 }
 
 export async function annulFine(fineId: string) {

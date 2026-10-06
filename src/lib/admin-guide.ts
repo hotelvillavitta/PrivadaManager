@@ -287,7 +287,7 @@ export const adminGuide: GuideSection[] = [
       {
         action: "Cobrar solo la multa",
         effect:
-          "Si el mes de la multa ya está pagado por adelantado, o todavía no se cobra, se registra el pago de la multa sin esa cuota. Queda pendiente de validar en Tesorería.",
+          "En Cobranza, junto a mantenimiento, recargo y palapa, aparece una casilla de multa cuando ese mes ya está pagado o todavía no se cobra. Al marcarla se registra solo la multa, pendiente de validar en Tesorería.",
       },
       {
         action: "Anular multa",

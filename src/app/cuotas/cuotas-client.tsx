@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { PageHero } from "@/components/PageHero";
 import { toast } from "@/components/Toast";
-import { collectPendingFine, registerCobranza, setHouseConvenio, voidMonthlyFeePayment, voidPalapaPayment } from "@/lib/actions/portal";
+import { registerCobranza, setHouseConvenio, voidMonthlyFeePayment, voidPalapaPayment } from "@/lib/actions/portal";
 import {
   FEE_BASE_AMOUNT,
   FEE_CONCEPT,
@@ -225,6 +225,7 @@ export function CuotasClient({
   const [maintenanceAmount, setMaintenanceAmount] = useState(FEE_BASE_AMOUNT);
   const [lateAmount, setLateAmount] = useState(FEE_LATE_SURCHARGE);
   const [palapaAmount, setPalapaAmount] = useState(FEE_PALAPA_AMOUNT);
+  const [selectedFineIds, setSelectedFineIds] = useState<string[]>([]);
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
   const [monthsPickerYear, setMonthsPickerYear] = useState(
     () => calendarPartsInTijuana().year,
@@ -245,6 +246,7 @@ export function CuotasClient({
     setIncludeAbonoCurrent(false);
     setIncludeAbonoNext(false);
     setSelectedMonths([]);
+    setSelectedFineIds([]);
     setMonthsPickerYear(calendarPartsInTijuana().year);
   }, [houseNumber]);
 
@@ -550,25 +552,6 @@ export function CuotasClient({
     suggestedMaintenance,
   ]);
 
-  const total =
-    (includeMaintenance && !maintenancePaid ? maintenanceAmount : 0) +
-    (includeMaintenance && includeLate && !maintenancePaid ? lateAmount : 0) +
-    (includePalapa ? palapaAmount : 0);
-
-  const conceptSummary = [
-    includeMaintenance && !maintenancePaid
-      ? periodFinesTotal > 0
-        ? `${FEE_CONCEPT_LABEL.MANTENIMIENTO} + multas`
-        : FEE_CONCEPT_LABEL.MANTENIMIENTO
-      : null,
-    includeMaintenance && includeLate && !maintenancePaid
-      ? `Recargo (después del día ${FEE_GRACE_DAYS})`
-      : null,
-    includePalapa ? FEE_CONCEPT_LABEL.PALAPA : null,
-  ]
-    .filter(Boolean)
-    .join(" + ");
-
   function fineCanBeChargedAlone(fine: FineRow) {
     if (fine.status !== "PENDIENTE") return false;
     const key = fine.billingYear * 12 + fine.billingMonth;
@@ -583,6 +566,40 @@ export function CuotasClient({
     return !fee || fee.status === "PAGADO";
   }
 
+  const standaloneFines = fines.filter(fineCanBeChargedAlone);
+  const selectedFines = standaloneFines.filter((fine) =>
+    selectedFineIds.includes(fine.id),
+  );
+  const selectedFinesTotal = selectedFines.reduce(
+    (sum, fine) => sum + fine.amount,
+    0,
+  );
+
+  const total =
+    (includeMaintenance && !maintenancePaid ? maintenanceAmount : 0) +
+    (includeMaintenance && includeLate && !maintenancePaid ? lateAmount : 0) +
+    (includePalapa ? palapaAmount : 0) +
+    selectedFinesTotal;
+
+  const conceptSummary = [
+    includeMaintenance && !maintenancePaid
+      ? periodFinesTotal > 0
+        ? `${FEE_CONCEPT_LABEL.MANTENIMIENTO} + multas`
+        : FEE_CONCEPT_LABEL.MANTENIMIENTO
+      : null,
+    includeMaintenance && includeLate && !maintenancePaid
+      ? `Recargo (después del día ${FEE_GRACE_DAYS})`
+      : null,
+    includePalapa ? FEE_CONCEPT_LABEL.PALAPA : null,
+    selectedFines.length > 0
+      ? selectedFines.length === 1
+        ? "Multa"
+        : `${selectedFines.length} multas`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" + ");
+
   const canCharge = abonoMode
     ? !pending && abonoCombinedTotal > 0
     : mesesMode
@@ -593,7 +610,9 @@ export function CuotasClient({
       : !pending &&
         !blockedByPriorDebt &&
         total > 0 &&
-        ((includeMaintenance && !maintenancePaid) || includePalapa);
+        ((includeMaintenance && !maintenancePaid) ||
+          includePalapa ||
+          selectedFines.length > 0);
 
   return (
     <div className="pb-16">
@@ -1439,6 +1458,34 @@ export function CuotasClient({
                 onAmountChange={setPalapaAmount}
                 amountDisabled={!includePalapa}
               />
+              {standaloneFines.map((fine) => {
+                const checked = selectedFineIds.includes(fine.id);
+                return (
+                  <ConceptRow
+                    key={fine.id}
+                    checked={checked}
+                    onCheckedChange={(on) =>
+                      setSelectedFineIds((prev) =>
+                        on
+                          ? [...prev, fine.id]
+                          : prev.filter((id) => id !== fine.id),
+                      )
+                    }
+                    name={checked ? "fineIds" : undefined}
+                    value={fine.id}
+                    title="Multa"
+                    hint={
+                      fine.notes
+                        ? `${fine.notes} · aparte de ${feeLabel(fine.billingYear, fine.billingMonth)}`
+                        : `Aparte de ${feeLabel(fine.billingYear, fine.billingMonth)}`
+                    }
+                    amountName={`fineAmount-${fine.id}`}
+                    amount={fine.amount}
+                    onAmountChange={() => {}}
+                    amountDisabled
+                  />
+                );
+              })}
             </div>
 
             <div className="mt-5 rounded-xl bg-background px-4 py-4">
@@ -1480,7 +1527,9 @@ export function CuotasClient({
                         : `Cobrar ${mesesToCover.length} mes${mesesToCover.length === 1 ? "" : "es"} · ${formatCurrency(mesesTotal)}`
                   : blockedByPriorDebt
                     ? "Hay adeudos anteriores — usa abono o cobra el mes más antiguo"
-                    : maintenancePaid && !includePalapa
+                    : maintenancePaid &&
+                        !includePalapa &&
+                        selectedFines.length === 0
                       ? "Periodo ya pagado"
                       : pending
                         ? "Registrando…"
@@ -1707,8 +1756,7 @@ export function CuotasClient({
             </h2>
             <p className="mt-1 text-sm text-muted">
               Cada multa se suma a la cuota del mes con adeudo más antiguo del
-              residente. Si ese mes ya está pagado, o todavía no se cobra,
-              puedes registrar solo la multa.
+              residente. Se liquida al pagar esa cuota.
             </p>
           </div>
           {fines.length === 0 ? (
@@ -1776,33 +1824,6 @@ export function CuotasClient({
                       >
                         {fine.status}
                       </p>
-                      {isAdmin && fineCanBeChargedAlone(fine) && (
-                        <button
-                          type="button"
-                          disabled={pending}
-                          onClick={() => {
-                            if (
-                              !confirm(
-                                `¿Cobrar la multa de ${formatCurrency(fine.amount)} sin la cuota de ${feeLabel(fine.billingYear, fine.billingMonth)}? El ingreso queda pendiente de validar en Tesorería.`,
-                              )
-                            ) {
-                              return;
-                            }
-                            startTransition(async () => {
-                              const res = await collectPendingFine(fine.id);
-                              if (res.error) {
-                                toast(res.error, "error");
-                                return;
-                              }
-                              toast("Multa cobrada. Pendiente de validar en Tesorería.");
-                              router.refresh();
-                            });
-                          }}
-                          className="mt-2 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
-                        >
-                          {pending ? "Cobrando…" : "Cobrar ahora"}
-                        </button>
-                      )}
                     </div>
                   </div>
                 </li>
@@ -1820,6 +1841,7 @@ function ConceptRow({
   disabled,
   onCheckedChange,
   name,
+  value,
   title,
   hint,
   amountName,
@@ -1830,7 +1852,8 @@ function ConceptRow({
   checked: boolean;
   disabled?: boolean;
   onCheckedChange: (v: boolean) => void;
-  name: string;
+  name?: string;
+  value?: string;
   title: string;
   hint?: string;
   amountName: string;
@@ -1853,6 +1876,7 @@ function ConceptRow({
           <input
             type="checkbox"
             name={name}
+            value={value ?? "on"}
             checked={checked}
             disabled={disabled}
             onChange={(e) => onCheckedChange(e.target.checked)}
