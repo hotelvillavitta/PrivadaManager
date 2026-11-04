@@ -54,7 +54,7 @@ export const adminGuide: GuideSection[] = [
     id: "avisos",
     title: "Correos y notificaciones",
     summary:
-      "La campana de la app avisa de varias cosas. El correo solo sale en cuatro casos.",
+      "La campana de la app avisa de varias cosas. El correo sale al cobrar, al multar, al dar acceso y al enviar un aviso de adeudo.",
     actions: [
       {
         action: "Registrar un cobro",
@@ -65,6 +65,11 @@ export const adminGuide: GuideSection[] = [
         action: "Aplicar una multa",
         effect:
           "Correo con el motivo, el artículo del reglamento y el monto, más una notificación en la app.",
+      },
+      {
+        action: "Enviar aviso de adeudo",
+        effect:
+          "En Administración → Avisos de adeudo se eligen las casas. El correo lleva los meses de mantenimiento pendientes, el total y las consecuencias. También queda un aviso en la app del propietario.",
       },
       {
         action: "Crear un residente o generarle contraseña",
