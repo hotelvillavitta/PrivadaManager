@@ -30,10 +30,11 @@ export function DebtNoticesAdmin({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return houses;
+    const numeric = /^\d+$/.test(q);
     return houses.filter((house) => {
+      if (numeric) return house.houseNumber.includes(q);
       const names = house.recipients.map((r) => r.name).join(" ");
       return (
-        house.houseNumber.includes(q) ||
         names.toLowerCase().includes(q) ||
         house.recipients.some((r) => r.email.toLowerCase().includes(q))
       );
@@ -45,7 +46,7 @@ export function DebtNoticesAdmin({
     selectable.length > 0 &&
     selectable.every((house) => selected.includes(house.houseNumber));
   const preview =
-    houses.find((house) => house.houseNumber === previewHouse) ??
+    filtered.find((house) => house.houseNumber === previewHouse) ??
     filtered[0] ??
     null;
   const chosen = houses.filter((house) =>
@@ -158,7 +159,7 @@ export function DebtNoticesAdmin({
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Casa, nombre o correo"
+              placeholder="Número de casa o nombre"
               className="w-full rounded-xl border border-border bg-background py-2.5 pr-3 pl-9 text-sm"
             />
           </div>
