@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Mail, Search } from "lucide-react";
+import { Download, Mail, Search } from "lucide-react";
 import { toast } from "@/components/Toast";
 import { sendDebtNotices } from "@/lib/actions/debt-notice";
 import {
@@ -24,6 +24,7 @@ export function DebtNoticesAdmin({
     houses[0]?.houseNumber ?? "",
   );
   const [confirming, setConfirming] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const filtered = useMemo(() => {
@@ -39,7 +40,7 @@ export function DebtNoticesAdmin({
     });
   }, [houses, query]);
 
-  const selectable = filtered.filter((house) => house.recipients.length > 0);
+  const selectable = filtered;
   const allChecked =
     selectable.length > 0 &&
     selectable.every((house) => selected.includes(house.houseNumber));
@@ -68,6 +69,38 @@ export function DebtNoticesAdmin({
       if (allChecked) return prev.filter((id) => !visible.has(id));
       return [...new Set([...prev, ...visible])];
     });
+  }
+
+  async function downloadPdf() {
+    const ids = (chosen.length ? chosen : preview ? [preview] : []).map(
+      (house) => house.houseNumber,
+    );
+    if (!ids.length) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(
+        `/api/admin/avisos-adeudo/pdf?casas=${encodeURIComponent(ids.join(","))}`,
+      );
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        toast(data?.error ?? "No se pudo crear el PDF.", "error");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const match = res.headers
+        .get("Content-Disposition")
+        ?.match(/filename="([^"]+)"/);
+      link.href = url;
+      link.download = match?.[1] ?? "aviso-adeudo.pdf";
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast("No se pudo crear el PDF.", "error");
+    } finally {
+      setDownloading(false);
+    }
   }
 
   function send() {
@@ -110,8 +143,9 @@ export function DebtNoticesAdmin({
               Aviso de adeudo
             </h2>
             <p className="mt-1 text-sm text-muted">
-              El correo incluye los meses de mantenimiento pendientes, el total
-              y las consecuencias. Llega a los propietarios de cada casa.
+              El correo y el PDF usan el mismo diseño que el comprobante de
+              pago. El correo llega a los propietarios. El PDF se descarga
+              aunque la casa no tenga correo.
             </p>
           </div>
         </div>
@@ -143,11 +177,10 @@ export function DebtNoticesAdmin({
                 onChange={toggleAll}
                 className="h-4 w-4 accent-[var(--primary)]"
               />
-              Elegir las casas con correo de esta lista ({selectable.length})
+              Elegir las casas de esta lista ({selectable.length})
             </label>
             <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border">
               {filtered.map((house) => {
-                const canSend = house.recipients.length > 0;
                 const checked = selected.includes(house.houseNumber);
                 return (
                   <li key={house.houseNumber}>
@@ -162,7 +195,6 @@ export function DebtNoticesAdmin({
                       <input
                         type="checkbox"
                         checked={checked}
-                        disabled={!canSend}
                         onChange={() => toggle(house.houseNumber)}
                         className="mt-1 h-4 w-4 accent-[var(--primary)]"
                       />
@@ -180,10 +212,8 @@ export function DebtNoticesAdmin({
                             ? "1 mes"
                             : `${house.months} meses`}
                           {" · "}
-                          {canSend
-                            ? house.recipients
-                                .map((r) => r.name)
-                                .join(" · ")
+                          {house.recipients.length
+                            ? house.recipients.map((r) => r.name).join(" · ")
                             : "Sin correo de propietario"}
                         </span>
                       </span>
@@ -198,7 +228,18 @@ export function DebtNoticesAdmin({
           </>
         )}
 
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <button
+            type="button"
+            disabled={downloading || (!chosen.length && !preview)}
+            onClick={() => void downloadPdf()}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-primary-dark disabled:opacity-60"
+          >
+            <Download className="h-4 w-4" />
+            {downloading
+              ? "Preparando PDF…"
+              : `Descargar PDF${chosen.length > 0 ? ` · ${chosen.length}` : ""}`}
+          </button>
           {confirming ? (
             <>
               <button
@@ -242,55 +283,95 @@ export function DebtNoticesAdmin({
           Vista previa
         </p>
         {preview ? (
-          <article className="mt-3 rounded-xl border border-border bg-[#faf6f1] p-4 text-sm">
-            <p className="font-display text-lg text-primary-dark">{privadaName}</p>
-            <p className="text-xs text-muted">{issuedOnLabel}</p>
-            <h3 className="mt-3 font-display text-base leading-snug text-primary-dark">
-              Aviso de adeudo de cuotas de mantenimiento
-            </h3>
-            <div className="mt-3 flex items-start justify-between gap-3 rounded-lg bg-white px-3 py-2">
-              <p className="font-semibold text-primary-dark">
-                Casa #{preview.houseNumber}
-              </p>
-              <p className="text-right font-semibold text-[#8b3a3a]">
-                Adeudo total: {preview.totalLabel}
-              </p>
+          <article className="mt-3 max-h-[70vh] overflow-auto rounded-2xl border border-[#e0d5cb] bg-[#f4efe8] p-3 text-sm">
+            <div className="overflow-hidden rounded-2xl border border-[#e0d5cb] bg-white">
+              <div className="flex items-center gap-3 border-b border-[#efe6dc] bg-[#faf6f1] px-4 py-4">
+                <img
+                  src="/brand/grenache-logo.png"
+                  alt=""
+                  className="h-12 w-12 rounded-full bg-white outline outline-[#e8dfd6]"
+                />
+                <div>
+                  <p className="font-display text-xl text-[#4f334a]">{privadaName}</p>
+                  <p className="text-xs text-[#8a7a86]">App Residencial</p>
+                  <p className="mt-1 text-[11px] font-bold tracking-[0.14em] text-[#b08a5a] uppercase">
+                    Aviso de adeudo
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-4 px-4 py-4">
+                <p className="text-[#2a1c28]">
+                  {preview.recipients.length
+                    ? `Hola ${preview.recipients.map((r) => r.name).join(", ")},`
+                    : `Estimado(a) residente de la Casa ${preview.houseNumber}:`}
+                </p>
+                <p className="text-[#5a4a57]">
+                  El comité registra un adeudo de{" "}
+                  {preview.months === 1 ? "1 mes" : `${preview.months} meses`} en
+                  las cuotas de mantenimiento. Este es el aviso oficial.
+                </p>
+                <dl className="rounded-xl border border-[#e8dfd6] bg-[#f8f4ef] px-3 py-2 text-xs">
+                  <div className="flex justify-between gap-3 py-1.5">
+                    <dt className="text-[#5a4a57]">Casa</dt>
+                    <dd className="font-semibold text-[#2a1c28]">{preview.houseNumber}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3 py-1.5">
+                    <dt className="text-[#5a4a57]">Meses pendientes</dt>
+                    <dd className="font-semibold text-[#2a1c28]">
+                      {preview.months === 1 ? "1 mes" : `${preview.months} meses`}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-3 py-1.5">
+                    <dt className="text-[#5a4a57]">Fecha del aviso</dt>
+                    <dd className="font-semibold text-[#2a1c28]">{issuedOnLabel}</dd>
+                  </div>
+                </dl>
+                <div className="flex items-center justify-between rounded-xl bg-[#efe4ec] px-3 py-3">
+                  <p className="text-xs font-bold text-[#4f334a]">Adeudo total</p>
+                  <p className="font-display text-lg text-[#8b3a3a]">{preview.totalLabel}</p>
+                </div>
+                <table className="w-full overflow-hidden rounded-xl border border-[#e8dfd6] text-left text-xs">
+                  <thead className="bg-[#efe4ec] text-[11px] tracking-wide text-[#4f334a] uppercase">
+                    <tr>
+                      <th className="px-3 py-2 font-semibold">Mes</th>
+                      <th className="px-3 py-2 text-right font-semibold">Monto</th>
+                      <th className="px-3 py-2 text-right font-semibold">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.lines.map((line) => (
+                      <tr key={line.label} className="border-t border-[#e8dfd6]">
+                        <td className="px-3 py-2 text-[#2a1c28]">{line.label}</td>
+                        <td className="px-3 py-2 text-right">{line.amountLabel}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-[#8b3a3a]">
+                          Pendiente
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="border-t border-[#e8dfd6] bg-[#f8f4ef]">
+                      <td className="px-3 py-2 font-bold text-[#2a1c28]">Total</td>
+                      <td className="px-3 py-2 text-right font-bold text-[#8b3a3a]" colSpan={2}>
+                        {preview.totalLabel}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div>
+                  <p className="font-display text-base text-[#4f334a]">
+                    Consecuencias por falta de pago
+                  </p>
+                  <ul className="mt-2 space-y-1.5 rounded-xl border border-[#e8dfd6] bg-[#f8f4ef] px-3 py-3 text-xs text-[#2a1c28]">
+                    {DEBT_NOTICE_CONSEQUENCES.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+                <p className="text-xs leading-relaxed text-[#5a4a57]">
+                  Para ponerse al corriente, responde al correo o contacta al
+                  tesorero o al Comité Vecinal.
+                </p>
+              </div>
             </div>
-            <p className="mt-3 text-primary-dark">
-              Estimado(a) residente de la Casa #{preview.houseNumber}:
-            </p>
-            <p className="mt-2 text-muted">
-              Su cuenta presenta un adeudo de{" "}
-              {preview.months === 1 ? "1 mes" : `${preview.months} meses`}.
-            </p>
-            <table className="mt-3 w-full text-left text-xs">
-              <thead>
-                <tr className="text-primary-dark">
-                  <th className="py-1 font-semibold">Mes</th>
-                  <th className="py-1 text-right font-semibold">Monto</th>
-                  <th className="py-1 text-right font-semibold">Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {preview.lines.map((line) => (
-                  <tr key={line.label} className="border-t border-border/70">
-                    <td className="py-1.5">{line.label}</td>
-                    <td className="py-1.5 text-right">{line.amountLabel}</td>
-                    <td className="py-1.5 text-right text-[#8b3a3a]">
-                      Pendiente
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="mt-4 font-medium text-primary-dark">
-              Consecuencias por falta de pago
-            </p>
-            <ul className="mt-1 list-disc space-y-1 pl-4 text-muted">
-              {DEBT_NOTICE_CONSEQUENCES.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
           </article>
         ) : (
           <p className="mt-3 text-sm text-muted">

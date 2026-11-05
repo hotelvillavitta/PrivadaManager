@@ -67,6 +67,7 @@ export async function sendDebtNotices(
     let houseError = "";
     for (const recipient of house.recipients) {
       const result = await sendDebtNoticeEmail({
+        residentName: recipient.name,
         residentEmail: recipient.email,
         houseNumber: house.houseNumber,
         months: house.months,

@@ -11,6 +11,7 @@ export type DebtNoticeEmailLine = {
 };
 
 export type DebtNoticeEmailPayload = {
+  residentName: string;
   residentEmail: string;
   houseNumber: string;
   months: number;
@@ -34,16 +35,19 @@ export function buildDebtNoticeEmail(p: DebtNoticeEmailPayload) {
   const rows = p.lines
     .map(
       (line) => `<tr>
-        <td style="padding:10px 14px;border-bottom:1px solid #e8dfd6;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#2a1c28;">${escapeHtml(line.label)}</td>
-        <td style="padding:10px 14px;border-bottom:1px solid #e8dfd6;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#2a1c28;text-align:right;white-space:nowrap;">${formatCurrency(line.amount)}</td>
-        <td style="padding:10px 14px;border-bottom:1px solid #e8dfd6;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#8b3a3a;font-weight:700;text-align:right;">Pendiente</td>
+        <td style="padding:12px 16px;border-bottom:1px solid #e8dfd6;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#2a1c28;">${escapeHtml(line.label)}</td>
+        <td style="padding:12px 16px;border-bottom:1px solid #e8dfd6;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#2a1c28;text-align:right;white-space:nowrap;">${formatCurrency(line.amount)}</td>
+        <td style="padding:12px 16px;border-bottom:1px solid #e8dfd6;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#8b3a3a;font-weight:700;text-align:right;">Pendiente</td>
       </tr>`,
     )
     .join("");
   const consequences = DEBT_NOTICE_CONSEQUENCES.map(
     (item) =>
-      `<li style="margin:0 0 8px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.45;color:#2a1c28;">${escapeHtml(item)}</li>`,
+      `<tr><td style="padding:0 0 8px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.45;color:#2a1c28;">• ${escapeHtml(item)}</td></tr>`,
   ).join("");
+  const hello = p.residentName.trim()
+    ? `Hola <strong>${escapeHtml(p.residentName)}</strong>,`
+    : `Estimado(a) residente de la Casa ${escapeHtml(p.houseNumber)}:`;
 
   const html = renderEmailShell({
     privadaName: p.privadaName,
@@ -55,43 +59,63 @@ export function buildDebtNoticeEmail(p: DebtNoticeEmailPayload) {
       phone: p.privadaPhone,
     },
     inner: `
-      <p style="margin:0 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#8a7a86;">
-        ${escapeHtml(p.issuedOnLabel)}
+      <p style="margin:0 0 14px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#2a1c28;">
+        ${hello}
       </p>
-      <p style="margin:0 0 16px;font-family:Georgia,'Times New Roman',serif;font-size:18px;line-height:1.3;color:#4f334a;font-weight:700;">
-        Aviso de adeudo de cuotas de mantenimiento
+      <p style="margin:0 0 22px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#5a4a57;">
+        El comité registra un adeudo de ${period} en las cuotas de mantenimiento de la Casa ${escapeHtml(p.houseNumber)}. Conserva este correo como aviso oficial.
+      </p>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8f4ef;border:1px solid #e8dfd6;border-radius:12px;margin-bottom:12px;">
+        <tr>
+          <td style="padding:14px 16px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#5a4a57;width:46%;">Casa</td>
+          <td style="padding:14px 16px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#2a1c28;font-weight:700;text-align:right;">${escapeHtml(p.houseNumber)}</td>
+        </tr>
+        <tr>
+          <td style="padding:0 16px 14px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#5a4a57;">Meses pendientes</td>
+          <td style="padding:0 16px 14px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#2a1c28;font-weight:700;text-align:right;">${period}</td>
+        </tr>
+        <tr>
+          <td style="padding:0 16px 14px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#5a4a57;">Fecha del aviso</td>
+          <td style="padding:0 16px 14px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#2a1c28;font-weight:600;text-align:right;">${escapeHtml(p.issuedOnLabel)}</td>
+        </tr>
+      </table>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#efe4ec;border-radius:12px;margin-bottom:20px;">
+        <tr>
+          <td style="padding:14px 16px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#4f334a;font-weight:700;">Adeudo total</td>
+          <td style="padding:14px 16px;font-family:Georgia,'Times New Roman',serif;font-size:18px;color:#8b3a3a;font-weight:700;text-align:right;">${formatCurrency(p.total)}</td>
+        </tr>
+      </table>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e8dfd6;border-radius:12px;overflow:hidden;margin-bottom:22px;">
+        <tr>
+          <th align="left" style="background:#efe4ec;padding:12px 16px;font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:#4f334a;">Mes</th>
+          <th align="right" style="background:#efe4ec;padding:12px 16px;font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:#4f334a;">Monto</th>
+          <th align="right" style="background:#efe4ec;padding:12px 16px;font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:#4f334a;">Estado</th>
+        </tr>
+        ${rows}
+        <tr>
+          <td style="padding:14px 16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#2a1c28;font-weight:700;background:#f8f4ef;">Total</td>
+          <td colspan="2" style="padding:14px 16px;font-family:Arial,Helvetica,sans-serif;font-size:16px;color:#8b3a3a;font-weight:700;text-align:right;background:#f8f4ef;">${formatCurrency(p.total)}</td>
+        </tr>
+      </table>
+
+      <p style="margin:0 0 10px;font-family:Georgia,'Times New Roman',serif;font-size:16px;color:#4f334a;font-weight:700;">
+        Consecuencias por falta de pago
       </p>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8f4ef;border:1px solid #e8dfd6;border-radius:12px;margin-bottom:18px;">
         <tr>
-          <td style="padding:14px 16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#2a1c28;font-weight:700;">Casa #${escapeHtml(p.houseNumber)}</td>
-          <td style="padding:14px 16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#8b3a3a;font-weight:700;text-align:right;">Adeudo total: ${formatCurrency(p.total)}</td>
+          <td style="padding:14px 16px 6px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+              ${consequences}
+            </table>
+          </td>
         </tr>
       </table>
-      <p style="margin:0 0 12px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#2a1c28;">
-        Estimado(a) residente de la Casa #${escapeHtml(p.houseNumber)}:
-      </p>
-      <p style="margin:0 0 18px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#5a4a57;">
-        Por medio del presente, le informamos que su cuenta de cuotas de mantenimiento presenta un adeudo de ${period}. A continuación se detalla su historial:
-      </p>
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e8dfd6;border-radius:12px;overflow:hidden;margin-bottom:22px;">
-        <tr>
-          <th align="left" style="background:#4f334a;padding:10px 14px;font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:0.04em;text-transform:uppercase;color:#ffffff;">Mes</th>
-          <th align="right" style="background:#4f334a;padding:10px 14px;font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:0.04em;text-transform:uppercase;color:#ffffff;">Monto</th>
-          <th align="right" style="background:#4f334a;padding:10px 14px;font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:0.04em;text-transform:uppercase;color:#ffffff;">Estado</th>
-        </tr>
-        ${rows}
-      </table>
-      <p style="margin:0 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:16px;color:#4f334a;font-weight:700;">
-        Consecuencias por falta de pago
-      </p>
-      <ul style="margin:0 0 18px;padding-left:18px;">
-        ${consequences}
-      </ul>
-      <p style="margin:0 0 18px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#5a4a57;">
-        Le invitamos a ponerse en contacto con el Tesorero o el Comité Vecinal para acordar un plan de regularización de pagos. Su cooperación es fundamental para el bienestar y mantenimiento de nuestra comunidad.
-      </p>
-      <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:15px;line-height:1.4;color:#4f334a;">
-        Comité Vecinal<br>${escapeHtml(p.privadaName)}
+
+      <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#5a4a57;">
+        Para ponerse al corriente, responde a este correo o contacta al tesorero o al Comité Vecinal. Tu cooperación mantiene la privada.
       </p>
     `,
   });
@@ -103,9 +127,11 @@ export function buildDebtNoticeEmail(p: DebtNoticeEmailPayload) {
     `Casa #${p.houseNumber}`,
     `Adeudo total: ${formatCurrency(p.total)}`,
     ``,
-    `Estimado(a) residente de la Casa #${p.houseNumber}:`,
+    p.residentName.trim()
+      ? `Hola ${p.residentName},`
+      : `Estimado(a) residente de la Casa ${p.houseNumber}:`,
     ``,
-    `Por medio del presente, le informamos que su cuenta de cuotas de mantenimiento presenta un adeudo de ${period}. A continuación se detalla su historial:`,
+    `El comité registra un adeudo de ${period} en las cuotas de mantenimiento de la Casa ${p.houseNumber}. Conserva este correo como aviso oficial.`,
     ``,
     ...p.lines.map(
       (line) => `${line.label}  ${formatCurrency(line.amount)}  Pendiente`,
@@ -114,7 +140,7 @@ export function buildDebtNoticeEmail(p: DebtNoticeEmailPayload) {
     `Consecuencias por falta de pago:`,
     ...DEBT_NOTICE_CONSEQUENCES.map((item) => `- ${item}`),
     ``,
-    `Le invitamos a ponerse en contacto con el Tesorero o el Comité Vecinal para acordar un plan de regularización de pagos.`,
+    `Para ponerse al corriente, responde a este correo o contacta al tesorero o al Comité Vecinal.`,
     ``,
     `Comité Vecinal`,
     [p.privadaName, p.privadaAddress, ...contactBits].filter(Boolean).join(" · "),

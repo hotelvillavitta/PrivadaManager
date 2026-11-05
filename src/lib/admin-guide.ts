@@ -69,7 +69,7 @@ export const adminGuide: GuideSection[] = [
       {
         action: "Enviar aviso de adeudo",
         effect:
-          "En Administración → Avisos de adeudo se eligen las casas. El correo lleva los meses de mantenimiento pendientes, el total y las consecuencias. También queda un aviso en la app del propietario.",
+          "En Administración → Avisos de adeudo se eligen las casas. El correo y el PDF usan el mismo diseño que el comprobante de pago: meses pendientes, total y consecuencias. El correo también deja un aviso en la app del propietario. El PDF se descarga sin enviar correo.",
       },
       {
         action: "Crear un residente o generarle contraseña",
