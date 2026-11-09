@@ -432,6 +432,29 @@ export async function getPendingReservationsAdmin() {
   });
 }
 
+export async function getConfirmedReservationsAdmin() {
+  return prisma.reservation.findMany({
+    where: { status: "APPROVED" },
+    orderBy: { date: "asc" },
+    include: {
+      user: {
+        select: { firstName: true, lastName: true, houseNumber: true },
+      },
+    },
+  });
+}
+
+export async function getPalapaPaymentsForMatching() {
+  return prisma.palapaPayment.findMany({
+    orderBy: { paidAt: "asc" },
+    select: {
+      houseNumber: true,
+      paidAt: true,
+      financeEntry: { select: { status: true } },
+    },
+  });
+}
+
 /** Dashboard completo (solo cuando se necesitan varias secciones juntas). */
 export async function getAdminDashboard() {
   const { year: cy, month: cm } = calendarPartsInTijuana();

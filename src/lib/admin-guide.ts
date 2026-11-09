@@ -246,6 +246,7 @@ export const adminGuide: GuideSection[] = [
       "Si la casa debe cuotas y no tiene convenio, no puede reservar.",
       "Solo puede haber una solicitud o reservación activa por fecha.",
       "Aprobar o rechazar avisa al residente en la app. El rechazo pide un motivo. No se envía correo.",
+      "Debajo de pendientes, Confirmadas muestra el mes, la casa y el estatus del pago. Pagada: Tesorería ya validó el cobro. Por validar: el cobro se registró y sigue pendiente. Sin pago: esa casa no tiene un cobro de palapa libre para esa reservación.",
       "El aviso de la reservación pide confirmar el pago con el contacto de palapa. Hasta que alguien lo registre en Cobranza, ese dinero no está en Finanzas.",
     ],
   },
